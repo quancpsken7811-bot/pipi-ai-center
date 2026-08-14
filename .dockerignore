@@ -1,0 +1,10 @@
+.git
+.codex
+.DS_Store
+.env
+.env.*
+!.env.example
+data
+docs
+ops
+node_modules

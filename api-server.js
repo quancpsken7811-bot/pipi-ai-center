@@ -3781,7 +3781,7 @@ async function route(req, res) {
       if (!name) return fail(res, 400, '学员姓名不能为空', 40001);
       if (!/^1\d{10}$/.test(phone)) return fail(res, 400, '请输入正确的 11 位手机号', 40001);
       if (password.length < 8) return fail(res, 400, '初始密码至少需要 8 位', 40001);
-      if (!roleMeta[role] || role === 'admin') return fail(res, 400, '当前只支持开通训练营或陪跑学员', 40001);
+      if (!roleMeta[role]) return fail(res, 400, '角色不合法', 40001);
       if (managedUsers.some((item) => item.phone === phone || item.account === phone)) return fail(res, 409, '该手机号已经开通过账号或正在作为登录账号使用', 40901);
       const item = {
         id: Date.now(),
@@ -3792,7 +3792,7 @@ async function route(req, res) {
         role,
         roleName: roleMeta[role].name,
         status: 'active',
-        paid_product: body.paid_product || (role === 'coaching' ? '陪跑服务' : '训练营'),
+        paid_product: body.paid_product || (role === 'admin' ? '后台管理' : role === 'coaching' ? '陪跑服务' : '训练营'),
         opened_at: new Date().toISOString().slice(0, 10),
         expires_at: body.expires_at || '',
         remark: body.remark || '',
@@ -3806,7 +3806,7 @@ async function route(req, res) {
       if (!requireAdmin(req, res)) return;
       const user = managedUsers.find((item) => String(item.id) === url.pathname.split('/').pop());
       if (!user) return fail(res, 404, '用户不存在', 40400);
-      if (body.role && (!roleMeta[body.role] || body.role === 'admin')) return fail(res, 400, '角色不合法', 40001);
+      if (body.role && !roleMeta[body.role]) return fail(res, 400, '角色不合法', 40001);
       const nextPhone = body.phone !== undefined ? String(body.phone).trim() : user.phone;
       if (body.phone !== undefined && (!/^1\d{10}$/.test(nextPhone) || managedUsers.some((item) => item.id !== user.id && (item.phone === nextPhone || item.account === nextPhone)))) return fail(res, 400, '手机号格式错误或已被使用', 40001);
       if (body.status !== undefined && !['active', 'disabled'].includes(body.status)) return fail(res, 400, '账号状态不合法', 40001);

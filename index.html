@@ -505,13 +505,13 @@
 
         <section class="admin-module hidden" id="adminModule-users">
           <section class="panel">
-            <div class="panel-head"><div><h3>用户与权限</h3><p>后台手动开通账号。陪跑学员开放全部工具，训练营学员开放流量工具。</p></div><span class="admin-count" id="adminUserTotal">0 个账号</span></div>
+            <div class="panel-head"><div><h3>用户与权限</h3><p>后台可手动开通管理员、陪跑学员和训练营学员账号。管理员拥有后台配置权限。</p></div><span class="admin-count" id="adminUserTotal">0 个账号</span></div>
             <div class="user-stats" id="userStats"></div>
             <div class="admin-form user-form">
               <input id="newUserName" placeholder="学员姓名" />
               <input id="newUserPhone" placeholder="手机号，例如 13800138000" />
               <input id="newUserPassword" type="password" autocomplete="new-password" placeholder="初始密码，至少 8 位" />
-              <select id="newUserRole"><option value="coaching">陪跑学员</option><option value="training">训练营学员</option></select>
+              <select id="newUserRole"><option value="coaching">陪跑学员</option><option value="training">训练营学员</option><option value="admin">管理员</option></select>
               <input id="newUserProduct" placeholder="付费产品，例如 陪跑服务 / 训练营" />
               <input id="newUserExpires" type="date" aria-label="到期日期" />
               <button class="primary" id="addUser">开通账号</button>

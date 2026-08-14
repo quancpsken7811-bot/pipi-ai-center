@@ -1,0 +1,4 @@
+interface:
+  display_name: "皮皮交付朋友圈"
+  short_description: "基于真实交付过程写可直接发布的朋友圈文案"
+  default_prompt: "Use $pipi-delivery-moments to turn this real delivery experience into a WeChat Moments post."

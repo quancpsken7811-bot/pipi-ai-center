@@ -1,0 +1,4080 @@
+const http = require('http');
+const { createHash, createHmac, randomBytes, randomUUID, scryptSync, timingSafeEqual } = require('crypto');
+const { execFileSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const { decryptWechatVideoBuffer } = require('./wechat-video-decrypt');
+
+const PORT = Number(process.env.PIPI_API_PORT || 8787);
+const HOST = process.env.PIPI_API_HOST || '127.0.0.1';
+const LEGACY_PORTS = [...new Set(String(process.env.PIPI_LEGACY_PORTS || '4281,8788')
+  .split(',')
+  .map((item) => Number(item.trim()))
+  .filter((port) => Number.isInteger(port) && port > 0 && port !== PORT))];
+const APP_ROOT = __dirname;
+const DATA_DIR = process.env.PIPI_DATA_DIR || path.join(APP_ROOT, 'data');
+const STATE_PATH = path.join(DATA_DIR, 'state.json');
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const AUTH_SECRET = process.env.PIPI_AUTH_SECRET || (IS_PRODUCTION ? '' : 'pipi-local-development-secret');
+const AUTH_TOKEN_TTL_MS = Number(process.env.PIPI_AUTH_TOKEN_TTL_MS || 7 * 24 * 60 * 60 * 1000);
+const ALLOWED_ORIGINS = new Set((process.env.PIPI_ALLOWED_ORIGINS || (IS_PRODUCTION ? '' : 'http://127.0.0.1:4281,http://localhost:4281,http://127.0.0.1:8787,http://localhost:8787,http://[::1]:8787'))
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean));
+const ALLOW_SELF_REGISTRATION = process.env.PIPI_ALLOW_SELF_REGISTRATION === 'true';
+const INVENTORY_PATH = process.env.PIPI_API_INVENTORY || '/Users/lemon/Documents/API.rtf';
+const SILICONFLOW_BASE_URL = process.env.SILICONFLOW_BASE_URL || 'https://api.siliconflow.cn/v1';
+const ARK_PLAN_BASE_URL = process.env.ARK_PLAN_BASE_URL || 'https://ark.cn-beijing.volces.com/api/plan/v3';
+const ARK_IMAGE_BASE_URL = process.env.ARK_IMAGE_BASE_URL || 'https://ark.cn-beijing.volces.com/api/v3';
+const COACH_MOMENTS_IMAGE_MODEL = process.env.COACH_MOMENTS_IMAGE_MODEL || 'doubao-seedream-5-0-pro-260628';
+const COACH_MOMENTS_IMAGE_FALLBACK_MODEL = process.env.COACH_MOMENTS_IMAGE_FALLBACK_MODEL || 'Qwen/Qwen-Image-Edit-2509';
+const VOLC_BILLING_ENDPOINT = process.env.VOLC_BILLING_ENDPOINT || 'https://open.volcengineapi.com';
+const VOLC_BILLING_REGION = process.env.VOLC_BILLING_REGION || 'cn-beijing';
+const VOLC_BILLING_SERVICE = process.env.VOLC_BILLING_SERVICE || 'billing';
+const VOLC_BILLING_ACTION = process.env.VOLC_BILLING_ACTION || 'QueryBalanceAcct';
+const VOLC_BILLING_VERSION = process.env.VOLC_BILLING_VERSION || '2022-01-01';
+const TIKHUB_BASE_URL = process.env.TIKHUB_BASE_URL || 'https://api.tikhub.io';
+const TIKHUB_FALLBACK_BASE_URL = process.env.TIKHUB_FALLBACK_BASE_URL || (TIKHUB_BASE_URL.includes('api.tikhub.io') ? 'https://api.tikhub.dev' : 'https://api.tikhub.io');
+const TIKHUB_COMPETITOR_SEARCH_ENDPOINT = process.env.TIKHUB_COMPETITOR_SEARCH_ENDPOINT || '/api/v1/douyin/search/fetch_general_search_v1';
+const TIKHUB_WECHAT_CHANNELS_SEARCH_ENDPOINT = process.env.TIKHUB_WECHAT_CHANNELS_SEARCH_ENDPOINT || '/api/v1/wechat_search/v2/fetch_search_videos';
+const TIKHUB_WECHAT_CHANNELS_DETAIL_ENDPOINT = process.env.TIKHUB_WECHAT_CHANNELS_DETAIL_ENDPOINT || '/api/v1/wechat_channels/v2/fetch_video_detail';
+const TIKHUB_XIAOHONGSHU_SEARCH_ENDPOINT = process.env.TIKHUB_XIAOHONGSHU_SEARCH_ENDPOINT || '/api/v1/xiaohongshu/app_v2/search_notes';
+const TIKHUB_EDUCATION_TRENDS_ENDPOINT = process.env.TIKHUB_EDUCATION_TRENDS_ENDPOINT || '/api/v1/douyin/billboard/fetch_hot_total_search_list';
+const TIKHUB_XIAOHONGSHU_TRENDS_ENDPOINT = process.env.TIKHUB_XIAOHONGSHU_TRENDS_ENDPOINT || '/api/v1/xiaohongshu/web_v3/fetch_search_suggest';
+const COMPETITOR_TRENDS_CACHE_TTL_MS = 30 * 60 * 1000;
+const COMPETITOR_DAILY_VIDEO_LIMIT = 100;
+const COMPETITOR_RESULT_LIMITS = new Set([5, 10, 20]);
+const COMPETITOR_MEDIA_MAX_BYTES = 50 * 1024 * 1024;
+const SILICONFLOW_ASR_MODEL = process.env.SILICONFLOW_ASR_MODEL || 'FunAudioLLM/SenseVoiceSmall';
+const COMPETITOR_CHANNELS = {
+  douyin: { code: 'douyin', label: '抖音', endpoint: TIKHUB_COMPETITOR_SEARCH_ENDPOINT },
+  wechat_channels: { code: 'wechat_channels', label: '视频号', endpoint: TIKHUB_WECHAT_CHANNELS_SEARCH_ENDPOINT },
+  xiaohongshu: { code: 'xiaohongshu', label: '小红书', endpoint: TIKHUB_XIAOHONGSHU_SEARCH_ENDPOINT }
+};
+const VOLC_ASR_BASE_URL = process.env.VOLC_ASR_BASE_URL || 'https://openspeech.bytedance.com';
+const VOLC_ASR_RESOURCE_ID = process.env.VOLC_ASR_RESOURCE_ID || 'volc.bigasr.auc';
+const competitorVideoSources = new Map();
+const competitorTrendsCache = {
+  douyin: { expiresAt: 0, value: null },
+  xiaohongshu: { expiresAt: 0, value: null }
+};
+const COPYWRITING_PROMPT_PATH = path.join(__dirname, 'prompts', 'copywriting-agent-v2.txt');
+const DELIVERY_MOMENTS_SKILL_PATH = path.join(__dirname, 'skills', 'pipi-delivery-moments', 'SKILL.md');
+const COPY_AGENT_COVER_DIR = path.join(__dirname, 'assets', 'agent-covers');
+const COPY_AGENT_COVER_CONFIG_PATH = path.join(COPY_AGENT_COVER_DIR, 'cover-config.json');
+const COACH_MOMENT_FIXED_TEMPLATE_PATH = path.join(APP_ROOT, 'assets', 'coach-moment-fixed-template.png');
+const COACH_MOMENT_LAYOUT_REFERENCE_PATH = path.join(APP_ROOT, 'assets', 'coach-moment-layout-reference.png');
+const USER_AVATAR_DIR = path.join(__dirname, 'assets', 'user-avatars');
+const PERSONAL_KNOWLEDGE_UPLOAD_DIR = path.join(DATA_DIR, 'personal-knowledge');
+const PERSONAL_KNOWLEDGE_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+const PIPI_STUDENT_SKILL_ZIP = process.env.PIPI_STUDENT_SKILL_ZIP || path.join(__dirname, '..', 'outputs', 'pipi-student-qa.zip');
+const BOOTSTRAP_ADMIN_ACCOUNT = process.env.PIPI_BOOTSTRAP_ADMIN_ACCOUNT || 'admin';
+const BOOTSTRAP_ADMIN_PASSWORD = process.env.PIPI_BOOTSTRAP_ADMIN_PASSWORD || (IS_PRODUCTION ? '' : '123456');
+const PRIMARY_MODEL = process.env.SILICONFLOW_MODEL || 'Qwen/Qwen3-8B';
+const FALLBACK_MODELS = (process.env.SILICONFLOW_FALLBACK_MODELS || 'zai-org/GLM-5.2,deepseek-ai/DeepSeek-V4-Flash')
+  .split(',')
+  .map((item) => item.trim())
+  .filter(Boolean);
+const MODEL_CALL_BUDGETS = {
+  pipi: 60000,
+  topics: 75000,
+  copywriting: 90000,
+  wechat_layout: 120000,
+  competitor: 60000,
+  sales_simulation: 90000,
+  coach_sop: 90000,
+  coach_moments: 90000
+};
+const MODEL_ATTEMPT_TIMEOUTS = {
+  pipi: 45000,
+  topics: 35000,
+  copywriting: 60000,
+  wechat_layout: 110000,
+  competitor: 30000,
+  sales_simulation: 60000,
+  coach_sop: 60000,
+  coach_moments: 60000
+};
+
+function localDateKey(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+if (IS_PRODUCTION && !AUTH_SECRET) {
+  throw new Error('生产环境必须设置 PIPI_AUTH_SECRET。');
+}
+if (IS_PRODUCTION && BOOTSTRAP_ADMIN_PASSWORD.length < 12) {
+  throw new Error('生产环境必须设置至少 12 位的 PIPI_BOOTSTRAP_ADMIN_PASSWORD。');
+}
+
+function loadPromptFile(filePath, fallback) {
+  try {
+    return fs.readFileSync(filePath, 'utf8').trim() || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function loadZipText(zipPath, entryPath) {
+  try {
+    return execFileSync('unzip', ['-p', zipPath, entryPath], {
+      encoding: 'utf8',
+      maxBuffer: 2 * 1024 * 1024
+    }).trim();
+  } catch {
+    return '';
+  }
+}
+
+function loadPipiStudentSkillKnowledge() {
+  const entries = [
+    ['Skill 核心规则', 'pipi-student-qa/SKILL.md'],
+    ['学员版业务方法论', 'pipi-student-qa/references/student-methodology.md'],
+    ['学员答疑输出手册', 'pipi-student-qa/references/answer-playbook.md']
+  ];
+  const sections = entries.map(([title, entryPath]) => {
+    const content = loadZipText(PIPI_STUDENT_SKILL_ZIP, entryPath);
+    return content ? `# ${title}\n\n${content}` : '';
+  }).filter(Boolean);
+  return sections.join('\n\n---\n\n');
+}
+
+const COPYWRITING_OUTPUT_FIRST_RULE = `【统一执行规则｜先产出，后补问】
+1. 用户发来主题、素材、原文或修改要求后，必须先基于现有信息直接完成一版可用产出，不能只回复问题、资料清单或让用户先补素材。
+2. 信息不完整时，使用克制的通用表达，避开无法确认的事实；必要处可标记“待补充”，不得编造案例、数据、结果、身份和反馈。
+3. 主体内容必须放在前面。补充问题只能放在完整产出之后，标题统一为“可继续补充（可选）”。
+4. 每轮最多补问 1 个最影响下一版质量的问题；能不问就不问，不得连续罗列多个问题。
+5. 用户要求修改已有内容时，直接给修改后的完整版本，不先进行访谈。
+6. 即使原有 Prompt 中存在“先提问”“等待确认”“先补充对标文案”“先确认大纲”等流程，也以本规则为最高优先级：先给可用初稿，再在末尾进行一次可选补问。`;
+
+const WECHAT_LAYOUT_ANALYSIS_PROMPT = `你是公众号视觉编辑，只分析已经完成的文章，不改写、删减或补充原文。你的任务是从带编号的段落中识别标题、副标题、章节标题、适合做金句卡的段落、图片插入位置和结尾。只返回 JSON，不要 Markdown 或说明文字。索引必须来自输入段落，无法判断时宁可少选。`;
+
+const SALES_REPORT_DIMENSIONS = [
+  { code: 'icebreak', name: '破冰与信任', weight: 12 },
+  { code: 'discovery', name: '事实挖需', weight: 22 },
+  { code: 'diagnosis', name: '需求诊断', weight: 20 },
+  { code: 'case_match', name: '案例与方案匹配', weight: 16 },
+  { code: 'objection', name: '异议处理', weight: 15 },
+  { code: 'close', name: '推进与收口', weight: 15 }
+];
+
+const SALES_CONVERSATION_OUTCOMES = {
+  normal: { code: 'normal', label: '正常结束', severity: 'normal', detail: '本轮在正常沟通节点结束。' },
+  disengaged: { code: 'disengaged', label: '用户不想理你', severity: 'warning', detail: '销售表达出现赶客信号，对方停止继续沟通，本轮已自动结束。' },
+  blocked: { code: 'blocked', label: '已拉黑', severity: 'danger', detail: '出现攻击或骚扰性表达，对方结束沟通并拉黑，本轮已自动结束。' }
+};
+
+const copyAgentSections = [
+  { code: 'local_city', name: '同城教育口播文案智能体', heading: '## 二、' },
+  { code: 'persona_story', name: '人设故事口播文案智能体', heading: '## 三、' },
+  { code: 'education_vertical', name: '教育垂类爆款短视频文案智能体', heading: '## 四、' },
+  { code: 'education_dry_goods', name: '教育垂类干货智能体', heading: '## 九、' },
+  { code: 'education_marketing', name: '教育营销型短视频文案智能体', heading: '## 六、' },
+  { code: 'moments', name: '朋友圈文案智能体', heading: '## 七、' },
+  { code: 'xiaohongshu', name: '小绿书文案智能体', heading: '## 十、' },
+  { code: 'wechat_article', name: '公众号文案智能体', heading: '## 八、' },
+  { code: 'wechat_layout', name: '公众号排版智能体', heading: '', prompt: WECHAT_LAYOUT_ANALYSIS_PROMPT }
+];
+const defaultCopyAgentConfigs = [
+  { code: 'local_city', name: '同城智能体', description: '适合同城招生、本地信任和到店/到课转化。', guide: '告诉我你的城市、业务、目标家长，以及你想解决的一个本地招生问题。', starters: ['我是做原版英语的，想吸引5-9岁孩子家长', '我想写一条同城教育口播', '帮我写一条本地家长关心的招生内容'], tags: ['traffic', 'short'], tag_labels: ['流量', '短视频'], default_type: 'short', status: 'published', model_id: 20 },
+  { code: 'persona_story', name: '人设智能体', description: '把个人经历、教育理念和身份故事讲得真实。', guide: '告诉我你的身份、经历、教育理念和一个你真正想表达的观点。', starters: ['把我的从业经历写成一条人设故事', '我想讲一个影响我教育理念的真实经历', '帮我把个人介绍写得更有温度'], tags: ['traffic', 'short'], tag_labels: ['流量', '短视频'], default_type: 'short', status: 'published', model_id: 20 },
+  { code: 'education_vertical', name: '垂类爆款智能体', description: '围绕真实问题、专业判断和精准客户创作。', guide: '告诉我你的细分赛道、目标客户和一个高频问题，我会帮你找到更有传播力的切口。', starters: ['帮我把一个家长高频问题写成短视频', '我想做一条有专业判断的教育内容', '围绕我的细分赛道找一个传播切口'], tags: ['traffic', 'short'], tag_labels: ['流量', '爆款'], default_type: 'short', status: 'published', model_id: 20 },
+  { code: 'education_dry_goods', name: '垂类干货智能体', description: '专注教育专业知识、方法拆解和高频问题。', guide: '先告诉我你想讲的专业知识、适用人群和希望用户学会什么。', starters: ['把这个知识点拆成一条易懂干货', '帮我写一个家长能马上执行的方法', '把我的专业经验整理成短视频'], tags: ['traffic', 'short'], tag_labels: ['流量', '专业干货'], default_type: 'short', status: 'published', model_id: 20 },
+  { code: 'education_marketing', name: '营销智能体', description: '用专业表达承接咨询、公开课和产品了解。', guide: '告诉我你的产品、用户当前的需求，以及这条内容希望承接什么动作。', starters: ['帮我写一条公开课邀约内容', '把产品介绍写得专业但不生硬', '写一条能自然承接咨询的短视频'], tags: ['traffic', 'short'], tag_labels: ['流量', '营销'], default_type: 'short', status: 'published', model_id: 20 },
+  { code: 'moments', name: '朋友圈智能体', description: '围绕日常表达、专业判断、案例和信任场生成内容。', guide: '告诉我今天想表达的事情、真实素材和希望建立的信任感。', starters: ['我想写一条今天的教学感悟', '把这个真实案例写成朋友圈', '帮我写一条有专业感但不营销的朋友圈'], tags: ['private', 'moments'], tag_labels: ['私域', '信任场'], default_type: 'moments', status: 'published', model_id: 20 },
+  { code: 'xiaohongshu', name: '小绿书智能体', description: '面向小绿书图文场景，生成适合教育表达的内容。', guide: '告诉我图文主题、目标人群和你准备使用的图片或案例。', starters: ['把这个主题拆成小绿书图文', '帮我设计一组家长易读的图文卡片', '写一篇适合微信传播的教育小绿书'], tags: ['private', 'imageText'], tag_labels: ['私域', '图文卡片'], default_type: 'imageText', status: 'published', model_id: 20 },
+  { code: 'wechat_article', name: '公众号文案', description: '围绕长文结构、观点表达和教育内容沉淀生成文案。', guide: '告诉我文章主题、读者对象和你希望沉淀的核心观点。', starters: ['帮我搭一篇教育观点文章的结构', '把这段素材写成公众号长文', '围绕这个家长问题写一篇深度文章'], tags: ['private', 'article'], tag_labels: ['私域', '价值长文'], default_type: 'article', status: 'published', model_id: 20 },
+  { code: 'wechat_layout', name: '公众号排版', description: '把已经写好的长文直接变成可预览、可复制的公众号视觉成品。', guide: '粘贴完整成稿，选择风格和图片，我会保留原文完成结构识别与视觉排版。', starters: ['排版一篇学员案例文章', '把这篇教育观点文章做成公众号成品', '给这篇招生活动文章做视觉排版'], tags: ['private', 'layout'], tag_labels: ['私域', '视觉排版'], default_type: 'article', status: 'published', model_id: 20 }
+];
+const initialCopyAgentCoverFiles = ['pipi-reading.jpg', 'pipi-cafe.jpg', 'pipi-winter-city.jpg', 'pipi-hanfu.jpg', 'pipi-white-sea.jpg', 'pipi-blue-sea.jpg', 'pipi-pink-sea.jpg', 'pipi-arch-sea.jpg', 'pipi-sunset-yellow.jpg'];
+const copyAgentCoverId = (file) => `image-${String(file || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+
+function copyAgentCoverOptions() {
+  fs.mkdirSync(COPY_AGENT_COVER_DIR, { recursive: true });
+  const available = new Set(fs.readdirSync(COPY_AGENT_COVER_DIR).filter((file) => /\.(?:jpe?g|png|webp)$/i.test(file)));
+  const orderedFiles = [
+    ...initialCopyAgentCoverFiles.filter((file) => available.has(file)),
+    ...[...available].filter((file) => !initialCopyAgentCoverFiles.includes(file)).sort()
+  ];
+  return orderedFiles.map((file, index) => ({
+    id: copyAgentCoverId(file),
+    label: `图片 ${String(index + 1).padStart(2, '0')}`,
+    file: `assets/agent-covers/${file}`,
+    focus: '50% 50%'
+  }));
+}
+const defaultCopywritingCoverConfig = {
+  local_city: copyAgentCoverId('pipi-reading.jpg'),
+  persona_story: copyAgentCoverId('pipi-cafe.jpg'),
+  education_vertical: copyAgentCoverId('pipi-winter-city.jpg'),
+  education_dry_goods: copyAgentCoverId('pipi-hanfu.jpg'),
+  education_marketing: copyAgentCoverId('pipi-white-sea.jpg'),
+  moments: copyAgentCoverId('pipi-blue-sea.jpg'),
+  xiaohongshu: copyAgentCoverId('pipi-pink-sea.jpg'),
+  wechat_article: copyAgentCoverId('pipi-arch-sea.jpg'),
+  wechat_layout: copyAgentCoverId('pipi-sunset-yellow.jpg')
+};
+
+function loadCopywritingCoverConfig() {
+  try {
+    const saved = JSON.parse(fs.readFileSync(COPY_AGENT_COVER_CONFIG_PATH, 'utf8'));
+    return {
+      covers: { ...defaultCopywritingCoverConfig, ...(saved.covers || {}) },
+      layouts: saved.layouts && typeof saved.layouts === 'object' ? saved.layouts : {}
+    };
+  } catch {
+    return { covers: { ...defaultCopywritingCoverConfig }, layouts: {} };
+  }
+}
+
+function saveCopywritingCoverConfig(config) {
+  fs.mkdirSync(COPY_AGENT_COVER_DIR, { recursive: true });
+  fs.writeFileSync(COPY_AGENT_COVER_CONFIG_PATH, JSON.stringify(config, null, 2));
+}
+
+const copywritingCoverConfig = loadCopywritingCoverConfig();
+
+function normalizeCopyAgentStarters(value, fallback = []) {
+  const source = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/\r?\n/) : fallback;
+  return source.map((item) => typeof item === 'object' ? String(item.prompt || item.label || '') : String(item || ''))
+    .map((item) => item.trim().slice(0, 160))
+    .filter(Boolean)
+    .slice(0, 4);
+}
+
+function copyAgentByCode(code) {
+  return copyAgentConfigs.find((item) => item.code === String(code || ''));
+}
+
+function publicCopyAgentConfig(agent) {
+  return {
+    code: agent.code,
+    name: agent.name,
+    description: agent.description,
+    guide: agent.guide,
+    starters: normalizeCopyAgentStarters(agent.starters),
+    tags: Array.isArray(agent.tags) ? agent.tags : [],
+    tag_labels: Array.isArray(agent.tag_labels) ? agent.tag_labels : [],
+    default_type: agent.default_type || 'short',
+    status: agent.status === 'published' ? 'published' : 'unpublished',
+    model_id: Number(agent.model_id) || 20,
+    created_at: agent.created_at || '',
+    updated_at: agent.updated_at || ''
+  };
+}
+
+function publicCopywritingCoverConfig({ includeUnpublished = false } = {}) {
+  const agents = copyAgentConfigs
+    .filter((item) => includeUnpublished || item.status === 'published')
+    .map(publicCopyAgentConfig);
+  return { agents, covers: copywritingCoverConfig.covers, layouts: copywritingCoverConfig.layouts, cover_options: copyAgentCoverOptions() };
+}
+
+function extractPromptSection(master, heading) {
+  const start = master.indexOf(heading);
+  if (start < 0) return '';
+  const rest = master.slice(start + 3);
+  const next = rest.search(/^## (?:一|二|三|四|五|六|七|八|九|十)、/m);
+  return master.slice(start, next < 0 ? master.length : start + 3 + next).trim();
+}
+
+const records = [];
+const callLogs = [];
+const competitorSearchDailyUsage = {};
+const competitorSearchReservations = new Map();
+let tikhubAccountUsageCache = { expires_at: 0, value: null };
+let volcBillingAccountUsageCache = { expires_at: 0, value: null };
+const providerConfigs = [
+  { id: 1, code: 'siliconflow', name: '硅基流动', base_url: SILICONFLOW_BASE_URL, status: 'active', health_status: 'pending', key_status: 'runtime_secret', capability: 'llm' },
+  { id: 2, code: 'volcengine_ark_plan', name: '火山方舟 Ark Plan', base_url: ARK_PLAN_BASE_URL, status: 'active', health_status: 'pending', key_status: 'runtime_secret', capability: 'llm' },
+  { id: 3, code: 'tikhub', name: 'TikHub', base_url: TIKHUB_BASE_URL, status: 'active', health_status: 'pending', key_status: 'runtime_secret', capability: 'social_data' }
+];
+const modelConfigs = [
+  { id: 1, provider_code: 'siliconflow', display_name: 'Qwen3 8B', model_code: PRIMARY_MODEL, status: 'active', role: 'primary', input_price_cny_per_million: 0, output_price_cny_per_million: 0 },
+  ...FALLBACK_MODELS.map((model, index) => ({ id: index + 2, provider_code: 'siliconflow', display_name: model, model_code: model, status: 'active', role: 'fallback', input_price_cny_per_million: 0, output_price_cny_per_million: 0 })),
+  { id: 20, provider_code: 'volcengine_ark_plan', display_name: 'Doubao Seed 2.1（Ark Plan）', model_code: 'ark-code-latest', status: 'active', role: 'primary' },
+  { id: 21, provider_code: 'volcengine_ark_plan', display_name: 'Doubao Seed 2.0 Pro', model_code: 'doubao-seed-2.0-pro', status: 'active', role: 'primary' }
+];
+const copyAgentConfigs = defaultCopyAgentConfigs.map((item) => ({ ...item, starters: [...item.starters], tags: [...item.tags], tag_labels: [...item.tag_labels] }));
+const configurableFeatureCodes = ['topic_generate', 'pipi_assistant_chat', 'copywriting_generate', 'competitor_finder', 'sales_simulation', 'coach_toolbox', 'coach_moments'];
+const promptTemplates = [
+  { id: 1, feature_code: 'pipi_assistant_chat', name: '皮皮分身 Prompt', version: 'v2', status: 'active', content: '你是皮皮，一个懂教育 IP 增长，也愿意耐心陪学员聊天和使用中台的真人感助手。像微信里一位靠谱的老师一样说话：先接住用户正在说的事，再给一两个具体回应。不要机械使用“我的判断 / 原因 / 下一步”标题，不要每次都总结成报告，不要动辄列出三条要求。信息不足时只自然追问一个最关键的问题；简单问题就简短回答，复杂问题再展开。避免空泛鼓励、客服腔和过度专业术语。' },
+  { id: 2, feature_code: 'topic_generate', name: '选题生成 Prompt', version: 'v1', status: 'active', content: '根据赛道、业务和方向生成教育短视频选题。' },
+  ...copyAgentSections.map((agent, index) => ({
+    id: index === 0 ? 3 : 4 + index,
+    feature_code: 'copywriting_generate',
+    agent_code: agent.code,
+    name: agent.name,
+    version: 'v2.2',
+    status: 'active',
+    content: agent.prompt || (agent.heading
+      ? `${COPYWRITING_OUTPUT_FIRST_RULE}\n\n${extractPromptSection(loadPromptFile(COPYWRITING_PROMPT_PATH, ''), agent.heading)}`
+      : COPYWRITING_OUTPUT_FIRST_RULE)
+  })),
+  { id: 4, feature_code: 'competitor_finder', name: '找竞品 Prompt', version: 'v1', status: 'active', content: '生成竞品搜索关键词、筛选标准和分析维度。' },
+  { id: 30, feature_code: 'sales_simulation', name: '销售模拟六步法 Prompt', version: 'v2.0', status: 'active', content: '你是销售模拟教练。让 AI 扮演不同 DISC 风格的家长，依据破冰夸奖、深度挖需、案例展示、产品介绍、卡点清理、临门踢单六步法进行训练。模拟阶段只扮演家长，不透露评分规则；复盘阶段再按六步法分析学员表现。' },
+  { id: 40, feature_code: 'coach_toolbox', name: '工作流搭建 Prompt', version: 'v1', status: 'active', content: '你是一位教育业务交付运营专家。把教练输入的工作整理成清晰、可编辑的 SOP 思维导图。根据“想搭建的工作、已有灵感和初步想法”，拆成 6-8 个连续且更细致的关键步骤。每个节点只写 12 字以内的步骤名称和一句不超过 28 字的可执行动作；不写负责人、产出、完成标准、冗长解释或 Markdown。没有提供的事实不得编造，不得编造学员信息、案例、数据或结果承诺。只输出 JSON：{"title":"12字以内工作流名称","goal":"20字以内目标","steps":[{"id":"step_1","name":"步骤名称","action":"一句具体动作","detail":"可选补充"}]}' },
+  { id: 41, feature_code: 'coach_moments', name: '交付朋友圈 Prompt', version: 'v2', status: 'active', content: loadPromptFile(DELIVERY_MOMENTS_SKILL_PATH, '根据真实交付过程写克制、具体、保护隐私的可直接发布朋友圈。') }
+];
+const featureConfigs = [
+  { feature_code: 'pipi_assistant_chat', feature_name: '皮皮分身', primary_model_id: 20, fallback_model_ids: [], prompt_template_id: 1, status: 'active', provider_codes: ['volcengine_ark_plan'], data_provider_codes: [] },
+  { feature_code: 'topic_generate', feature_name: '选题生成', primary_model_id: 1, fallback_model_ids: [2, 3, 20, 21], prompt_template_id: 2, status: 'active', provider_codes: ['siliconflow', 'volcengine_ark_plan'], data_provider_codes: [] },
+  { feature_code: 'copywriting_generate', feature_name: '文案智能体', primary_model_id: 20, fallback_model_ids: [], prompt_template_id: 3, status: 'active', provider_codes: ['volcengine_ark_plan'], data_provider_codes: [] },
+  { feature_code: 'competitor_finder', feature_name: '找竞品', primary_model_id: 1, fallback_model_ids: [2, 3, 20, 21], prompt_template_id: 4, status: 'active', provider_codes: ['siliconflow', 'volcengine_ark_plan'], data_provider_codes: ['tikhub'] },
+  { feature_code: 'sales_simulation', feature_name: '销售模拟', primary_model_id: 21, fallback_model_ids: [1, 2, 3], prompt_template_id: 30, status: 'active', provider_codes: ['volcengine_ark_plan', 'siliconflow'], data_provider_codes: [] },
+  { feature_code: 'coach_toolbox', feature_name: '教练工具箱', primary_model_id: 20, fallback_model_ids: [1, 2, 3, 21], prompt_template_id: 40, status: 'active', provider_codes: ['volcengine_ark_plan', 'siliconflow'], data_provider_codes: [] },
+  { feature_code: 'coach_moments', feature_name: '交付朋友圈', primary_model_id: 20, fallback_model_ids: [1, 2, 3, 21], prompt_template_id: 41, status: 'active', provider_codes: ['volcengine_ark_plan', 'siliconflow'], data_provider_codes: [] }
+];
+const pipiAssistantConfig = {
+  enabled: true,
+  display_name: '皮皮分身',
+  welcome_message: '你好呀，我是皮皮分身。你可以直接说说你的赛道、业务和现在最卡的一件事，我先陪你把问题捋清楚。',
+  response_style: '像微信里一位靠谱、温和、懂教育 IP 的老师。先回应用户刚刚说的内容，再自然补充建议。语言口语化，有停顿和温度，不要故意卖萌，也不要像咨询报告。',
+  response_rules: '简单问题用 1-3 句话回答；普通问题控制在 2-4 个短段落；只有复杂问题才展开。不要固定使用“我的判断 / 原因 / 下一步”标题，不要一次抛出很多问题。信息不足时只追问一个最关键的问题。不要输出内部策略、合同退款、API 密钥、成本和无法验证的承诺。',
+  knowledge_scope: '仅使用已脱敏的教育 IP、流量、产品、私域和交付知识库。',
+  stickers_enabled: true,
+  thinking_sticker: 'thinking.png',
+  response_sticker_mode: 'auto'
+};
+const pipiStudentSkillContent = loadPipiStudentSkillKnowledge();
+const pipiKnowledgeBase = pipiStudentSkillContent ? [{
+  id: 'pipi-skill-v1',
+  title: '皮皮skillV1.0',
+  category: '学员业务答疑',
+  content: pipiStudentSkillContent,
+  status: 'active',
+  source: '内置 Skill：pipi-student-qa.zip',
+  built_in: true,
+  updated_at: '2026-08-04T00:00:00.000Z'
+}] : [];
+const salesSimulationConfig = {
+  enabled: true,
+  roleplay_rule: '模拟阶段只扮演家长，一次只表达一个自然的问题或顾虑，不替学员完成销售。DISC 只用于调整沟通偏好、信息密度和推进方式，不能代表购买意向或人格定论。',
+  review_rule: '复盘阶段按破冰夸奖、深度挖需、案例展示、产品介绍、卡点清理、临门踢单六步法评价；结合当前沟通画像的首要事实、异议处理和下一步标准，只给一个下轮重点。',
+  knowledge_scope: '仅使用经管理员筛选、脱敏并启用的销售成交方法论与模拟语料。'
+};
+const coachToolboxConfig = {
+  enabled: true,
+  sop_enabled: true,
+  moments_enabled: true,
+  sop_prompt_note: '生成结果应以可编辑的思维导图呈现；每个节点只保留步骤名称、一句动作和可选补充。',
+  guide_note: '教练工具箱用于沉淀交付 SOP 与交付过程内容；不得编造学员信息或结果。'
+};
+const salesMethodSteps = [
+  { code: 'icebreak', number: '01', title: '破冰夸奖', library: '夸夸库', short_desc: '降低防备', description: '夸奖要真实、具体，最好来自家长已经做对的事，而不是空泛地说“您很重视教育”。', prompt_rule: '生成夸夸库。夸奖必须真实、具体、有事实依据，不得编造孩子成绩、家长身份或案例。', items: ['能在这个阶段主动来了解，说明您对孩子的情况观察得很细。', '您刚才能把孩子的情况说得这么具体，其实已经帮我们省了很多判断时间。', '您没有急着给孩子加课，而是先想弄清问题，这个思路其实特别好。', '孩子愿意坚持到现在，背后一定有您很多耐心的陪伴。'] },
+  { code: 'discovery', number: '02', title: '深度挖需', library: '挖需库', short_desc: '找到真需求', description: '从成绩、目标、过往学习和能力漏洞逐步了解，一次只问一个最关键的问题。', prompt_rule: '生成由浅入深的挖需问题，一次只问一个问题，覆盖现状、目标、过往尝试和真实卡点。', items: ['孩子现在最让您着急的，是成绩、学习状态，还是方法不对？', '过去为了解决这个问题，您们试过哪些方法？', '如果这次学习有效，您最希望先看到孩子发生什么变化？', '孩子自己怎么看这个问题？他愿意配合到什么程度？'] },
+  { code: 'case', number: '03', title: '案例展示', library: '案例库', short_desc: '建立信任', description: '优先选同年级、同问题、同阶段的真实案例，说清起点、过程和变化。', prompt_rule: '只使用用户提供或知识库中可验证的案例；没有真实案例时输出案例表达结构，不得编造。', items: ['先说相似起点：我们之前有一个同年级的孩子，一开始也是……', '再说关键过程：当时没有急着加量，而是先做了……', '最后说可验证变化，不使用结果保证。'] },
+  { code: 'product', number: '04', title: '产品介绍', library: '产品库', short_desc: '匹配方案', description: '产品介绍要回应刚才的诊断，只讲对这位家长有价值的部分。', prompt_rule: '按诊断结果连接产品价值，只讲与当前需求相关的交付、节奏和验证方式。', items: ['按照刚才了解的情况，孩子现在最需要的不是……而是……', '所以我建议先用……来验证……', '只说和当前需求相关的交付、节奏和结果验证方式。'] },
+  { code: 'objection', number: '05', title: '卡点清理', library: '异议库', short_desc: '重塑价值', description: '先认同顾虑，再核实真正原因，不要听到“贵”就立即解释价格。', prompt_rule: '按认同顾虑、核实原因、价值重塑、给出下一步的顺序生成表达。', items: ['您会考虑这个很正常，给孩子选课本来就需要谨慎。', '您现在更担心的是投入后没效果，还是孩子坚持不下来？', '回到家长真正在意的结果和风险重塑价值。'] },
+  { code: 'close', number: '06', title: '临门踢单', library: '成交库', short_desc: '推动行动', description: '不用虚假稀缺逼单，而是把下一步降低到家长容易做决定的诊断或体验。', prompt_rule: '使用低门槛诊断或体验推动首次行动，不虚假制造稀缺或紧迫感。', items: ['我们先不急着定长期课，先给孩子做一次测评。', '先让孩子体验一次，看他是否愿意配合，再决定后面的路径。', '说清时间、方式、需要准备的材料和下次联系点。'] }
+];
+const salesKnowledgeBase = [{
+  id: 'pipi-sales-six-steps-v1',
+  title: '皮皮销售六步法 V1.0',
+  category: '销售成交方法论',
+  content: '1. 破冰夸奖：建立有温度的第一印象，通过真实、具体的夸奖降低家长防备。\n2. 深度挖需：了解孩子成绩、目标、过往学习经历及六维能力漏洞，不停在表层问题。\n3. 案例展示：优先使用同年级、同问题学员的真实变化建立信任，不夸大结果。\n4. 产品介绍：根据前面的诊断结果，匹配体验产品或长期课程，不做无关功能堆叠。\n5. 卡点清理：先认同顾虑，再核实真正原因，完成价值重塑并给出明确下一步。\n6. 临门踢单：用低门槛诊断或体验推动家长完成首次行动，不虚假制造紧迫感。',
+  status: 'active',
+  source: '内置方法论：pipi-business-sales-brain',
+  built_in: true,
+  updated_at: '2026-08-04T00:00:00.000Z'
+}];
+const users = {
+  admin: { id: 1, account: 'admin', password: '123456', name: '管理员', role: 'admin', roleName: '管理员' },
+  coach: { id: 2, account: 'coach', password: '123456', name: '王老师', role: 'coaching', roleName: '陪跑学员' },
+  train: { id: 3, account: 'train', password: '123456', name: '李老师', role: 'training', roleName: '训练营学员' }
+};
+const managedUsers = [
+  { id: 1, account: BOOTSTRAP_ADMIN_ACCOUNT, password: BOOTSTRAP_ADMIN_PASSWORD, name: '管理员', phone: '', role: 'admin', roleName: '管理员', status: 'active', paid_product: '内部管理', opened_at: '2026-08-01', expires_at: '', remark: '系统管理员' },
+  ...(!IS_PRODUCTION ? [
+    { id: 2, account: 'coach', password: '123456', name: '王老师', phone: '13800138001', role: 'coaching', roleName: '陪跑学员', status: 'active', paid_product: '陪跑服务', opened_at: '2026-08-01', expires_at: '', remark: '' },
+    { id: 3, account: 'train', password: '123456', name: '李老师', phone: '13800138002', role: 'training', roleName: '训练营学员', status: 'active', paid_product: '训练营', opened_at: '2026-08-01', expires_at: '', remark: '' }
+  ] : [])
+];
+
+function replaceArray(target, source) {
+  if (!Array.isArray(source)) return;
+  target.splice(0, target.length, ...source);
+}
+
+function hashPassword(password) {
+  const salt = randomBytes(16).toString('hex');
+  const hash = scryptSync(String(password), salt, 64).toString('hex');
+  return `scrypt$${salt}$${hash}`;
+}
+
+function verifyPassword(user, password) {
+  if (user.password_hash) {
+    const [, salt, storedHash] = String(user.password_hash).split('$');
+    if (!salt || !storedHash) return false;
+    const actual = Buffer.from(scryptSync(String(password), salt, 64).toString('hex'));
+    const expected = Buffer.from(storedHash);
+    return actual.length === expected.length && timingSafeEqual(actual, expected);
+  }
+  if (user.password !== String(password)) return false;
+  user.password_hash = hashPassword(password);
+  delete user.password;
+  return true;
+}
+
+function secureManagedUserPasswords() {
+  managedUsers.forEach((user) => {
+    if (!user.password_hash && user.password) {
+      user.password_hash = hashPassword(user.password);
+      delete user.password;
+    }
+  });
+}
+
+function ensurePersonalCenterData(user) {
+  let changed = false;
+  if (!Array.isArray(user.personal_knowledge)) {
+    user.personal_knowledge = [];
+    changed = true;
+  }
+  if (!Array.isArray(user.point_ledger)) {
+    user.point_ledger = [{ id: `welcome-${user.id}`, title: '账户初始积分', change: 100, created_at: user.opened_at || new Date().toISOString().slice(0, 10) }];
+    changed = true;
+  }
+  if (!Number.isFinite(Number(user.points_balance))) {
+    user.points_balance = user.point_ledger.reduce((total, item) => total + Number(item.change || 0), 0);
+    changed = true;
+  }
+  if (!user.profile || typeof user.profile !== 'object') {
+    user.profile = { bio: '', business_description: '', avatar_url: '' };
+    changed = true;
+  }
+  return changed;
+}
+
+function publicManagedUser(user) {
+  const { password, password_hash, personal_knowledge, point_ledger, points_balance, profile, persona, ...safeUser } = user;
+  return {
+    ...safeUser,
+    status: effectiveStatus(user),
+    enabled_features: user.enabled_features || roleMeta[user.role]?.features || []
+  };
+}
+
+function loadPersistentState() {
+  try {
+    const saved = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8'));
+    replaceArray(records, saved.records);
+    replaceArray(callLogs, saved.callLogs);
+    if (saved.competitorSearchDailyUsage && typeof saved.competitorSearchDailyUsage === 'object') Object.assign(competitorSearchDailyUsage, saved.competitorSearchDailyUsage);
+    replaceArray(providerConfigs, saved.providerConfigs);
+    replaceArray(modelConfigs, saved.modelConfigs);
+    replaceArray(copyAgentConfigs, saved.copyAgentConfigs);
+    replaceArray(promptTemplates, saved.promptTemplates);
+    replaceArray(featureConfigs, saved.featureConfigs);
+    replaceArray(pipiKnowledgeBase, saved.pipiKnowledgeBase);
+    replaceArray(salesKnowledgeBase, saved.salesKnowledgeBase);
+    replaceArray(salesMethodSteps, saved.salesMethodSteps);
+    replaceArray(managedUsers, saved.managedUsers);
+    if (saved.pipiAssistantConfig && typeof saved.pipiAssistantConfig === 'object') Object.assign(pipiAssistantConfig, saved.pipiAssistantConfig);
+    if (saved.salesSimulationConfig && typeof saved.salesSimulationConfig === 'object') Object.assign(salesSimulationConfig, saved.salesSimulationConfig);
+    if (saved.coachToolboxConfig && typeof saved.coachToolboxConfig === 'object') Object.assign(coachToolboxConfig, saved.coachToolboxConfig);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw new Error(`持久化数据读取失败，已停止启动以避免覆盖原文件：${error.message}`);
+  }
+}
+
+function savePersistentState() {
+  const state = {
+    version: 1,
+    records,
+    callLogs,
+    competitorSearchDailyUsage,
+    providerConfigs,
+    modelConfigs,
+    copyAgentConfigs,
+    promptTemplates,
+    featureConfigs,
+    pipiAssistantConfig,
+    pipiKnowledgeBase,
+    salesSimulationConfig,
+    coachToolboxConfig,
+    salesMethodSteps,
+    salesKnowledgeBase,
+    managedUsers
+  };
+  fs.mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
+  const tempPath = `${STATE_PATH}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(tempPath, JSON.stringify(state, null, 2), { mode: 0o600 });
+  fs.renameSync(tempPath, STATE_PATH);
+}
+
+function ensureCopyAgentDefaults() {
+  let changed = false;
+  const now = new Date().toISOString();
+  defaultCopyAgentConfigs.forEach((defaults) => {
+    if (!copyAgentByCode(defaults.code)) {
+      copyAgentConfigs.push({ ...defaults, starters: [...defaults.starters], tags: [...defaults.tags], tag_labels: [...defaults.tag_labels], created_at: now, updated_at: now });
+      changed = true;
+    }
+  });
+  copyAgentConfigs.forEach((agent) => {
+    const defaults = defaultCopyAgentConfigs.find((item) => item.code === agent.code) || {};
+    const normalized = {
+      name: String(agent.name || defaults.name || '未命名智能体').trim().slice(0, 40),
+      description: String(agent.description || defaults.description || '教育内容创作智能体').trim().slice(0, 160),
+      guide: String(agent.guide || defaults.guide || '告诉我你想写什么，也可以直接发来真实素材。').trim().slice(0, 240),
+      starters: normalizeCopyAgentStarters(agent.starters, defaults.starters || []),
+      tags: Array.isArray(agent.tags) && agent.tags.length ? agent.tags.map((item) => String(item).trim()).filter(Boolean).slice(0, 4) : [...(defaults.tags || ['traffic', 'short'])],
+      tag_labels: Array.isArray(agent.tag_labels) && agent.tag_labels.length ? agent.tag_labels.map((item) => String(item).trim().slice(0, 12)).filter(Boolean).slice(0, 4) : [...(defaults.tag_labels || ['内容', '教育'])],
+      default_type: ['short', 'moments', 'imageText', 'article'].includes(agent.default_type) ? agent.default_type : (defaults.default_type || 'short'),
+      status: agent.status === 'unpublished' ? 'unpublished' : 'published',
+      model_id: modelConfigs.some((item) => item.id === Number(agent.model_id)) ? Number(agent.model_id) : Number(defaults.model_id || 20),
+      created_at: agent.created_at || now,
+      updated_at: agent.updated_at || now
+    };
+    Object.entries(normalized).forEach(([key, value]) => {
+      if (JSON.stringify(agent[key]) !== JSON.stringify(value)) {
+        agent[key] = value;
+        changed = true;
+      }
+    });
+  });
+  if (!promptTemplates.some((item) => item.feature_code === 'copywriting_generate' && item.agent_code === 'wechat_layout')) {
+    promptTemplates.push({
+      id: Math.max(0, ...promptTemplates.map((item) => Number(item.id) || 0)) + 1,
+      feature_code: 'copywriting_generate',
+      agent_code: 'wechat_layout',
+      name: '公众号排版智能体 Prompt',
+      version: 'v1',
+      status: 'active',
+      content: WECHAT_LAYOUT_ANALYSIS_PROMPT
+    });
+    changed = true;
+  }
+  return changed;
+}
+
+function ensureCoachToolboxDefaults() {
+  let changed = false;
+  if (!promptTemplates.some((item) => item.feature_code === 'coach_toolbox')) {
+    promptTemplates.push({ id: 40, feature_code: 'coach_toolbox', name: '工作流搭建 Prompt', version: 'v1', status: 'active', content: '你是一位教育业务交付运营专家。把教练输入的工作整理成清晰、可编辑的 SOP 思维导图。根据“想搭建的工作、已有灵感和初步想法”，拆成 6-8 个连续且更细致的关键步骤。每个节点只写 12 字以内的步骤名称和一句不超过 28 字的可执行动作；不写负责人、产出、完成标准、冗长解释或 Markdown。没有提供的事实不得编造，不得编造学员信息、案例、数据或结果承诺。只输出 JSON：{"title":"12字以内工作流名称","goal":"20字以内目标","steps":[{"id":"step_1","name":"步骤名称","action":"一句具体动作","detail":"可选补充"}]}' });
+    changed = true;
+  }
+  if (!featureConfigs.some((item) => item.feature_code === 'coach_toolbox')) {
+    featureConfigs.push({ feature_code: 'coach_toolbox', feature_name: '教练工具箱', primary_model_id: 20, fallback_model_ids: [1, 2, 3, 21], prompt_template_id: 40, status: 'active', provider_codes: ['volcengine_ark_plan', 'siliconflow'], data_provider_codes: [] });
+    changed = true;
+  }
+  if (!promptTemplates.some((item) => item.feature_code === 'coach_moments')) {
+    promptTemplates.push({ id: 41, feature_code: 'coach_moments', name: '交付朋友圈 Prompt', version: 'v1', status: 'active', content: '你是一位教育业务交付教练的内容助手。根据教练提供的真实交付信息，写一条可直接发布的交付朋友圈。必须沿用“具体场景 / 看见的卡点 → 这次怎么带着做 → 学员的理解或微小变化 → 一句可复用的交付洞察”的自然叙事，不写空泛鸡汤和广告腔。保留真实过程，不能只剩结论；克制表达，不夸大结果，不虚构学员姓名、身份、数据、案例或成果承诺。学员如无明确称呼，一律称为“她 / 学员”。输出只包含朋友圈正文，分 5-7 个短段落，220-380 字；可使用 1 个自然的长破折号，不用标题、编号、Markdown 或表情。' });
+    changed = true;
+  }
+  if (!featureConfigs.some((item) => item.feature_code === 'coach_moments')) {
+    featureConfigs.push({ feature_code: 'coach_moments', feature_name: '交付朋友圈', primary_model_id: 20, fallback_model_ids: [1, 2, 3, 21], prompt_template_id: 41, status: 'active', provider_codes: ['volcengine_ark_plan', 'siliconflow'], data_provider_codes: [] });
+    changed = true;
+  }
+  const legacyPrompt = promptTemplates.find((item) => item.feature_code === 'coach_toolbox');
+  if (legacyPrompt && (legacyPrompt.name === '教练工具箱 Prompt' || String(legacyPrompt.content || '').includes('负责人、交付产出和完成标准'))) {
+    legacyPrompt.name = '工作流搭建 Prompt';
+    legacyPrompt.content = '你是一位教育业务交付运营专家。把教练输入的工作整理成清晰、可编辑的 SOP 思维导图。根据“想搭建的工作、已有灵感和初步想法”，拆成 6-8 个连续且更细致的关键步骤。每个节点只写 12 字以内的步骤名称和一句不超过 28 字的可执行动作；不写负责人、产出、完成标准、冗长解释或 Markdown。没有提供的事实不得编造，不得编造学员信息、案例、数据或结果承诺。只输出 JSON：{"title":"12字以内工作流名称","goal":"20字以内目标","steps":[{"id":"step_1","name":"步骤名称","action":"一句具体动作","detail":"可选补充"}]}' ;
+    changed = true;
+  }
+  if (legacyPrompt && String(legacyPrompt.content || '').includes('已有做法或限制')) {
+    legacyPrompt.content = String(legacyPrompt.content).replaceAll('已有做法或限制', '已有灵感和初步想法');
+    changed = true;
+  }
+  if (legacyPrompt && String(legacyPrompt.content || '').includes('生成 4-6 个关键步骤')) {
+    legacyPrompt.content = String(legacyPrompt.content)
+      .replaceAll('整理成简洁、可编辑的 SOP 导图', '整理成清晰、可编辑的 SOP 思维导图')
+      .replaceAll('生成 4-6 个关键步骤', '拆成 6-8 个连续且更细致的关键步骤')
+      .replaceAll('一句可执行动作', '一句不超过 28 字的可执行动作');
+    changed = true;
+  }
+  if (String(coachToolboxConfig.sop_prompt_note || '').includes('负责人、产出和完成标准')) {
+    coachToolboxConfig.sop_prompt_note = '生成结果应以可编辑的思维导图呈现；每个节点只保留步骤名称、一句动作和可选补充。';
+    changed = true;
+  }
+  return changed;
+}
+
+loadPersistentState();
+const copyAgentsMigrated = ensureCopyAgentDefaults();
+const coachToolboxMigrated = ensureCoachToolboxDefaults();
+secureManagedUserPasswords();
+const personalCenterMigrated = managedUsers.some(ensurePersonalCenterData);
+if (!fs.existsSync(STATE_PATH) || personalCenterMigrated || coachToolboxMigrated || copyAgentsMigrated) savePersistentState();
+
+const roleMeta = {
+  admin: { name: '管理员', features: ['pipi', 'topics', 'copy', 'competitor', 'sales', 'coach', 'history', 'admin'] },
+  coaching: { name: '陪跑学员', features: ['pipi', 'topics', 'copy', 'competitor', 'sales', 'history'] },
+  training: { name: '训练营学员', features: ['pipi', 'topics', 'copy', 'competitor', 'sales', 'history'] }
+};
+
+function effectiveStatus(user) {
+  if (user.status === 'disabled') return 'disabled';
+  if (user.expires_at && user.expires_at < localDateKey()) return 'expired';
+  return 'active';
+}
+
+function readInventory() {
+  const envKeys = {
+    'gjld-apikey': process.env.SILICONFLOW_API_KEY,
+    'hsfz-apikey': process.env.ARK_API_KEY,
+    'hsfztx-apikey': process.env.ARK_IMAGE_API_KEY,
+    'tikhub-apikey': process.env.TIKHUB_API_KEY
+  };
+  const configuredEnvKeys = Object.fromEntries(Object.entries(envKeys).filter(([, value]) => value));
+  if (Object.keys(configuredEnvKeys).length === Object.keys(envKeys).length) return configuredEnvKeys;
+  let fileKeys = {};
+  try {
+    const text = execFileSync('textutil', ['-convert', 'txt', '-stdout', INVENTORY_PATH], { encoding: 'utf8' });
+    fileKeys = Object.fromEntries([...text.matchAll(/([a-z0-9-]+)=(.+)/g)].map((match) => [match[1], match[2].trim()]));
+    const volcAccessKey = text.match(/^\s*(?:volc[-_ ]?billing[-_ ]?)?access key id\s*=\s*(.+)\s*$/im);
+    const volcSecretKey = text.match(/^\s*(?:volc[-_ ]?billing[-_ ]?)?secret access key\s*=\s*(.+)\s*$/im);
+    if (volcAccessKey?.[1]) fileKeys['volc-billing-access-key-id'] = volcAccessKey[1].trim();
+    if (volcSecretKey?.[1]) fileKeys['volc-billing-secret-access-key'] = volcSecretKey[1].trim();
+  } catch {
+    fileKeys = {};
+  }
+  return { ...fileKeys, ...configuredEnvKeys };
+}
+
+function jsonResponse(res, statusCode, payload) {
+  res.writeHead(statusCode, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store'
+  });
+  res.end(JSON.stringify(payload));
+}
+
+function applyCors(req, res) {
+  const origin = String(req.headers.origin || '');
+  if (!origin || !ALLOWED_ORIGINS.has(origin)) return;
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
+  res.setHeader('Vary', 'Origin');
+}
+
+function ok(res, data = {}) {
+  jsonResponse(res, 200, { code: 0, message: 'success', data });
+}
+
+function fail(res, statusCode, message, code = 50000, extra = {}) {
+  jsonResponse(res, statusCode, { code, message, data: null, ...extra });
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let raw = '';
+    let size = 0;
+    let exceeded = false;
+    req.on('data', (chunk) => {
+      if (exceeded) return;
+      size += chunk.length;
+      if (size > 32 * 1024 * 1024) {
+        exceeded = true;
+        const error = new Error('请求内容不能超过 32MB');
+        error.statusCode = 413;
+        error.errorCode = 41300;
+        reject(error);
+        return;
+      }
+      raw += chunk;
+    });
+    req.on('end', () => {
+      if (exceeded) return;
+      try {
+        resolve(raw ? JSON.parse(raw) : {});
+      } catch {
+        const error = new Error('请求内容不是有效的 JSON');
+        error.statusCode = 400;
+        error.errorCode = 40000;
+        reject(error);
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+function tokenFor(user) {
+  const payload = Buffer.from(JSON.stringify({ id: user.id, exp: Date.now() + AUTH_TOKEN_TTL_MS })).toString('base64url');
+  const signature = createHmac('sha256', AUTH_SECRET).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+}
+
+function publicUser(user) {
+  const meta = roleMeta[user.role] || roleMeta.training;
+  return {
+    id: user.id,
+    username: user.account,
+    phone: user.phone,
+    nickname: user.name,
+    role: user.role,
+    roles: [user.role],
+    student_type: user.role,
+    role_name: meta.name,
+    status: effectiveStatus(user),
+    enabled_features: user.enabled_features || meta.features,
+    token: tokenFor(user)
+  };
+}
+
+function publicProfile(user) {
+  ensurePersonalCenterData(user);
+  return {
+    name: user.name,
+    account: user.account,
+    phone: user.phone || '',
+    role_name: roleMeta[user.role]?.name || '学员',
+    bio: user.profile.bio || '',
+    business_description: user.profile.business_description || '',
+    avatar_url: user.profile.avatar_url || ''
+  };
+}
+
+function publicPersona(user) {
+  return user.persona && typeof user.persona === 'object' ? user.persona : null;
+}
+
+function personalKnowledgeContext(user) {
+  const persona = publicPersona(user);
+  const personaText = persona
+    ? `个人创作人设：名称=${persona.name || user.name}；我是=${persona.identity || '待补充'}；我服务谁=${persona.audience || '待补充'}；我提供什么=${persona.service || '待补充'}；我的故事=${persona.story || '待补充'}`
+    : '';
+  let total = 0;
+  const knowledgeText = (user.personal_knowledge || []).filter((item) => item.status !== 'disabled').map((item) => {
+    const content = String(item.content || '').slice(0, 6000);
+    if (!content || total + content.length > 16000) return '';
+    total += content.length;
+    return `【个人知识：${item.title || '未命名'}】\n${content}`;
+  }).filter(Boolean).join('\n\n');
+  return [personaText, knowledgeText].filter(Boolean).join('\n\n');
+}
+
+function personalKnowledgeUploadPath(user, fileName) {
+  const userDirectory = path.join(PERSONAL_KNOWLEDGE_UPLOAD_DIR, String(user.id));
+  const safeFileName = String(fileName || 'document').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120) || 'document';
+  return { userDirectory, filePath: path.join(userDirectory, `${Date.now()}-${randomUUID()}-${safeFileName}`) };
+}
+
+function extractPersonalKnowledgeDocument(filePath, extension) {
+  try {
+    if (['.txt', '.md', '.csv'].includes(extension)) return fs.readFileSync(filePath, 'utf8');
+    if (['.rtf', '.docx'].includes(extension)) return execFileSync('textutil', ['-convert', 'txt', '-stdout', filePath], { encoding: 'utf8', maxBuffer: 2 * 1024 * 1024 });
+  } catch {
+    return '';
+  }
+  return '';
+}
+
+function removePersonalKnowledgeUpload(item) {
+  if (!item?.storage_path) return;
+  const filePath = path.resolve(item.storage_path);
+  if (!filePath.startsWith(`${PERSONAL_KNOWLEDGE_UPLOAD_DIR}${path.sep}`)) return;
+  try { fs.unlinkSync(filePath); } catch {}
+}
+
+function publicPersonalKnowledge(item) {
+  const { storage_path, ...publicItem } = item;
+  return publicItem;
+}
+
+function parseToken(req) {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  if (!token) return null;
+  try {
+    const [payload, signature] = token.split('.');
+    if (!payload || !signature) return null;
+    const expected = createHmac('sha256', AUTH_SECRET).update(payload).digest('base64url');
+    const actualBuffer = Buffer.from(signature);
+    const expectedBuffer = Buffer.from(expected);
+    if (actualBuffer.length !== expectedBuffer.length || !timingSafeEqual(actualBuffer, expectedBuffer)) return null;
+    const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    return decoded?.id && Number(decoded.exp) > Date.now() ? decoded : null;
+  } catch {
+    return null;
+  }
+}
+
+function requireAdmin(req, res) {
+  const user = authenticatedUser(req);
+  if (user?.role !== 'admin') {
+    fail(res, 403, '只有管理员可以访问后台接口', 40300);
+    return false;
+  }
+  return true;
+}
+
+function authenticatedUser(req) {
+  const token = parseToken(req);
+  if (!token?.id) return null;
+  const user = managedUsers.find((item) => item.id === token.id);
+  return user && effectiveStatus(user) === 'active' ? user : null;
+}
+
+function requireUser(req, res, feature) {
+  const user = authenticatedUser(req);
+  if (!user) {
+    fail(res, 401, '登录状态已失效，请重新登录', 40101);
+    return null;
+  }
+  const allowed = Array.isArray(user.enabled_features) ? user.enabled_features : (roleMeta[user.role]?.features || []);
+  if (feature && !allowed.includes(feature)) {
+    fail(res, 403, '当前账号暂未开通该功能', 40302);
+    return null;
+  }
+  if (feature && !isConfiguredToolEnabled(feature)) {
+    fail(res, 403, '该功能已在后台配置中停用', 40303);
+    return null;
+  }
+  return user;
+}
+
+const FEATURE_CODE_BY_PERMISSION = {
+  pipi: 'pipi_assistant_chat',
+  topics: 'topic_generate',
+  copy: 'copywriting_generate',
+  competitor: 'competitor_finder',
+  sales: 'sales_simulation',
+  coach: 'coach_toolbox'
+};
+
+function isConfiguredToolEnabled(permission) {
+  const featureCode = FEATURE_CODE_BY_PERMISSION[permission];
+  if (featureCode && !getFeatureConfig(featureCode)) return false;
+  if (permission === 'pipi' && pipiAssistantConfig.enabled === false) return false;
+  if (permission === 'sales' && salesSimulationConfig.enabled === false) return false;
+  if (permission === 'coach' && coachToolboxConfig.enabled === false) return false;
+  return true;
+}
+
+function toolAvailabilityFor(user) {
+  const roleFeatures = Array.isArray(user.enabled_features) ? user.enabled_features : (roleMeta[user.role]?.features || []);
+  return Object.fromEntries(Object.keys(FEATURE_CODE_BY_PERMISSION).map((permission) => [
+    permission,
+    roleFeatures.includes(permission) && isConfiguredToolEnabled(permission)
+  ]));
+}
+
+function publicPipiConfig() {
+  return {
+    enabled: pipiAssistantConfig.enabled,
+    display_name: pipiAssistantConfig.display_name,
+    welcome_message: pipiAssistantConfig.welcome_message,
+    stickers_enabled: pipiAssistantConfig.stickers_enabled,
+    thinking_sticker: pipiAssistantConfig.thinking_sticker,
+    response_sticker_mode: pipiAssistantConfig.response_sticker_mode
+  };
+}
+
+function activePipiKnowledgeContext() {
+  const entries = pipiKnowledgeBase.filter((item) => item.status === 'active');
+  let total = 0;
+  return entries.map((item) => {
+    const content = String(item.content || '').slice(0, 24000);
+    if (total + content.length > 30000) return '';
+    total += content.length;
+    return `【${item.title}｜${item.category || '未分类'}】\n${content}`;
+  }).filter(Boolean).join('\n\n');
+}
+
+function activePipiKnowledgeCitations() {
+  return pipiKnowledgeBase
+    .filter((item) => item.status === 'active')
+    .slice(0, 3)
+    .map((item) => ({ title: item.title }));
+}
+
+function activeSalesKnowledgeContext() {
+  const entries = salesKnowledgeBase.filter((item) => item.status === 'active');
+  let total = 0;
+  return entries.map((item) => {
+    const content = String(item.content || '').slice(0, 24000);
+    if (total + content.length > 30000) return '';
+    total += content.length;
+    return `【${item.title}｜${item.category || '未分类'}】\n${content}`;
+  }).filter(Boolean).join('\n\n');
+}
+
+function featureCodeFor(feature) {
+  return {
+    pipi: 'pipi_assistant_chat',
+    topics: 'topic_generate',
+    copywriting: 'copywriting_generate',
+    wechat_layout: 'copywriting_generate',
+    competitor: 'competitor_finder',
+    sales_simulation: 'sales_simulation',
+    coach_sop: 'coach_toolbox',
+    coach_moments: 'coach_moments'
+  }[feature] || feature;
+}
+
+function getActivePrompt(featureCode, input = {}) {
+  if (featureCode === 'copywriting_generate' && input.agent) {
+    const agentPrompt = promptTemplates.find((item) => item.feature_code === featureCode && item.agent_code === input.agent && item.status === 'active');
+    if (agentPrompt) return agentPrompt.content;
+  }
+  const feature = getFeatureConfig(featureCode);
+  const bound = promptTemplates.find((item) => item.id === feature?.prompt_template_id && item.feature_code === featureCode && item.status === 'active');
+  if (bound) return bound.content;
+  return promptTemplates.find((item) => item.feature_code === featureCode && item.status === 'active')?.content || '';
+}
+
+function buildMessages(feature, input, user) {
+  const featureCode = featureCodeFor(feature);
+  const managedPrompt = getActivePrompt(featureCode, input);
+  const activeCopyAgent = copyAgentByCode(input.agent) || copyAgentByCode('local_city') || copyAgentConfigs[0];
+  const salesProfile = input.profile || {};
+  const salesProfileMethodology = salesProfile?.methodology && typeof salesProfile.methodology === 'object' ? salesProfile.methodology : {};
+  const salesMethodStep = salesMethodSteps.find((item) => item.code === input.step_code) || salesMethodSteps[0];
+  const system = [
+    '你是皮皮 AI 中台的教育 IP 增长助手。',
+    '回答要自然、具体、克制，不承诺保证提分、涨粉、成交或赚钱。像真实聊天，不要写成模板化诊断报告。',
+    '只输出给学员可见的建议，不泄露内部销售策略、团队成本、合同退款细节、API 或后台配置。',
+    featureCode === 'pipi_assistant_chat' ? `皮皮分身语气：${pipiAssistantConfig.response_style}\n皮皮分身规则：${pipiAssistantConfig.response_rules}\n知识库范围：${pipiAssistantConfig.knowledge_scope}\n已启用的皮皮分身知识库：\n${activePipiKnowledgeContext() || '当前没有已启用的补充知识库内容。'}` : '',
+    featureCode === 'pipi_assistant_chat' && user?.role === 'training'
+      ? '当前用户是训练营学员。你的首要职责是客服和中台使用指南：优先回答如何登录、如何进入功能、如何填写字段、如何生成、编辑、复制、导出、查看记录，以及常见报错的排查方式。使用短句和步骤说明，不主动展开陪跑业务诊断、内部策略或未开放功能；如果问题超出训练营权限，明确建议联系交付老师。'
+      : '当前用户是陪跑学员或管理员，可以在学员可见知识库范围内提供教育 IP 业务和内容方向的陪跑建议。',
+    user ? `当前用户的个人中心资料（仅用于贴合其本人创作，不能编造或泄露）：\n${personalKnowledgeContext(user) || '用户暂未填写个人人设或个人知识库。'}` : '',
+    managedPrompt ? `后台当前 Prompt：${managedPrompt}` : '',
+    featureCode === 'coach_toolbox' ? `教练工具箱工作流规则：${coachToolboxConfig.sop_prompt_note}\n工具箱使用边界：${coachToolboxConfig.guide_note}` : '',
+    featureCode === 'coach_moments' ? `交付内容边界：${coachToolboxConfig.guide_note}\n必须保护学员隐私，不得出现可识别身份、联系方式或未经验证的成果。` : '',
+    featureCode === 'copywriting_generate' && feature !== 'wechat_layout' ? COPYWRITING_OUTPUT_FIRST_RULE : '',
+    featureCode === 'sales_simulation'
+      ? `你正在运行销售模拟。六步法是：1破冰夸奖、2深度挖需、3案例展示、4产品介绍、5卡点清理、6临门踢单。\n角色规则：${salesSimulationConfig.roleplay_rule}\n复盘规则：${salesSimulationConfig.review_rule}\n知识库边界：${salesSimulationConfig.knowledge_scope}\n已启用的销售知识库：\n${activeSalesKnowledgeContext() || '当前没有已启用的补充知识。'}\n模拟时不评价学员、不解释规则、不透露知识库原文；复盘时才按六步法评价。`
+      : ''
+  ].join('\n');
+
+  const prompts = {
+    pipi: user?.role === 'training'
+      ? `最近对话：${JSON.stringify(normalizePipiConversationHistory(input.conversation_history))}\n\n用户本轮问题：${input.message}\n\n如果这是中台使用问题，请像真人客服一样先直接回应，再给最短的操作步骤；如果是简单寒暄，简短回复即可。如果用户描述的是报错，只先告诉他最应该检查的一项。不要把训练营学员引导到未开放的陪跑功能。`
+      : `最近对话：${JSON.stringify(normalizePipiConversationHistory(input.conversation_history))}\n\n用户本轮问题：${input.message}\n\n请像微信聊天一样自然回应。先接住用户刚刚说的内容，再给一两个最有用的建议；如果信息不够，只追问一个关键问题。不要使用固定的小标题，不要把普通聊天写成诊断报告。`,
+    topics: `请为教育赛道生成 ${input.count || 10} 条短视频选题，只返回 JSON 数组。字段：title、track、angle。\n赛道：${input.track}\n业务：${input.business}\n方向：${input.direction}`,
+    copywriting: `请作为“${activeCopyAgent?.name || '教育文案智能体'}”与用户进行连续对话。\n内容类型：${input.type === 'moments' ? '朋友圈文案' : input.type === 'imageText' ? '小绿书图文文案' : input.type === 'article' ? '公众号长文文案' : '短视频文案'}\n业务：${input.business}\n目标客户：${input.audience}\n对话历史：${Array.isArray(input.history) && input.history.length ? JSON.stringify(input.history) : '暂无'}\n用户本轮消息：${input.material}\n本轮必须先直接生成、改写或续写一版完整可用内容，不能只回复澄清问题或素材清单。缺少事实时使用克制表达或标记“待补充”，不得编造。只有确实需要时，才在产出最末尾增加“可继续补充（可选）”，并且最多只问 1 个最关键的问题。`,
+    wechat_layout: `请分析以下公众号成稿的视觉层级。只返回一个可解析 JSON 对象：{"title_index":0,"subtitle_index":-1,"heading_indexes":[1],"highlight_indexes":[3],"image_after_indexes":[4,8],"closing_index":10}。\n规则：标题只能1个；副标题没有就填-1；章节标题最多10个；金句最多4个且不能和标题重复；图片位置最多4个，放在内容转折或章节之间；结尾只能1个。所有数字必须是现有段落索引，不得输出或改写任何段落内容。\n文章风格：${input.theme || 'museum'}\n带编号段落：\n${JSON.stringify(input.segments || [])}`,
+    competitor: `请为教育赛道找竞品生成搜索策略。\n赛道：${input.track}\n业务：${input.business}\n地域：${input.region}\n平台：${input.platform}\n最低匹配度：${input.minimum_score || 60} 分（候选数据已完成筛选）。\nTikHub 搜索数据摘要：${JSON.stringify(input.tikhub_summary || [])}\nTikHub 状态：${input.tikhub_status || 'not_used'}\n输出：推荐搜索关键词、候选竞品线索、重点平台、筛选标准、分析维度、下一步。候选内容标题必须简短，最多 28 个字符，不要输出长标题。`
+    ,
+    sales_simulation: input.action === 'guide'
+      ? `请作为销售六步法专项教练，为学员生成“${salesMethodStep.title}”的可直接使用话术。赛道：${input.track}；业务：${input.business}；家长或当前情况：${input.context}；本步说明：${salesMethodStep.description}；后台生成规则：${salesMethodStep.prompt_rule}；可参考的通用话术：${JSON.stringify(salesMethodStep.items)}。输出：1）一句判断；2）5-8条可直接说的自然表达；3）使用提醒。不得编造孩子成绩、家长身份或案例。`
+      : input.action === 'review'
+        ? `请复盘这轮销售模拟。不要继续扮演家长，只输出一个可解析的 JSON 对象，不要 Markdown，不要额外文字。必须使用以下结构：
+{"summary":"基于对话事实的总评","dimensions":[{"code":"icebreak","name":"破冰与信任","score":0,"feedback":"基于对话事实的简短反馈"},{"code":"discovery","name":"事实挖需","score":0,"feedback":"...","sub_scores":{"need":{"score":0,"feedback":"需求力"},"payment":{"score":0,"feedback":"付费力"},"decision":{"score":0,"feedback":"决策力"}}},{"code":"diagnosis","name":"需求诊断","score":0,"feedback":"..."},{"code":"case_match","name":"案例与方案匹配","score":0,"feedback":"..."},{"code":"objection","name":"异议处理","score":0,"feedback":"..."},{"code":"close","name":"推进与收口","score":0,"feedback":"..."}],"strengths":["..."],"gaps":["..."],"next_drill":{"title":"...","action":"...","sample":"可直接练习的一句话"}}
+六项评分为 0-100。只能根据实际对话评分：没有展示到的动作不得给高分，不能因话多加分；重点判断是否问到事实、形成诊断、拿案例或方案对应、先确认异议再回应、给出可执行的下一步。还要按照当前画像的训练重点评价：${salesProfileMethodology.coaching_focus || '先以实际回复验证沟通偏好，再按事实挖需、异议澄清和低门槛推进评价。'}。若对话结果为“用户不想理你”或“已拉黑”，必须明确指出赶客或攻击性表达对信任、异议处理和推进的影响。禁止虚构案例、家长背景、稀缺名额或结果保证。业务：${input.business}；产品：${input.product}；对话结果：${JSON.stringify(input.conversation_outcome || SALES_CONVERSATION_OUTCOMES.normal)}；家长画像：${JSON.stringify(salesProfile)}；完整对话：${JSON.stringify(input.history || [])}`
+        : `请扮演一位家长，与学员进行真实、连续的咨询对话。家长画像：${JSON.stringify(salesProfile)}；业务：${input.business}；产品：${input.product}；难度：${input.difficulty}。DISC 只是待验证的沟通假设，不是购买意向或人格诊断。你要根据家长本轮的实际说法自然呈现沟通偏好，不机械重复标签。优先按画像中的“首要事实”“回应规则”“异议规则”和“可接受的下一步”推进对话；当销售没有回答当前问题时，不要替他补答案。你要保持家长身份，一次只回应一个自然问题或顾虑，不要主动帮学员总结，不要一次抛出多个问题。根据学员是否完成挖需、判断和推进，逐步暴露真实顾虑。表情规则：理性比较型通常不用表情；其他家长只有在情绪确实需要时才可使用 1 个常见 emoji，且最近 2 次家长回复里不能重复使用，不要用表情代替信息。当前学员说：${input.message}\n对话历史：${JSON.stringify(input.history || [])}`,
+    coach_sop: `你是教育业务的交付运营教练。请把下面的工作整理成清晰、可编辑的 SOP 思维导图。只输出可解析 JSON，不要 Markdown 或额外文字：{"title":"12字以内工作流名称","goal":"20字以内目标","steps":[{"id":"step_1","name":"12字以内步骤名称","action":"不超过28字的具体动作","detail":"可选补充"}] }。拆成 6-8 个连续且更细致的步骤；节点只保留名称和一句动作，不要负责人、产出、完成标准等字段；没有给出的事实不要编造；不要承诺招生、续费、提分或收入结果。\n想搭建的工作：${input.task}\n已有灵感和初步想法：${input.context || '暂无'}`,
+    coach_moments: `请根据以下一次真实交付，生成可直接发布的朋友圈正文。${input.protect_privacy ? '必须对所有学员信息做匿名处理。' : ''}\n交付阶段：${input.stage || '交付记录'}\n教练记录：${input.material || input.observation || '暂无'}`
+  };
+
+  return [
+    { role: 'system', content: system },
+    { role: 'user', content: prompts[feature] || JSON.stringify(input) }
+  ];
+}
+
+function getFeatureConfig(featureCode) {
+  return featureConfigs.find((item) => item.feature_code === featureCode && item.status === 'active');
+}
+
+function getEnabledModelConfigs(featureCode, input = {}) {
+  const feature = getFeatureConfig(featureCode);
+  const agentModelId = featureCode === 'copywriting_generate' ? Number(copyAgentByCode(input.agent)?.model_id) : 0;
+  const agentModel = agentModelId ? modelConfigs.find((item) => item.id === agentModelId) : null;
+  const allowedProviderCodes = new Set(feature?.provider_codes || ['siliconflow', 'volcengine_ark_plan']);
+  if (agentModel?.provider_code) allowedProviderCodes.add(agentModel.provider_code);
+  const activeProviderCodes = new Set(providerConfigs
+    .filter((item) => item.status === 'active' && item.capability === 'llm' && allowedProviderCodes.has(item.code))
+    .map((item) => item.code));
+  const orderedIds = [agentModelId || feature?.primary_model_id, ...(feature?.fallback_model_ids || [])].filter(Boolean);
+  const ordered = orderedIds
+    .map((id) => modelConfigs.find((item) => item.id === id))
+    .filter(Boolean);
+  return ordered.filter((item) => item.status === 'active' && activeProviderCodes.has(item.provider_code));
+}
+
+function buildTopicFallback(input) {
+  const track = input.track === 'b2b' ? '教育机构 B 端' : input.track === 'local' ? '同城教育' : '线上 C 端';
+  const angles = input.track === 'b2b'
+    ? ['招生获客', '咨询转化', '产品设计', '团队执行', '续费转介绍']
+    : input.track === 'local'
+      ? ['本地搜索', '家长决策', '到店体验', '口碑转介绍', '差异化表达']
+      : ['学习规划', '避坑判断', '案例拆解', '方法步骤', '目标拆解'];
+  const count = Math.min(Math.max(Number(input.count) || 10, 1), 20);
+  return Array.from({ length: count }, (_, index) => ({
+    title: `${input.business || '教育业务'}${angles[index % angles.length]}：${input.direction || '先从一个真实问题切入'}，先看这 ${index % 3 + 2} 个信号`,
+    angle: angles[index % angles.length],
+    track
+  }));
+}
+
+function buildCoachSopFallback(input) {
+  const task = String(input.task || '交付工作').trim();
+  const audience = '交付教练';
+  return {
+    title: `${task.slice(0, 24)} SOP`,
+    goal: `让${audience}按同一节奏完成「${task.slice(0, 32)}」。`,
+    note: '这是可编辑初稿，请按实际团队分工、时间与学员情况补全细节。',
+    steps: [
+      { name: '确认目标与边界', owner: audience, action: '明确本次交付要解决的问题、可用资料、时间节点与不可承诺的边界。', deliverable: '交付目标确认', standard: '目标、对象、截止时间均已确认' },
+      { name: '收集并整理信息', owner: audience, action: '收集已有资料、沟通记录和关键问题，区分事实与待确认项。', deliverable: '信息清单', standard: '关键信息可追溯，缺口已标记' },
+      { name: '完成交付方案', owner: audience, action: '按优先级给出可执行动作，避免堆砌建议，每一步都对应实际问题。', deliverable: '行动方案初稿', standard: '每项动作都有负责人、期限与说明' },
+      { name: '进行交付沟通', owner: audience, action: '用真实、可理解的表达说明判断与下一步，必要时只追问一个关键问题。', deliverable: '沟通纪要', standard: '对方理解当前重点和下一步动作' },
+      { name: '确认行动与复盘点', owner: audience, action: '把后续动作缩小到可完成的第一步，约定下次回看时间和需要带回的材料。', deliverable: '行动表与复盘节点', standard: '双方确认下一步与复盘时间' }
+    ]
+  };
+}
+
+function normalizeCoachSop(content, input) {
+  const fallback = buildCoachSopFallback(input);
+  const parsed = parseJsonObject(content);
+  if (!parsed || !Array.isArray(parsed.steps) || !parsed.steps.length) return fallback;
+  const steps = parsed.steps.slice(0, 8).map((item, index) => ({
+    name: String(item?.name || `步骤 ${index + 1}`).trim().slice(0, 60),
+    owner: '',
+    action: String(item?.action || '').trim().slice(0, 500),
+    deliverable: String(item?.detail || item?.deliverable || '').trim().slice(0, 160),
+    standard: ''
+  })).filter((item) => item.name && item.action);
+  if (steps.length < 3) return fallback;
+  return {
+    title: String(parsed.title || fallback.title).trim().slice(0, 24),
+    goal: String(parsed.goal || fallback.goal).trim().slice(0, 55),
+    note: String(parsed.note || fallback.note).trim().slice(0, 260),
+    steps
+  };
+}
+
+function buildCoachMomentsFallback(input) {
+  const stage = String(input.stage || '交付记录').trim();
+  const material = String(input.material || '今天完成了一次认真交付').trim();
+  return `今天做了一次${stage}。\n\n${material}\n\n交付真正有价值的地方，不是替对方完成，而是陪她把“我知道”慢慢变成“我会做”。`;
+}
+
+function normalizeCoachMomentImage(value, label, maxBytes) {
+  const matched = String(value || '').match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=\s]+)$/i);
+  if (!matched) throw new Error(`${label}格式不正确，请重新选择 JPG、PNG 或 WebP 图片。`);
+  const base64 = matched[2].replace(/\s/g, '');
+  const imageBuffer = Buffer.from(base64, 'base64');
+  if (!imageBuffer.length || imageBuffer.length > maxBytes) throw new Error(`${label}不能超过 ${Math.floor(maxBytes / 1024 / 1024)}MB。`);
+  return `data:image/${matched[1].toLowerCase()};base64,${base64}`;
+}
+
+async function imageDataUrlFromArkResult(result) {
+  if (result?.b64_json) return `data:image/png;base64,${String(result.b64_json).replace(/\s/g, '')}`;
+  if (!result?.url) throw new Error('图像服务没有返回可用图片。');
+  const imageResponse = await fetch(result.url, { signal: AbortSignal.timeout(45000) });
+  if (!imageResponse.ok) throw new Error('图像服务返回的图片无法下载。');
+  const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+  if (!imageBuffer.length || imageBuffer.length > 18 * 1024 * 1024) throw new Error('合成图片大小异常，请换一张更小的图片重试。');
+  const contentType = String(imageResponse.headers.get('content-type') || 'image/png').split(';')[0];
+  const safeType = /^image\/(jpeg|png|webp)$/i.test(contentType) ? contentType.toLowerCase() : 'image/png';
+  return `data:${safeType};base64,${imageBuffer.toString('base64')}`;
+}
+
+function coachMomentImagePrompt(protectPrivacy, promptOverride = '') {
+  const privacyInstruction = protectPrivacy
+    ? '请自然弱化现场图中姓名、联系方式、聊天记录、电脑屏幕文字和其他可识别隐私；不要添加任何新的文字。'
+    : '不要添加、改写或替换任何文字。';
+  const prompt = [
+    '这是一次三图合成编辑任务：图1是固定海报底版，图2是本次交付现场图，图3是必须遵循的目标版式参考。',
+    '图1是受保护的原始母版，必须直接保留其像素，不得重新生成或美化。标题、所有中文文字、字体、位置、背景、金色纹理、底部手写字以及右下人物均须与图1逐像素一致。尤其右下人物：必须直接保留图1中的原始脸部、五官、发型、肤色、白色西装和身体，严禁重画、换脸、磨皮、变形或改变表情。',
+    '唯一允许改变的区域是图1中部偏左的现场图相框区域。严格照图3制作一个简单的、极细的、平直的金色直角矩形相框：无立体浮雕、无厚边、无双层金边、无阴影、无圆角、无透视变形。相框外缘固定为约 x=84、y=394 至 x=785、y=1300，其余底版不得变化。',
+    '把图2作为原始照片嵌入相框内：必须完整保留图2的原始宽高比例，使用 contain 等比缩放，绝不横向或纵向压缩、拉伸、裁剪、改色、模糊或重绘。若图2比例与相框不同，保留原图完整内容，并以干净的深色留白填充空余区域；现场图不得越出相框。',
+    '右下原始人物必须完整位于相框前景；相框和现场图都从人物身体后方经过，绝不遮挡人物的脸、头发、手、白色西装或身体。最终成品应与图3的层级一致：原始底版清晰、极细直角相框清晰、原始现场图清晰、人物完全不变且在最前。',
+    privacyInstruction,
+    '输出一张严格继承第一张固定底版尺寸与比例的最终成品海报：1024×1536 像素。不要解释，不要拼图，不要额外边框。'
+  ].join('\n');
+  const customPrompt = String(promptOverride || '').trim().slice(0, 4000);
+  return customPrompt ? `${prompt}\n\n以下为教练已确认的补充配图指令，必须在不改变上述底版锁定规则的前提下执行：\n${customPrompt}` : prompt;
+}
+
+async function createCoachMomentImageWithArk({ templateImage, sceneImage, layoutReferenceImage, protectPrivacy, promptOverride, user }) {
+  const apiKey = arkImageKey();
+  if (!apiKey) throw new Error('图片智能处理尚未配置火山方舟密钥。');
+  const prompt = coachMomentImagePrompt(protectPrivacy, promptOverride);
+  const started = Date.now();
+  const response = await fetch(`${ARK_IMAGE_BASE_URL}/images/generations`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: COACH_MOMENTS_IMAGE_MODEL,
+      prompt,
+      // Seedream 5.0 Pro 的图像编辑接口仅传入模型、提示词与参考图。
+      // 旧版接口参数（size、watermark、sequential_image_generation 等）
+      // 会导致该模型直接拒绝请求。
+      image: [templateImage, sceneImage, layoutReferenceImage]
+    }),
+    signal: AbortSignal.timeout(125000)
+  });
+  const raw = await response.text();
+  let payload;
+  try {
+    payload = JSON.parse(raw);
+  } catch {
+    throw new Error('图像服务返回异常，请稍后重试。');
+  }
+  if (!response.ok) {
+    const detail = payload?.error?.message || payload?.message || '';
+    throw new Error(providerFailureMessage('火山方舟图片服务', response.status, detail));
+  }
+  const imageDataUrl = await imageDataUrlFromArkResult(payload?.data?.[0]);
+  setProviderHealth('volcengine_ark_plan', 'healthy');
+  logCall({
+    provider_code: 'volcengine_ark_plan',
+    provider_name: '火山方舟 Ark',
+    model_code: COACH_MOMENTS_IMAGE_MODEL,
+    feature_code: 'coach_moments_image',
+    status: 'success',
+    latency_ms: Date.now() - started,
+    usage: {},
+    user_id: user?.id,
+    user_name: user?.name
+  });
+  return { imageDataUrl, model: COACH_MOMENTS_IMAGE_MODEL, provider: 'volcengine_ark' };
+}
+
+async function createCoachMomentImageWithSiliconFlow({ templateImage, sceneImage, layoutReferenceImage, protectPrivacy, promptOverride, user }) {
+  const apiKey = providerKeyFor('siliconflow');
+  if (!apiKey) throw new Error('图片智能处理尚未配置硅基流动密钥。');
+  const started = Date.now();
+  const response = await fetch(`${SILICONFLOW_BASE_URL}/images/generations`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: COACH_MOMENTS_IMAGE_FALLBACK_MODEL,
+      prompt: coachMomentImagePrompt(protectPrivacy, promptOverride),
+      image: templateImage,
+      image2: sceneImage,
+      image3: layoutReferenceImage
+    }),
+    signal: AbortSignal.timeout(125000)
+  });
+  const raw = await response.text();
+  let payload;
+  try {
+    payload = JSON.parse(raw);
+  } catch {
+    throw new Error('硅基流动图片服务返回异常，请稍后重试。');
+  }
+  if (!response.ok) {
+    const detail = payload?.error?.message || payload?.message || '';
+    throw new Error(providerFailureMessage('硅基流动图片服务', response.status, detail));
+  }
+  const imageDataUrl = await imageDataUrlFromArkResult(payload?.images?.[0]);
+  setProviderHealth('siliconflow', 'healthy');
+  logCall({
+    provider_code: 'siliconflow',
+    provider_name: '硅基流动',
+    model_code: COACH_MOMENTS_IMAGE_FALLBACK_MODEL,
+    feature_code: 'coach_moments_image',
+    status: 'success',
+    latency_ms: Date.now() - started,
+    usage: {},
+    user_id: user?.id,
+    user_name: user?.name
+  });
+  return { imageDataUrl, model: COACH_MOMENTS_IMAGE_FALLBACK_MODEL, provider: 'siliconflow' };
+}
+
+async function createCoachMomentImage(input) {
+  return createCoachMomentImageWithArk(input);
+}
+
+function providerKeyFor(providerCode) {
+  const keys = readInventory();
+  if (providerCode === 'volcengine_ark_plan') return keys['hsfz-apikey'];
+  if (providerCode === 'tikhub') return keys['tikhub-apikey'];
+  return keys['gjld-apikey'];
+}
+
+function arkImageKey() {
+  const keys = readInventory();
+  // 图片专用密钥与文字模型密钥可分别配置；未单独配置时兼容旧配置。
+  return keys['hsfztx-apikey'] || keys['hsfz-apikey'];
+}
+
+function providerRuntime(providerCode) {
+  if (providerCode === 'volcengine_ark_plan') {
+    return { key: providerKeyFor(providerCode), baseUrl: ARK_PLAN_BASE_URL, label: '火山方舟 Ark Plan' };
+  }
+  return { key: providerKeyFor(providerCode), baseUrl: SILICONFLOW_BASE_URL, label: '硅基流动' };
+}
+
+function setProviderHealth(providerCode, status, errorMessage = '') {
+  const provider = providerConfigs.find((item) => item.code === providerCode);
+  if (!provider) return;
+  provider.health_status = status;
+  provider.last_verified_at = new Date().toISOString();
+  provider.last_error = errorMessage.slice(0, 180);
+}
+
+function publicProviderConfig(provider) {
+  const keyConfigured = Boolean(providerKeyFor(provider.code));
+  return {
+    ...provider,
+    key_status: keyConfigured ? 'configured' : 'missing',
+    health_status: provider.last_verified_at ? provider.health_status : 'pending',
+    last_error: provider.last_error || ''
+  };
+}
+
+function providerFailureMessage(providerLabel, statusCode, detail) {
+  if (statusCode === 401) return `${providerLabel}认证失败，请检查服务端密钥或权限。`;
+  if (statusCode === 402) return `${providerLabel}账户额度不足，请充值或切换备用模型。`;
+  if (statusCode === 403) return `${providerLabel}拒绝了当前请求，请检查账户权限。`;
+  if (statusCode === 429) return `${providerLabel}请求过于频繁，请稍后重试。`;
+  if (statusCode >= 500) return `${providerLabel}服务暂时不可用，请稍后重试。`;
+  return `${providerLabel}调用失败${detail ? `：${String(detail).slice(0, 120)}` : ''}`;
+}
+
+function logCall(entry) {
+  const usage = entry.usage || {};
+  const promptTokens = Number(usage.prompt_tokens || usage.input_tokens || 0);
+  const completionTokens = Number(usage.completion_tokens || usage.output_tokens || 0);
+  const totalTokens = Number(usage.total_tokens || (Number(usage.prompt_tokens || 0) + Number(usage.completion_tokens || 0)) || 0);
+  const pricing = modelPricing(entry.provider_code, entry.model_code);
+  const estimatedCostCny = pricing.configured
+    ? ((promptTokens / 1000000) * pricing.input + (completionTokens / 1000000) * pricing.output)
+    : 0;
+  callLogs.unshift({
+    id: Date.now() + Math.floor(Math.random() * 1000),
+    created_at: new Date().toISOString(),
+    prompt_tokens: promptTokens,
+    completion_tokens: completionTokens,
+    total_tokens: totalTokens,
+    estimated_cost_cny: Number(estimatedCostCny.toFixed(8)),
+    pricing_configured: pricing.configured,
+    ...entry
+  });
+  if (callLogs.length > 200) callLogs.length = 200;
+}
+
+function modelPricing(providerCode, modelCode) {
+  const model = modelConfigs.find((item) => item.provider_code === providerCode && item.model_code === modelCode);
+  const input = Number(model?.input_price_cny_per_million);
+  const output = Number(model?.output_price_cny_per_million);
+  return {
+    input: Number.isFinite(input) && input >= 0 ? input : 0,
+    output: Number.isFinite(output) && output >= 0 ? output : 0,
+    configured: Boolean(model && (Number.isFinite(input) || Number.isFinite(output)) && (input > 0 || output > 0))
+  };
+}
+
+function estimatedCostForCall(item) {
+  if (item.pricing_configured && Number.isFinite(Number(item.estimated_cost_cny))) return Number(item.estimated_cost_cny);
+  const pricing = modelPricing(item.provider_code, item.model_code);
+  if (!pricing.configured) return 0;
+  return (Number(item.prompt_tokens || 0) / 1000000) * pricing.input
+    + (Number(item.completion_tokens || 0) / 1000000) * pricing.output;
+}
+
+function usageLogsInRange(searchParams) {
+  const start = String(searchParams.get('start_date') || '');
+  const end = String(searchParams.get('end_date') || '');
+  const isDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+  if (!isDate(start) && !isDate(end)) return callLogs;
+  const startAt = isDate(start) ? new Date(`${start}T00:00:00+08:00`).getTime() : Number.NEGATIVE_INFINITY;
+  const endAt = isDate(end) ? new Date(`${end}T23:59:59.999+08:00`).getTime() : Number.POSITIVE_INFINITY;
+  return callLogs.filter((item) => {
+    const createdAt = new Date(item.created_at).getTime();
+    return Number.isFinite(createdAt) && createdAt >= startAt && createdAt <= endAt;
+  });
+}
+
+function buildUsageSummary(sourceLogs = callLogs) {
+  const functionMap = new Map();
+  const modelMap = new Map();
+  const featureNames = new Map(featureConfigs.map((item) => [item.feature_code, item.feature_name]));
+  const addUsage = (collection, key, base, item) => {
+    const current = collection.get(key) || { ...base, calls: 0, success_calls: 0, failed_calls: 0, prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, estimated_cost_cny: 0, last_called_at: '' };
+    current.calls += 1;
+    current.success_calls += item.status === 'success' ? 1 : 0;
+    current.failed_calls += item.status === 'success' ? 0 : 1;
+    current.prompt_tokens += Number(item.prompt_tokens || 0);
+    current.completion_tokens += Number(item.completion_tokens || 0);
+    current.total_tokens += Number(item.total_tokens || 0);
+    current.estimated_cost_cny += estimatedCostForCall(item);
+    if (!current.last_called_at || current.last_called_at < item.created_at) current.last_called_at = item.created_at;
+    collection.set(key, current);
+  };
+  sourceLogs.forEach((item) => {
+    addUsage(functionMap, item.feature_code || 'unknown', {
+      feature_code: item.feature_code || 'unknown',
+      feature_name: featureNames.get(item.feature_code) || item.feature_code || '未分类功能'
+    }, item);
+    addUsage(modelMap, `${item.provider_code || 'unknown'}:${item.model_code || 'unknown'}`, {
+      provider_code: item.provider_code || 'unknown',
+      model_code: item.model_code || 'unknown'
+    }, item);
+  });
+  const totals = [...sourceLogs].reduce((summary, item) => ({
+    calls: summary.calls + 1,
+    success_calls: summary.success_calls + (item.status === 'success' ? 1 : 0),
+    failed_calls: summary.failed_calls + (item.status === 'success' ? 0 : 1),
+    prompt_tokens: summary.prompt_tokens + Number(item.prompt_tokens || 0),
+    completion_tokens: summary.completion_tokens + Number(item.completion_tokens || 0),
+    total_tokens: summary.total_tokens + Number(item.total_tokens || 0),
+    estimated_cost_cny: summary.estimated_cost_cny + estimatedCostForCall(item)
+  }), { calls: 0, success_calls: 0, failed_calls: 0, prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, estimated_cost_cny: 0 });
+  const sortByTokens = (left, right) => right.total_tokens - left.total_tokens || right.calls - left.calls;
+  return {
+    totals,
+    by_function: [...functionMap.values()].sort(sortByTokens),
+    by_model: [...modelMap.values()].sort(sortByTokens)
+  };
+}
+
+async function getTikHubAccountUsage() {
+  if (tikhubAccountUsageCache.value && tikhubAccountUsageCache.expires_at > Date.now()) return tikhubAccountUsageCache.value;
+  const key = providerKeyFor('tikhub');
+  if (!key) return { status: 'missing_key', label: '未配置密钥' };
+  try {
+    const response = await fetch(`${TIKHUB_BASE_URL}/api/v1/tikhub/user/get_user_info`, {
+      headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' },
+      signal: AbortSignal.timeout(10000)
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.code !== 200) throw new Error(payload.detail?.message || payload.message || `HTTP ${response.status}`);
+    const account = payload.user_data || payload.data?.user_data || payload.data || {};
+    const quota = account.remaining_quota ?? account.quota ?? account.credits ?? account.balance ?? null;
+    const value = {
+      status: 'healthy',
+      label: '账户可用',
+      account_active: account.is_active !== false,
+      quota: typeof quota === 'number' || typeof quota === 'string' ? String(quota) : '',
+      plan: String(account.plan_name || account.plan || account.subscription || '').slice(0, 80)
+    };
+    tikhubAccountUsageCache = { expires_at: Date.now() + 60 * 1000, value };
+    return value;
+  } catch (error) {
+    const status = /429|rate limit|too fast/i.test(error.message) ? 'rate_limited' : 'unavailable';
+    const value = { status, label: status === 'rate_limited' ? '账户接口限流，稍后刷新' : '账户状态暂不可读取' };
+    tikhubAccountUsageCache = { expires_at: Date.now() + 30 * 1000, value };
+    return value;
+  }
+}
+
+function volcBillingCredentials() {
+  const inventory = readInventory();
+  return {
+    accessKeyId: String(process.env.VOLC_BILLING_ACCESS_KEY_ID || inventory['volc-billing-access-key-id'] || '').trim(),
+    secretAccessKey: String(process.env.VOLC_BILLING_SECRET_ACCESS_KEY || inventory['volc-billing-secret-access-key'] || '').trim()
+  };
+}
+
+function sha256Hex(value) {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+function hmacSha256(key, value, encoding) {
+  return createHmac('sha256', key).update(value).digest(encoding);
+}
+
+function volcSigningTimestamp(date = new Date()) {
+  const timestamp = date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  return { timestamp, dateStamp: timestamp.slice(0, 8) };
+}
+
+function signedVolcBillingRequestUrl(credentials) {
+  const endpoint = new URL(VOLC_BILLING_ENDPOINT);
+  endpoint.searchParams.set('Action', VOLC_BILLING_ACTION);
+  endpoint.searchParams.set('Version', VOLC_BILLING_VERSION);
+  const canonicalQuery = [...endpoint.searchParams.entries()]
+    .sort(([leftKey, leftValue], [rightKey, rightValue]) => leftKey.localeCompare(rightKey) || leftValue.localeCompare(rightValue))
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join('&');
+  const payload = '';
+  const { timestamp, dateStamp } = volcSigningTimestamp();
+  const host = endpoint.host;
+  const payloadHash = sha256Hex(payload);
+  const canonicalHeaders = `content-type:application/json; charset=utf-8\nhost:${host}\nx-content-sha256:${payloadHash}\nx-date:${timestamp}\n`;
+  const signedHeaders = 'content-type;host;x-content-sha256;x-date';
+  const canonicalRequest = `POST\n/\n${canonicalQuery}\n${canonicalHeaders}\n${signedHeaders}\n${payloadHash}`;
+  const credentialScope = `${dateStamp}/${VOLC_BILLING_REGION}/${VOLC_BILLING_SERVICE}/request`;
+  const stringToSign = `HMAC-SHA256\n${timestamp}\n${credentialScope}\n${sha256Hex(canonicalRequest)}`;
+  const dateKey = hmacSha256(credentials.secretAccessKey, dateStamp);
+  const regionKey = hmacSha256(dateKey, VOLC_BILLING_REGION);
+  const serviceKey = hmacSha256(regionKey, VOLC_BILLING_SERVICE);
+  const signingKey = hmacSha256(serviceKey, 'request');
+  const signature = hmacSha256(signingKey, stringToSign, 'hex');
+  endpoint.search = canonicalQuery;
+  return {
+    url: endpoint,
+    headers: {
+      Authorization: `HMAC-SHA256 Credential=${credentials.accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
+      'X-Date': timestamp,
+      'X-Content-Sha256': payloadHash,
+      'Content-Type': 'application/json; charset=utf-8',
+      Accept: 'application/json'
+    },
+    body: payload
+  };
+}
+
+function findVolcBalance(value, depth = 0) {
+  if (!value || depth > 4) return null;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const matched = findVolcBalance(item, depth + 1);
+      if (matched) return matched;
+    }
+    return null;
+  }
+  if (typeof value !== 'object') return null;
+  const balanceKeys = ['available_balance', 'availableBalance', 'AvailableBalance', 'balance', 'Balance', 'available_amount', 'availableAmount'];
+  for (const key of balanceKeys) {
+    const number = Number(value[key]);
+    if (Number.isFinite(number)) return { amount: number, currency: String(value.currency || value.Currency || 'CNY') };
+  }
+  for (const nestedValue of Object.values(value)) {
+    const matched = findVolcBalance(nestedValue, depth + 1);
+    if (matched) return matched;
+  }
+  return null;
+}
+
+async function getVolcengineBillingAccountUsage() {
+  if (volcBillingAccountUsageCache.value && volcBillingAccountUsageCache.expires_at > Date.now()) return volcBillingAccountUsageCache.value;
+  const credentials = volcBillingCredentials();
+  if (!credentials.accessKeyId || !credentials.secretAccessKey) {
+    return { status: 'billing_credentials_missing', label: '待接入火山账单权限', setup_hint: '配置火山云 AK/SK 后自动同步余额' };
+  }
+  try {
+    const request = signedVolcBillingRequestUrl(credentials);
+    const response = await fetch(request.url, { method: 'POST', headers: request.headers, body: request.body, signal: AbortSignal.timeout(15000) });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.ResponseMetadata?.Error || payload.error) {
+      const errorCode = payload.ResponseMetadata?.Error?.Code || payload.error?.code || `HTTP ${response.status}`;
+      const errorMessage = payload.ResponseMetadata?.Error?.Message || payload.error?.message || payload.message || '';
+      throw new Error(`${String(errorCode)}${errorMessage ? `: ${String(errorMessage).slice(0, 120)}` : ''}`);
+    }
+    const balance = findVolcBalance(payload.Result || payload.result || payload);
+    if (!balance) throw new Error('余额字段未返回');
+    const value = {
+      status: 'healthy',
+      label: '余额已同步',
+      balance: balance.amount,
+      currency: balance.currency,
+      balance_display: `${balance.currency === 'CNY' ? '¥' : `${balance.currency} `}${balance.amount.toFixed(2)}`,
+      updated_at: new Date().toISOString()
+    };
+    volcBillingAccountUsageCache = { expires_at: Date.now() + 60 * 1000, value };
+    return value;
+  } catch (error) {
+    const value = {
+      status: 'billing_unavailable',
+      label: '账单接口暂不可读取',
+      setup_hint: '请确认 AK/SK 具备账单余额只读权限',
+      error_code: String(error.message || 'unknown').slice(0, 80)
+    };
+    volcBillingAccountUsageCache = { expires_at: Date.now() + 30 * 1000, value };
+    return value;
+  }
+}
+
+async function buildProviderUsageSummary(sourceLogs = callLogs) {
+  const byProvider = new Map();
+  sourceLogs.forEach((item) => {
+    const current = byProvider.get(item.provider_code) || { calls: 0, success_calls: 0, failed_calls: 0, prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, estimated_cost_cny: 0, last_called_at: '' };
+    current.calls += 1;
+    current.success_calls += item.status === 'success' ? 1 : 0;
+    current.failed_calls += item.status === 'success' ? 0 : 1;
+    current.prompt_tokens += Number(item.prompt_tokens || 0);
+    current.completion_tokens += Number(item.completion_tokens || 0);
+    current.total_tokens += Number(item.total_tokens || 0);
+    current.estimated_cost_cny += estimatedCostForCall(item);
+    if (!current.last_called_at || current.last_called_at < item.created_at) current.last_called_at = item.created_at;
+    byProvider.set(item.provider_code, current);
+  });
+  const tikhubAccount = await getTikHubAccountUsage();
+  const volcBillingAccount = await getVolcengineBillingAccountUsage();
+  return {
+    refreshed_at: new Date().toISOString(),
+    items: providerConfigs.map((provider) => ({
+      code: provider.code,
+      name: provider.name,
+      capability: provider.capability,
+      health_status: publicProviderConfig(provider).health_status,
+      key_status: publicProviderConfig(provider).key_status,
+      meter: byProvider.get(provider.code) || { calls: 0, success_calls: 0, failed_calls: 0, prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, estimated_cost_cny: 0, last_called_at: '' },
+      account: provider.code === 'tikhub'
+        ? tikhubAccount
+        : provider.code === 'volcengine_ark_plan'
+          ? volcBillingAccount
+          : { status: 'metered', label: '按供应商实际返回 Token 计量' },
+      billing_source: provider.code === 'tikhub'
+        ? 'TikHub 账户状态 + 中台调用日志'
+        : provider.code === 'volcengine_ark_plan'
+          ? '火山云账户余额 + 中台调用日志'
+          : '模型单价换算的人民币预估成本'
+    }))
+  };
+}
+
+async function callConfiguredModel(feature, input, user) {
+  const featureCode = featureCodeFor(feature);
+  const configuredModels = getEnabledModelConfigs(featureCode, input);
+  if (!configuredModels.length) throw new Error('后台没有为当前功能配置可用的已启用模型');
+  const models = configuredModels;
+  const errors = [];
+  const budgetMs = MODEL_CALL_BUDGETS[feature] || 60000;
+  const budgetStarted = Date.now();
+  for (const modelConfig of models) {
+    const remainingMs = budgetMs - (Date.now() - budgetStarted);
+    if (remainingMs <= 0) {
+      errors.push({ model: modelConfig.model_code, error: `超过 ${Math.round(budgetMs / 1000)} 秒总请求预算` });
+      break;
+    }
+    const runtime = providerRuntime(modelConfig.provider_code);
+    if (!runtime.key) {
+      errors.push({ model: modelConfig.model_code, error: `缺少 ${runtime.label} API Key` });
+      continue;
+    }
+    const started = Date.now();
+    const attemptTimeoutMs = Math.min(
+      remainingMs,
+      MODEL_ATTEMPT_TIMEOUTS[feature] || 60000,
+      modelConfig.provider_code === 'volcengine_ark_plan' ? 180000 : 60000
+    );
+    try {
+      const response = await fetch(`${runtime.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${runtime.key}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: modelConfig.model_code,
+          messages: buildMessages(feature, input, user),
+          temperature: 0.7,
+          max_tokens: feature === 'topics' ? 1200 : feature === 'wechat_layout' ? 4200 : 1200,
+          stream: false
+        }),
+        signal: AbortSignal.timeout(attemptTimeoutMs)
+      });
+      const text = await response.text();
+      let payload;
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        throw new Error(`模型返回非 JSON：${text.slice(0, 160)}`);
+      }
+      if (!response.ok) {
+        throw new Error(providerFailureMessage(runtime.label, response.status, payload.error?.message || payload.message));
+      }
+      const content = payload.choices?.[0]?.message?.content || '';
+      logCall({
+        feature_code: featureCode,
+        user_id: user?.id,
+        user_name: user?.name,
+        provider_code: modelConfig.provider_code,
+        model_code: modelConfig.model_code,
+        status: 'success',
+        latency_ms: Date.now() - started,
+        usage: payload.usage || null
+      });
+      setProviderHealth(modelConfig.provider_code, 'healthy');
+      return {
+        content,
+        provider: modelConfig.provider_code,
+        provider_name: runtime.label,
+        model: modelConfig.model_code,
+        latency_ms: Date.now() - started,
+        usage: payload.usage || null,
+        fallback_chain: errors.map((item) => item.model)
+      };
+    } catch (error) {
+      setProviderHealth(modelConfig.provider_code, 'unhealthy', error.message);
+      logCall({
+        feature_code: featureCode,
+        user_id: user?.id,
+        user_name: user?.name,
+        provider_code: modelConfig.provider_code,
+        model_code: modelConfig.model_code,
+        status: 'failed',
+        latency_ms: Date.now() - started,
+        error_message: error.message
+      });
+      errors.push({ model: modelConfig.model_code, error: error.message });
+    }
+  }
+  const reason = errors.length
+    ? errors.map((item) => `${item.model}: ${item.error}`).join(' | ')
+    : '没有可用的已启用模型';
+  throw new Error(`所有已启用模型调用失败（总预算 ${Math.round(budgetMs / 1000)} 秒）：${reason}`);
+}
+
+function splitWechatArticleSegments(article) {
+  const normalized = String(article || '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .trim();
+  if (!normalized) return [];
+  let parts = normalized.split(/\n\s*\n+/).map((item) => item.trim()).filter(Boolean);
+  if (parts.length < 4) parts = normalized.split(/\n+/).map((item) => item.trim()).filter(Boolean);
+  return parts.slice(0, 180).map((text, index) => ({
+    index,
+    text: text.replace(/^#{1,6}\s*/, '').replace(/^标题\s*[：:]\s*/, '').trim().slice(0, 2400)
+  })).filter((item) => item.text);
+}
+
+function isWechatHeading(text) {
+  const value = String(text || '').trim();
+  return value.length <= 42 && /^(?:写在最后|结语|最后的话|第.{1,10}[章节篇部分]|[一二三四五六七八九十百]+[、.．]|0?\d{1,2}[、.．｜|]|#{1,6}\s*)/.test(value);
+}
+
+function fallbackWechatLayoutAnalysis(segments) {
+  const indexes = segments.map((item) => item.index);
+  const titleIndex = indexes[0] ?? -1;
+  const second = segments[1];
+  const subtitleIndex = second && second.text.length <= 54 && !isWechatHeading(second.text) && !/[。！？]$/.test(second.text) ? second.index : -1;
+  const headingIndexes = segments.filter((item) => item.index !== titleIndex && isWechatHeading(item.text)).map((item) => item.index).slice(0, 10);
+  const bodyCandidates = segments.filter((item) => item.index !== titleIndex && item.index !== subtitleIndex && !headingIndexes.includes(item.index) && item.text.length >= 18 && item.text.length <= 100);
+  const preferredHighlights = bodyCandidates.filter((item) => /真正|不是|而是|教育|成长|改变|相信|重要|答案|看见|值得/.test(item.text));
+  const highlightSource = preferredHighlights.length ? preferredHighlights : bodyCandidates;
+  const highlightIndexes = highlightSource.filter((_, index) => index === 0 || index === Math.floor(highlightSource.length / 2) || index === highlightSource.length - 1).map((item) => item.index).slice(0, 3);
+  const contentIndexes = indexes.filter((index) => index !== titleIndex && index !== subtitleIndex);
+  const desiredImageIndexes = segments.length >= 10 ? [Math.floor(segments.length * .34), Math.floor(segments.length * .68)] : segments.length >= 6 ? [Math.floor(segments.length * .52)] : [];
+  const imageAfterIndexes = desiredImageIndexes.map((position) => contentIndexes.reduce((best, index) => Math.abs(index - position) < Math.abs(best - position) ? index : best, contentIndexes[0] ?? titleIndex)).filter((index, position, list) => Number.isInteger(index) && index >= 0 && list.indexOf(index) === position);
+  return { title_index: titleIndex, subtitle_index: subtitleIndex, heading_indexes: headingIndexes, highlight_indexes: highlightIndexes, image_after_indexes: imageAfterIndexes, closing_index: indexes.at(-1) ?? titleIndex };
+}
+
+function normalizeWechatLayoutAnalysis(content, segments) {
+  const fallback = fallbackWechatLayoutAnalysis(segments);
+  const parsed = parseJsonObject(content) || {};
+  const validIndexes = new Set(segments.map((item) => item.index));
+  const singleIndex = (value, defaultValue) => validIndexes.has(Number(value)) ? Number(value) : defaultValue;
+  const indexList = (value, limit) => [...new Set((Array.isArray(value) ? value : []).map(Number).filter((index) => validIndexes.has(index)))].slice(0, limit);
+  const titleIndex = singleIndex(parsed.title_index, fallback.title_index);
+  const subtitleIndex = parsed.subtitle_index === -1 ? -1 : singleIndex(parsed.subtitle_index, fallback.subtitle_index);
+  const headingIndexes = indexList(parsed.heading_indexes, 10).filter((index) => index !== titleIndex && index !== subtitleIndex);
+  const highlightIndexes = indexList(parsed.highlight_indexes, 4).filter((index) => index !== titleIndex && index !== subtitleIndex && !headingIndexes.includes(index));
+  const imageAfterIndexes = indexList(parsed.image_after_indexes, 4).filter((index) => index !== titleIndex);
+  const closingIndex = singleIndex(parsed.closing_index, fallback.closing_index);
+  return {
+    title_index: titleIndex,
+    subtitle_index: subtitleIndex,
+    heading_indexes: headingIndexes.length ? headingIndexes : fallback.heading_indexes,
+    highlight_indexes: highlightIndexes.length ? highlightIndexes : fallback.highlight_indexes,
+    image_after_indexes: imageAfterIndexes.length ? imageAfterIndexes : fallback.image_after_indexes,
+    closing_index: closingIndex,
+    segments
+  };
+}
+
+const WECHAT_LAYOUT_THEME_CODES = ['museum', 'slow', 'geometry', 'noir', 'nature', 'gallery'];
+
+function variedFallbackWechatLayouts(segments) {
+  const base = fallbackWechatLayoutAnalysis(segments);
+  const usable = segments.map((item) => item.index).filter((index) => index !== base.title_index && index !== base.subtitle_index);
+  const compositions = ['invitation', 'sequence', 'collage', 'archive', 'fieldnote', 'portrait'];
+  return Object.fromEntries(WECHAT_LAYOUT_THEME_CODES.map((code, position) => {
+    const shift = position % 3;
+    const highlight = usable.filter((_, index) => (index + shift) % 3 === 0).slice(0, 3);
+    const images = usable.filter((_, index) => (index + position + 2) % 4 === 0).slice(0, 3);
+    return [code, { ...base, highlight_indexes: highlight.length ? highlight : base.highlight_indexes, image_after_indexes: images.length ? images : base.image_after_indexes, composition: compositions[position], segments }];
+  }));
+}
+
+function normalizeWechatLayoutSet(content, segments) {
+  const parsed = parseJsonObject(content) || {};
+  const rawLayouts = parsed.layouts && typeof parsed.layouts === 'object' ? parsed.layouts : {};
+  const fallbackLayouts = variedFallbackWechatLayouts(segments);
+  return Object.fromEntries(WECHAT_LAYOUT_THEME_CODES.map((code) => {
+    const raw = rawLayouts[code] && typeof rawLayouts[code] === 'object' ? rawLayouts[code] : fallbackLayouts[code];
+    const normalized = normalizeWechatLayoutAnalysis(JSON.stringify(raw), segments);
+    return [code, { ...normalized, composition: String(raw.composition || fallbackLayouts[code].composition).slice(0, 32) }];
+  }));
+}
+
+async function analyzeWechatArticleLayout(input, user) {
+  const article = String(input.article || '').trim().slice(0, 30000);
+  if (article.length < 30) {
+    const error = new Error('请粘贴至少 30 个字的完整文章再排版');
+    error.statusCode = 400;
+    error.errorCode = 40001;
+    throw error;
+  }
+  const segments = splitWechatArticleSegments(article);
+  if (segments.length < 2) {
+    const error = new Error('文章段落太少，请保留标题与正文段落后重试');
+    error.statusCode = 400;
+    error.errorCode = 40001;
+    throw error;
+  }
+  const modelInput = {
+    agent: 'wechat_layout',
+    theme: ['museum', 'slow', 'geometry', 'noir', 'nature', 'gallery'].includes(input.theme) ? input.theme : 'museum',
+    segments: segments.map((item) => ({ index: item.index, text: item.text.slice(0, 700) }))
+  };
+  const rulesLayout = fallbackWechatLayoutAnalysis(segments);
+  if (rulesLayout.heading_indexes.length >= 1 && segments.length >= 5) {
+    return {
+      layout: { ...rulesLayout, segments },
+      provider: 'local_rules',
+      provider_name: '本地结构识别',
+      model: 'wechat-layout-fastpath',
+      latency_ms: 0,
+      degraded: false,
+      model_skipped: true
+    };
+  }
+  try {
+    const result = await callConfiguredModel('wechat_layout', modelInput, user);
+    return { layout: normalizeWechatLayoutAnalysis(result.content, segments), ...result, degraded: false };
+  } catch (error) {
+    return {
+      layout: { ...rulesLayout, segments },
+      provider: 'local_fallback',
+      provider_name: '本地结构识别',
+      model: 'wechat-layout-rules',
+      latency_ms: 0,
+      degraded: true,
+      fallback_reason: error.message
+    };
+  }
+}
+
+function buildCompetitorKeyword(input) {
+  const region = input.track === 'local' && input.region ? `${input.region} ` : '';
+  return `${region}${input.business || '教育'} ${input.platform?.includes('小红书') ? '教育经验' : '教育'}`.trim();
+}
+
+function buildCompetitorFallback(input, tikhub) {
+  const keyword = tikhub?.keyword || buildCompetitorKeyword(input);
+  const keywords = [
+    keyword,
+    `${input.region || ''} ${input.business || '教育'} 体验课`.trim(),
+    `${input.business || '教育'} 避坑`,
+    `${input.business || '教育'} 案例`,
+    `${input.business || '教育'} 家长反馈`
+  ];
+  return [
+    `TikHub 状态：${tikhub?.status || 'not_used'}。${tikhub?.error ? `原因：${tikhub.error}` : '当前未取得结构化竞品数据。'}`,
+    '',
+    '推荐搜索关键词：',
+    ...keywords.map((item) => `- ${item}`),
+    '',
+    '候选竞品筛选标准：',
+    '- 评论区出现具体咨询、价格、报名、体验课、孩子情况等问题',
+    '- 账号主页有明确产品入口或私域承接方式',
+    '- 内容连续垂直，近 30 天仍在更新',
+    '- 不是只看点赞，优先看收藏、评论质量和转化痕迹',
+    '',
+    '分析维度：账号定位、爆款选题、开头方式、案例表达、评论区高频问题、私信入口、发布频率。',
+    '',
+    '下一步：先选 3 个最像你目标客户会关注的账号，每个账号拆 5 条内容标题，再回到选题生成里做自己的版本。'
+  ].join('\n');
+}
+
+function pickTikHubItems(payload) {
+  const candidates = [];
+  const scan = (value) => {
+    if (!value || candidates.length >= 32) return;
+    if (Array.isArray(value)) {
+      value.forEach(scan);
+      return;
+    }
+    if (typeof value === 'object') {
+      const aweme = value.aweme_info || value.aweme || value.video || value;
+      const author = aweme.author || value.author || {};
+      const stats = aweme.statistics || value.statistics || {};
+      const title = aweme.desc || aweme.title || value.desc || value.title;
+      if (title || author.nickname) {
+        const likes = Number(stats.digg_count || stats.like_count || 0);
+        const comments = Number(stats.comment_count || 0);
+        const shares = Number(stats.share_count || 0);
+        const sourceScore = Number(value.match_score || value.score || aweme.match_score || aweme.score);
+        const matchScore = Number.isFinite(sourceScore) && sourceScore > 0
+          ? Math.round(Math.max(0, Math.min(100, sourceScore)))
+          : Math.min(100, 35 + Math.min(30, Math.floor(Math.log10(likes + 1) * 10)) + Math.min(20, Math.floor(Math.log10(comments + 1) * 10)) + Math.min(15, Math.floor(Math.log10(shares + 1) * 10)));
+        candidates.push({
+          title: compactCompetitorTitle(title || '未命名内容'),
+          author: author.nickname || author.unique_id || '未知账号',
+          likes,
+          comments,
+          shares,
+          match_score: matchScore
+        });
+      }
+      Object.values(value).forEach(scan);
+    }
+  };
+  scan(payload?.data || payload);
+  return candidates;
+}
+
+function compactCompetitorTitle(title) {
+  const normalized = String(title).replace(/\s+/g, ' ').trim();
+  return normalized.length > 28 ? `${normalized.slice(0, 28)}…` : normalized;
+}
+
+async function callTikHubCompetitorSearch(input, user) {
+  const provider = providerConfigs.find((item) => item.code === 'tikhub');
+  if (!provider || provider.status !== 'active') {
+    return { status: 'disabled', keyword: buildCompetitorKeyword(input), items: [] };
+  }
+  const key = providerKeyFor('tikhub');
+  if (!key) return { status: 'missing_key', keyword: buildCompetitorKeyword(input), items: [] };
+  const keyword = buildCompetitorKeyword(input);
+  const started = Date.now();
+  try {
+    const response = await fetch(`${provider.base_url}${TIKHUB_COMPETITOR_SEARCH_ENDPOINT}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 Pipi-AI-Center-MVP'
+      },
+      body: JSON.stringify({
+        keyword,
+        cursor: 0,
+        search_id: '',
+        backtrace: '',
+        sort_type: '0',
+        publish_time: '180',
+        filter_duration: '0',
+        content_type: '0'
+      }),
+      signal: AbortSignal.timeout(30000)
+    });
+    const payload = await response.json();
+    if (!response.ok || (payload.code && payload.code !== 200)) {
+      throw new Error(payload.message || payload.detail?.message || `HTTP ${response.status}`);
+    }
+    const minimumScore = Math.max(60, Math.min(100, Number(input.minimum_score) || 60));
+    const items = pickTikHubItems(payload).filter((item) => item.match_score >= minimumScore).slice(0, 8);
+    logCall({
+      feature_code: 'competitor_finder',
+      user_id: user?.id,
+      user_name: user?.name,
+      provider_code: 'tikhub',
+      model_code: TIKHUB_COMPETITOR_SEARCH_ENDPOINT,
+      status: 'success',
+      latency_ms: Date.now() - started,
+      usage: { items: items.length }
+    });
+    setProviderHealth('tikhub', 'healthy');
+    return { status: 'success', keyword, items, raw_count: items.length, minimum_score: minimumScore };
+  } catch (error) {
+    setProviderHealth('tikhub', 'unhealthy', error.message);
+    logCall({
+      feature_code: 'competitor_finder',
+      user_id: user?.id,
+      user_name: user?.name,
+      provider_code: 'tikhub',
+      model_code: TIKHUB_COMPETITOR_SEARCH_ENDPOINT,
+      status: 'failed',
+      latency_ms: Date.now() - started,
+      error_message: error.message
+    });
+    return { status: 'failed', keyword, items: [], error: error.message };
+  }
+}
+
+function externalUrl(value) {
+  if (typeof value === 'string') return /^https?:\/\//.test(value) ? value : '';
+  if (Array.isArray(value)) return value.map(externalUrl).find(Boolean) || '';
+  if (value && typeof value === 'object') return externalUrl(value.url_list || value.urlList || value.url || value.uri);
+  return '';
+}
+
+function externalUrls(value) {
+  const urls = [];
+  const collect = (entry) => {
+    if (!entry) return;
+    if (typeof entry === 'string') {
+      if (/^https?:\/\//.test(entry)) urls.push(entry);
+      return;
+    }
+    if (Array.isArray(entry)) return entry.forEach(collect);
+    if (typeof entry === 'object') collect(entry.url_list || entry.urlList || entry.url || entry.uri);
+  };
+  collect(value);
+  return [...new Set(urls)];
+}
+
+const EDUCATION_SEARCH_SIGNALS = [
+  '教育', '教学', '学习', '老师', '教师', '学生', '家长', '学校', '课程', '课堂', '教培', '辅导', '备考', '升学', '招生', '中考', '高考', '考研', '留学',
+  '语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治', '道法', '作文', '阅读', '识字', '拼音', '口语', '词汇', '奥数',
+  '幼儿园', '小学', '初中', '高中', '大学', '年级', '中小学', '家庭教育', '少儿', '启蒙', '托管', '素质教育', '美育', '书法', '美术', '音乐教育', '体育教育', '心理教育'
+];
+const NON_EDUCATION_SEARCH_SIGNALS = [
+  '明星', '八卦', '娱乐', '电视剧', '电影', '影视', '剧情', '游戏', '搞笑', '音乐', '歌曲', '穿搭', '美食', '旅游', '星座', '汽车', '房产', '社会新闻', '铁拳', '铁权', '暴打', '恶搞', '段子', '教做人'
+];
+const SUBJECT_ONLY_SEARCH = /^(语文|数学|英语|物理|化学|生物|历史|地理|政治|道法|作文|阅读|拼音|识字|口语|词汇|奥数)$/;
+
+function normalizeEducationSearchKeyword(value) {
+  const keyword = String(value || '教育').replace(/\s+/g, ' ').trim().slice(0, 40) || '教育';
+  if (SUBJECT_ONLY_SEARCH.test(keyword)) return `${keyword}学习`;
+  if (/^(书法|美术|音乐|体育|舞蹈|编程|机器人)$/.test(keyword)) return `少儿${keyword}教育`;
+  if (EDUCATION_SEARCH_SIGNALS.some((signal) => keyword.includes(signal))) return keyword;
+  return `${keyword} 教育`;
+}
+
+function countTextSignals(text, signals) {
+  return signals.reduce((count, signal) => count + (text.includes(signal) ? 1 : 0), 0);
+}
+
+function educationRelevanceScore(item, originalKeyword, searchKeyword) {
+  const title = String(item?.title || '').toLowerCase();
+  const author = String(item?.author || '').toLowerCase();
+  const text = `${title} ${author}`;
+  const keyword = String(originalKeyword || '').toLowerCase().trim();
+  const normalized = String(searchKeyword || '').toLowerCase().replace(/\s+/g, '');
+  const positiveHits = countTextSignals(text, EDUCATION_SEARCH_SIGNALS);
+  const negativeHits = countTextSignals(text, NON_EDUCATION_SEARCH_SIGNALS);
+  let score = Math.min(45, positiveHits * 12);
+  // 完整命中用户搜索词时应稳定通过教育相关性边界，避免热词标题因 1 分之差被误删。
+  if (keyword && title.includes(keyword)) score += 36;
+  else if (keyword && author.includes(keyword)) score += 18;
+  if (normalized && text.replace(/\s+/g, '').includes(normalized)) score += 12;
+  if (countTextSignals(author, EDUCATION_SEARCH_SIGNALS)) score += 10;
+  score -= negativeHits * (positiveHits >= 2 ? 12 : 25);
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function normalizeTrendKeyword(value) {
+  return String(value || '').replace(/^#+/, '').replace(/\s+/g, ' ').trim().slice(0, 40);
+}
+
+function firstFiniteNumber(object, keys) {
+  for (const key of keys) {
+    const number = Number(object?.[key]);
+    if (Number.isFinite(number)) return number;
+  }
+  return null;
+}
+
+function extractEducationTrendItems(payload) {
+  const directList = payload?.data?.data?.search_list || payload?.data?.search_list || payload?.search_list;
+  if (Array.isArray(directList)) {
+    return directList
+      .map((value, index) => {
+        const keyword = normalizeTrendKeyword(value?.key_word || value?.word || value?.keyword || value?.sentence || value?.title);
+        return {
+          keyword,
+          source_rank: index + 1,
+          heat: firstFiniteNumber(value, ['search_score', 'searchScore', 'search_index', 'searchIndex', 'hot_value', 'hotValue', 'score']),
+          growth: firstFiniteNumber(value, ['growth_rate', 'growthRate', 'rise_rate', 'riseRate', 'rank_diff', 'rankDiff'])
+        };
+      })
+      .filter((item) => item.keyword.length >= 2
+        && item.keyword.length <= 40
+        && countTextSignals(item.keyword, EDUCATION_SEARCH_SIGNALS) > 0
+        && countTextSignals(item.keyword, NON_EDUCATION_SEARCH_SIGNALS) === 0)
+      .sort((left, right) => Number(right.heat || 0) - Number(left.heat || 0) || left.source_rank - right.source_rank)
+      .slice(0, 10)
+      .map((item, index) => ({ ...item, rank: index + 1 }));
+  }
+  const candidates = [];
+  const seen = new Set();
+  let encounterOrder = 0;
+  const scan = (value) => {
+    if (!value || candidates.length >= 160) return;
+    if (Array.isArray(value)) return value.forEach(scan);
+    if (typeof value !== 'object') return;
+    const rawKeyword = value.key_word || value.word || value.keyword || value.sentence || value.hot_word || value.hotword || value.query || value.topic_name || value.title;
+    const keyword = normalizeTrendKeyword(rawKeyword);
+    const positiveHits = countTextSignals(keyword, EDUCATION_SEARCH_SIGNALS);
+    const negativeHits = countTextSignals(keyword, NON_EDUCATION_SEARCH_SIGNALS);
+    if (keyword && keyword.length >= 2 && keyword.length <= 40 && positiveHits > 0 && negativeHits === 0 && !seen.has(keyword)) {
+      seen.add(keyword);
+      encounterOrder += 1;
+      const sourceRank = firstFiniteNumber(value, ['rank', 'rank_index', 'rankIndex', 'position', 'index', 'order']);
+      const heat = firstFiniteNumber(value, ['search_score', 'searchScore', 'search_index', 'searchIndex', 'hot_value', 'hotValue', 'hot_score', 'hotScore', 'score', 'view_count', 'viewCount']);
+      const growth = firstFiniteNumber(value, ['growth_rate', 'growthRate', 'rise_rate', 'riseRate', 'rank_diff', 'rankDiff']);
+      candidates.push({ keyword, source_rank: sourceRank && sourceRank > 0 ? sourceRank : encounterOrder, heat, growth });
+    }
+    Object.values(value).forEach(scan);
+  };
+  scan(payload?.data || payload);
+  return candidates
+    .sort((left, right) => left.source_rank - right.source_rank || Number(right.heat || 0) - Number(left.heat || 0))
+    .slice(0, 10)
+    .map((item, index) => ({ ...item, rank: index + 1 }));
+}
+
+function extractXiaohongshuEducationTrendItems(payload) {
+  const candidates = [];
+  const seen = new Set();
+  let encounterOrder = 0;
+  const scan = (value) => {
+    if (!value || candidates.length >= 120) return;
+    if (Array.isArray(value)) return value.forEach(scan);
+    if (typeof value !== 'object') return;
+    const rawKeyword = value.search_word || value.searchWord || value.suggest_text || value.suggestText || value.keyword || value.key_word || value.word || value.query || value.text;
+    const keyword = normalizeTrendKeyword(rawKeyword);
+    const positiveHits = countTextSignals(keyword, EDUCATION_SEARCH_SIGNALS);
+    const negativeHits = countTextSignals(keyword, NON_EDUCATION_SEARCH_SIGNALS);
+    if (keyword && keyword.length >= 2 && keyword.length <= 40 && positiveHits > 0 && negativeHits === 0 && !seen.has(keyword)) {
+      seen.add(keyword);
+      encounterOrder += 1;
+      candidates.push({
+        keyword,
+        source_rank: firstFiniteNumber(value, ['rank', 'position', 'index', 'order']) || encounterOrder,
+        heat: firstFiniteNumber(value, ['hot_value', 'hotValue', 'heat', 'score', 'search_index', 'searchIndex']),
+        growth: null
+      });
+    }
+    Object.values(value).forEach(scan);
+  };
+  scan(payload?.data || payload);
+  return candidates
+    .sort((left, right) => left.source_rank - right.source_rank || Number(right.heat || 0) - Number(left.heat || 0))
+    .slice(0, 10)
+    .map((item, index) => ({ ...item, rank: index + 1 }));
+}
+
+function trendCacheValue(platform) {
+  const cache = competitorTrendsCache[platform];
+  if (cache?.value && cache.expiresAt > Date.now()) return { ...cache.value, cached: true, request_count: 0, model_tokens: 0 };
+  return null;
+}
+
+async function fetchDouyinEducationTrends(key, user) {
+  const cached = trendCacheValue('douyin');
+  if (cached) return cached;
+  const started = Date.now();
+  const response = await fetch(`${TIKHUB_BASE_URL}${TIKHUB_EDUCATION_TRENDS_ENDPOINT}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'User-Agent': 'Pipi-AI-Center-MVP' },
+    body: JSON.stringify({ page_num: 1, page_size: 50, date_window: 24, keyword: '教育' }),
+    signal: AbortSignal.timeout(15000)
+  });
+  const payload = await response.json();
+  if (!response.ok || (payload.code && payload.code !== 200)) throw new Error(payload.message_zh || payload.message || payload.detail?.message || `HTTP ${response.status}`);
+  const items = extractEducationTrendItems(payload);
+  if (!items.length) throw new Error('抖音已返回数据，但未识别到教育热词');
+  const latencyMs = Date.now() - started;
+  const value = { platform: 'douyin', platform_label: '抖音', items, source: 'TikHub · 抖音搜索榜', scope: '教育搜索榜', refreshed_at: new Date().toISOString(), cache_ttl_seconds: Math.round(COMPETITOR_TRENDS_CACHE_TTL_MS / 1000), cached: false, request_count: 1, model_tokens: 0, latency_ms: latencyMs };
+  competitorTrendsCache.douyin = { expiresAt: Date.now() + COMPETITOR_TRENDS_CACHE_TTL_MS, value };
+  logCall({ feature_code: 'competitor_trends_douyin', user_id: user.id, user_name: user.name, provider_code: 'tikhub', model_code: TIKHUB_EDUCATION_TRENDS_ENDPOINT, status: 'success', latency_ms: latencyMs, usage: { items: items.length, requests: 1 } });
+  return value;
+}
+
+async function fetchXiaohongshuEducationTrends(key, user) {
+  const cached = trendCacheValue('xiaohongshu');
+  if (cached) return cached;
+  const started = Date.now();
+  const endpoint = `${TIKHUB_BASE_URL}${TIKHUB_XIAOHONGSHU_TRENDS_ENDPOINT}?keyword=${encodeURIComponent('教育')}`;
+  const response = await fetch(endpoint, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${key}`, Accept: 'application/json', 'User-Agent': 'Pipi-AI-Center-MVP' },
+    signal: AbortSignal.timeout(20000)
+  });
+  const payload = await response.json();
+  if (!response.ok || (payload.code && payload.code !== 200)) throw new Error(payload.message_zh || payload.message || payload.detail?.message || `HTTP ${response.status}`);
+  const items = extractXiaohongshuEducationTrendItems(payload);
+  if (!items.length) throw new Error('小红书已返回数据，但未识别到教育热词');
+  const latencyMs = Date.now() - started;
+  const value = { platform: 'xiaohongshu', platform_label: '小红书', items, source: 'TikHub · 小红书搜索联想', scope: '教育相关搜索词', refreshed_at: new Date().toISOString(), cache_ttl_seconds: Math.round(COMPETITOR_TRENDS_CACHE_TTL_MS / 1000), cached: false, request_count: 1, model_tokens: 0, latency_ms: latencyMs };
+  competitorTrendsCache.xiaohongshu = { expiresAt: Date.now() + COMPETITOR_TRENDS_CACHE_TTL_MS, value };
+  logCall({ feature_code: 'competitor_trends_xiaohongshu', user_id: user.id, user_name: user.name, provider_code: 'tikhub', model_code: TIKHUB_XIAOHONGSHU_TRENDS_ENDPOINT, status: 'success', latency_ms: latencyMs, usage: { items: items.length, requests: 1 } });
+  return value;
+}
+
+async function fetchEducationCompetitorTrends(user) {
+  const provider = providerConfigs.find((item) => item.code === 'tikhub');
+  const feature = getFeatureConfig('competitor_finder');
+  if (!provider || provider.status !== 'active' || !feature?.data_provider_codes?.includes('tikhub')) throw new Error('TikHub 已在后台停用');
+  const key = providerKeyFor('tikhub');
+  if (!key) throw new Error('TikHub 密钥未配置');
+  const [douyinResult, xiaohongshuResult] = await Promise.allSettled([
+    fetchDouyinEducationTrends(key, user),
+    fetchXiaohongshuEducationTrends(key, user)
+  ]);
+  const platformResult = (result, platform, label) => result.status === 'fulfilled'
+    ? result.value
+    : { platform, platform_label: label, items: [], source: 'TikHub', scope: '教育', refreshed_at: '', cached: false, request_count: 1, model_tokens: 0, error: result.reason?.message || `${label}热词榜读取失败` };
+  const douyin = platformResult(douyinResult, 'douyin', '抖音');
+  const xiaohongshu = platformResult(xiaohongshuResult, 'xiaohongshu', '小红书');
+  if (!douyin.items.length && !xiaohongshu.items.length) {
+    setProviderHealth('tikhub', 'unhealthy', `${douyin.error || ''}；${xiaohongshu.error || ''}`);
+    throw new Error(`抖音：${douyin.error || '读取失败'}；小红书：${xiaohongshu.error || '读取失败'}`);
+  }
+  if (douyinResult.status === 'rejected') logCall({ feature_code: 'competitor_trends_douyin', user_id: user.id, user_name: user.name, provider_code: 'tikhub', model_code: TIKHUB_EDUCATION_TRENDS_ENDPOINT, status: 'failed', latency_ms: 0, error_message: douyin.error });
+  if (xiaohongshuResult.status === 'rejected') logCall({ feature_code: 'competitor_trends_xiaohongshu', user_id: user.id, user_name: user.name, provider_code: 'tikhub', model_code: TIKHUB_XIAOHONGSHU_TRENDS_ENDPOINT, status: 'failed', latency_ms: 0, error_message: xiaohongshu.error });
+  setProviderHealth('tikhub', 'healthy');
+  const requestCount = Number(douyin.request_count || 0) + Number(xiaohongshu.request_count || 0);
+  return { platforms: { douyin, xiaohongshu }, items: douyin.items, source: 'TikHub · 抖音与小红书', scope: '教育', refreshed_at: new Date().toISOString(), cached: Boolean(douyin.cached && xiaohongshu.cached), request_count: requestCount, model_tokens: 0 };
+}
+
+function competitorMetric(value) {
+  if (value && typeof value === 'object') return competitorMetric(value.count ?? value.value ?? value.text ?? 0);
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const text = String(value || '').replace(/,/g, '').trim();
+  const number = Number.parseFloat(text);
+  if (!Number.isFinite(number)) return 0;
+  if (/亿/.test(text)) return Math.round(number * 100000000);
+  if (/万|w/i.test(text)) return Math.round(number * 10000);
+  if (/千|k/i.test(text)) return Math.round(number * 1000);
+  return Math.round(number);
+}
+
+function firstCompetitorMetric(objects, keys) {
+  for (const object of objects.filter(Boolean)) {
+    for (const key of keys) {
+      if (object[key] !== undefined && object[key] !== null && object[key] !== '') return competitorMetric(object[key]);
+    }
+  }
+  return 0;
+}
+
+function normalizeCompetitorStatistics(...objects) {
+  return {
+    likes: firstCompetitorMetric(objects, ['digg_count', 'like_count', 'liked_count', 'nice_count', 'likes', 'likeCount', 'likeNum', 'like_num', 'praise_num', 'praiseCount']),
+    comments: firstCompetitorMetric(objects, ['comment_count', 'comments_count', 'comments', 'commentCount', 'commentNum', 'comment_num']),
+    shares: firstCompetitorMetric(objects, ['share_count', 'shared_count', 'shares_count', 'shares', 'shareCount', 'shareNum', 'forward_count', 'forwardCount']),
+    collects: firstCompetitorMetric(objects, ['collect_count', 'collects_count', 'collected_count', 'collects', 'collectCount', 'collectNum', 'favorite_count', 'favoriteCount'])
+  };
+}
+
+function competitorScore(statistics) {
+  const likes = Number(statistics?.likes || statistics?.digg_count || statistics?.like_count || 0);
+  const comments = Number(statistics?.comments || statistics?.comment_count || 0);
+  const shares = Number(statistics?.shares || statistics?.share_count || 0);
+  const collects = Number(statistics?.collects || statistics?.collect_count || statistics?.collects_count || 0);
+  const weighted = likes * 0.6 + comments * 1.1 + shares * 1.35 + collects * 1.2;
+  return Math.max(1, Math.min(99, Math.round(Math.log10(weighted + 10) * 16)));
+}
+
+function firstString(objects, keys, fallback = '') {
+  for (const object of objects.filter(Boolean)) {
+    for (const key of keys) {
+      const value = object[key];
+      if (typeof value === 'string' && value.trim()) return value.trim();
+      if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+    }
+  }
+  return fallback;
+}
+
+function cleanCompetitorText(value, fallback = '') {
+  const text = String(value || fallback)
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text || fallback;
+}
+
+function nestedValueByKeys(value, keys, depth = 0, seen = new Set()) {
+  if (!value || typeof value !== 'object' || depth > 7 || seen.has(value)) return undefined;
+  seen.add(value);
+  for (const key of keys) {
+    const candidate = value[key];
+    if (candidate !== undefined && candidate !== null && candidate !== '') return candidate;
+  }
+  const children = Array.isArray(value) ? value : Object.values(value);
+  for (const child of children) {
+    const found = nestedValueByKeys(child, keys, depth + 1, seen);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+}
+
+function firstNestedString(objects, keys, fallback = '') {
+  for (const object of objects.filter(Boolean)) {
+    const value = nestedValueByKeys(object, keys);
+    if ((typeof value === 'string' || typeof value === 'number') && String(value).trim()) return String(value).trim();
+  }
+  return fallback;
+}
+
+function nestedCompetitorStatistics(...objects) {
+  const read = (keys) => {
+    for (const object of objects.filter(Boolean)) {
+      const value = nestedValueByKeys(object, keys);
+      if (value !== undefined) return competitorMetric(value);
+    }
+    return 0;
+  };
+  return {
+    likes: read(['digg_count', 'like_count', 'liked_count', 'nice_count', 'likes', 'likeCount', 'likeNum', 'like_num', 'praise_num', 'praiseCount']),
+    comments: read(['comment_count', 'comments_count', 'comments', 'commentCount', 'commentNum', 'comment_num']),
+    shares: read(['share_count', 'shared_count', 'shares_count', 'shares', 'shareCount', 'shareNum', 'forward_count', 'forwardCount']),
+    collects: read(['collect_count', 'collects_count', 'collected_count', 'collects', 'collectCount', 'collectNum', 'favorite_count', 'favoriteCount'])
+  };
+}
+
+function deepExternalUrl(value, preferredKeyPattern = /(?:master|play|video|media|url)/i, depth = 0, seen = new Set()) {
+  if (!value || depth > 7) return '';
+  if (typeof value === 'string') return /^https?:\/\//.test(value) ? value : '';
+  if (typeof value !== 'object' || seen.has(value)) return '';
+  seen.add(value);
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = deepExternalUrl(item, preferredKeyPattern, depth + 1, seen);
+      if (found) return found;
+    }
+    return '';
+  }
+  const entries = Object.entries(value).sort(([left], [right]) => Number(preferredKeyPattern.test(right)) - Number(preferredKeyPattern.test(left)));
+  for (const [, item] of entries) {
+    const found = deepExternalUrl(item, preferredKeyPattern, depth + 1, seen);
+    if (found) return found;
+  }
+  return '';
+}
+
+function competitorDuration(...values) {
+  for (const value of values) {
+    const length = Number(value);
+    if (Number.isFinite(length) && length > 0) return length > 1000 ? Math.round(length / 1000) : Math.round(length);
+  }
+  return null;
+}
+
+function withCompetitorChannel(item, channel) {
+  const config = COMPETITOR_CHANNELS[channel] || COMPETITOR_CHANNELS.douyin;
+  return { ...item, id: `${config.code}:${item.id}`, native_id: String(item.id), channel: config.code, channel_label: config.label, can_transcribe: Boolean(item.can_transcribe || item.play_url) };
+}
+
+function extractDouyinCompetitorItems(payload, keyword) {
+  const items = [];
+  const seen = new Set();
+  const scan = (value) => {
+    if (!value || items.length >= 50) return;
+    if (Array.isArray(value)) return value.forEach(scan);
+    if (typeof value !== 'object') return;
+    const candidate = value.aweme_info || value.aweme || (value.aweme_id && value.author && value.statistics ? value : null);
+    if (candidate) {
+      const aweme = value.aweme_info || value.aweme || value;
+      const video = aweme.video || value.video || {};
+      const id = String(aweme.aweme_id || aweme.id || value.aweme_id || value.id || '');
+      const playUrl = externalUrls(video.play_addr || video.playAddr || value.play_addr)[0] || '';
+      const author = aweme.author || value.author || {};
+      const statistics = normalizeCompetitorStatistics(aweme.statistics, value.statistics);
+      if (id && playUrl && !seen.has(id)) {
+        seen.add(id);
+        items.push(withCompetitorChannel({
+          id,
+          title: cleanCompetitorText(aweme.desc || aweme.title || value.desc || value.title, `与“${keyword}”相关视频`),
+          author: String(author.nickname || author.unique_id || author.short_id || '未知账号'),
+          ...statistics,
+          score: competitorScore(statistics),
+          duration: competitorDuration(video.duration, aweme.duration),
+          cover_url: externalUrl(video.cover || video.origin_cover || video.dynamic_cover || value.cover),
+          source_url: externalUrl(aweme.share_url || aweme.url || value.share_url || value.url) || `https://www.douyin.com/video/${id}`,
+          play_url: playUrl
+        }, 'douyin'));
+      }
+      return;
+    }
+    Object.values(value).forEach(scan);
+  };
+  scan(payload?.data || payload);
+  return items;
+}
+
+function extractXiaohongshuCompetitorItems(payload, keyword) {
+  const items = [];
+  const seen = new Set();
+  const scan = (value) => {
+    if (!value || items.length >= 60) return;
+    if (Array.isArray(value)) return value.forEach(scan);
+    if (typeof value !== 'object') return;
+    const note = value.note_card || value.noteCard || value.note || value.note_info || value.noteInfo || null;
+    const candidate = note || ((value.note_id || value.noteId) ? value : null);
+    if (candidate) {
+      const id = firstString([candidate, value], ['note_id', 'noteId', 'id']);
+      const type = firstString([candidate, value], ['type', 'note_type', 'noteType']).toLowerCase();
+      const user = candidate.user || candidate.author || value.user || value.author || {};
+      const interaction = candidate.interact_info || candidate.interactInfo || candidate.statistics || value.interact_info || value.interactInfo || value.statistics || {};
+      const statistics = nestedCompetitorStatistics(interaction, candidate, value);
+      const video = candidate.video || candidate.video_info_v2 || candidate.videoInfoV2 || candidate.video_info || candidate.videoInfo || value.video || value.video_info_v2 || value.video_info || value.videoInfo || {};
+      const cover = candidate.cover || candidate.cover_info || candidate.coverInfo || candidate.images_list || candidate.imagesList || video.image || value.cover || value.cover_info || value.coverInfo || {};
+      if (id && (!type || /video|视频/.test(type)) && !seen.has(id)) {
+        seen.add(id);
+        const xsecToken = firstNestedString([value, candidate], ['xsec_token', 'xsecToken']);
+        const title = firstNestedString([candidate, value], ['display_title', 'displayTitle', 'title']);
+        const description = firstNestedString([candidate, value], ['desc', 'description']);
+        const sourceUrl = externalUrl(candidate.share_url || candidate.shareUrl || value.share_url || value.shareUrl)
+          || `https://www.xiaohongshu.com/explore/${encodeURIComponent(id)}${xsecToken ? `?xsec_token=${encodeURIComponent(xsecToken)}&xsec_source=pc_search` : ''}`;
+        items.push(withCompetitorChannel({
+          id,
+          title: cleanCompetitorText([title, description && description !== title ? description : ''].filter(Boolean).join(' '), `与“${keyword}”相关笔记`).slice(0, 240),
+          author: firstNestedString([user, candidate, value], ['nickname', 'nick_name', 'nickName', 'user_name', 'userName', 'authorName'], '未知账号'),
+          ...statistics,
+          score: competitorScore(statistics),
+          duration: competitorDuration(candidate.video_duration, video.duration, video.duration_ms, candidate.duration),
+          cover_url: externalUrl(cover.url_default || cover.urlDefault || cover.url_pre || cover.urlPre || cover.thumbnail || cover) || deepExternalUrl(cover, /(?:url_default|url_pre|cover|thumb)/i),
+          source_url: sourceUrl,
+          play_url: deepExternalUrl(video, /(?:master_url|masterUrl|play_url|playUrl|video_url|videoUrl)/i)
+        }, 'xiaohongshu'));
+      }
+      return;
+    }
+    Object.values(value).forEach(scan);
+  };
+  scan(payload?.data || payload);
+  return items;
+}
+
+function extractWechatChannelsCompetitorItems(payload, keyword) {
+  const items = [];
+  const seen = new Set();
+  const scan = (value) => {
+    if (!value || items.length >= 60) return;
+    if (Array.isArray(value)) return value.forEach(scan);
+    if (typeof value !== 'object') return;
+    const nested = value.video || value.item || value.document || value.doc || value.result || null;
+    const candidate = nested && typeof nested === 'object' ? nested : value;
+    const exportId = firstNestedString([candidate, value], ['exportId', 'export_id']);
+    const objectNonceId = firstNestedString([candidate, value], ['feedNonceId', 'feed_nonce_id', 'objectNonceId', 'object_nonce_id']);
+    const id = exportId || objectNonceId || firstString([candidate, value], ['docID', 'docId', 'doc_id']);
+    if (id && !seen.has(id)) {
+      seen.add(id);
+      const author = candidate.author || candidate.user || candidate.account || candidate.creator || value.author || value.user || value.account || {};
+      const source = candidate.source || value.source || {};
+      const interaction = candidate.statistics || candidate.stat || candidate.interact_info || candidate.interactInfo || value.statistics || value.stat || value.interact_info || {};
+      const statistics = nestedCompetitorStatistics(interaction, candidate, value);
+      const media = candidate.media || candidate.video || candidate.video_info || candidate.videoInfo || value.media || {};
+      const cover = nestedValueByKeys(candidate, ['cover', 'cover_url', 'coverUrl', 'thumb', 'thumbnail', 'coverImage', 'image']) || nestedValueByKeys(value, ['cover', 'cover_url', 'coverUrl', 'thumb', 'thumbnail', 'coverImage', 'image']) || {};
+      const sourceUrl = firstNestedString([candidate, value], ['share_url', 'shareUrl', 'jump_url', 'jumpUrl']);
+      const mediaValue = nestedValueByKeys(candidate, ['media', 'video_info', 'videoInfo', 'play_url', 'playUrl']) || media;
+      items.push(withCompetitorChannel({
+        id,
+        title: cleanCompetitorText(firstNestedString([candidate, value], ['title', 'desc', 'description', 'objectDesc', 'object_desc']), `与“${keyword}”相关视频`),
+        author: cleanCompetitorText(firstString([source], ['title']) || firstNestedString([author, candidate, value], ['nickname', 'nickName', 'userName', 'username', 'authorName', 'accountName']), '未知账号'),
+        ...statistics,
+        score: competitorScore(statistics),
+        duration: competitorDuration(candidate.duration, candidate.duration_ms, value.duration),
+        cover_url: externalUrl(cover) || deepExternalUrl(cover, /(?:cover|thumb|url)/i),
+        source_url: /^https?:\/\//.test(sourceUrl) ? sourceUrl : '',
+        play_url: deepExternalUrl(mediaValue, /(?:play_url|playUrl|media_url|mediaUrl|url)/i),
+        export_id: exportId,
+        object_nonce_id: objectNonceId,
+        can_transcribe: Boolean(exportId)
+      }, 'wechat_channels'));
+      return;
+    }
+    Object.values(value).forEach(scan);
+  };
+  scan(payload?.data || payload);
+  return items;
+}
+
+function extractDetailedCompetitorItems(payload, channel, keyword) {
+  if (channel === 'xiaohongshu') return extractXiaohongshuCompetitorItems(payload, keyword);
+  if (channel === 'wechat_channels') return extractWechatChannelsCompetitorItems(payload, keyword);
+  return extractDouyinCompetitorItems(payload, keyword);
+}
+
+function competitorUsageDate() {
+  return new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+function competitorUsageKey(user, date = competitorUsageDate()) {
+  return `${date}:${user.id}`;
+}
+
+function normalizeCompetitorResultLimit(value) {
+  const requested = Number(value);
+  return COMPETITOR_RESULT_LIMITS.has(requested) ? requested : 10;
+}
+
+function normalizeCompetitorChannel(value) {
+  const channel = String(value || 'douyin').trim();
+  return COMPETITOR_CHANNELS[channel] ? channel : 'douyin';
+}
+
+function competitorQuotaFor(user) {
+  const date = competitorUsageDate();
+  const key = competitorUsageKey(user, date);
+  const used = Math.max(0, Number(competitorSearchDailyUsage[key]?.used || 0));
+  const reserved = Math.max(0, Number(competitorSearchReservations.get(key) || 0));
+  return {
+    date,
+    limit: COMPETITOR_DAILY_VIDEO_LIMIT,
+    used,
+    reserved,
+    remaining: Math.max(0, COMPETITOR_DAILY_VIDEO_LIMIT - used - reserved),
+    result_options: [...COMPETITOR_RESULT_LIMITS]
+  };
+}
+
+function reserveCompetitorQuota(user, requested) {
+  const quota = competitorQuotaFor(user);
+  const granted = Math.min(requested, quota.remaining);
+  if (granted <= 0) return { ...quota, granted: 0, key: competitorUsageKey(user, quota.date) };
+  const key = competitorUsageKey(user, quota.date);
+  competitorSearchReservations.set(key, quota.reserved + granted);
+  return { ...quota, granted, key };
+}
+
+function releaseCompetitorQuota(reservation) {
+  if (!reservation?.key || !reservation.granted) return;
+  const reserved = Math.max(0, Number(competitorSearchReservations.get(reservation.key) || 0) - reservation.granted);
+  if (reserved) competitorSearchReservations.set(reservation.key, reserved);
+  else competitorSearchReservations.delete(reservation.key);
+}
+
+function finalizeCompetitorQuota(user, reservation, actualCount) {
+  releaseCompetitorQuota(reservation);
+  const actual = Math.max(0, Math.min(reservation.granted, Number(actualCount) || 0));
+  const current = competitorSearchDailyUsage[reservation.key] || { used: 0, updated_at: '' };
+  competitorSearchDailyUsage[reservation.key] = {
+    used: Math.min(COMPETITOR_DAILY_VIDEO_LIMIT, Number(current.used || 0) + actual),
+    updated_at: new Date().toISOString()
+  };
+  const keepAfter = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  Object.keys(competitorSearchDailyUsage).forEach((key) => {
+    if (key.slice(0, 10) < keepAfter) delete competitorSearchDailyUsage[key];
+  });
+  return competitorQuotaFor(user);
+}
+
+function findNestedSearchValue(payload, keys) {
+  let found = '';
+  const scan = (value, depth = 0) => {
+    if (found || !value || depth > 7) return;
+    if (Array.isArray(value)) return value.forEach((item) => scan(item, depth + 1));
+    if (typeof value !== 'object') return;
+    for (const key of keys) {
+      const candidate = value[key];
+      if ((typeof candidate === 'string' || typeof candidate === 'number') && String(candidate).trim() && String(candidate) !== '0') {
+        found = String(candidate).trim();
+        return;
+      }
+    }
+    Object.values(value).forEach((item) => scan(item, depth + 1));
+  };
+  scan(payload);
+  return found;
+}
+
+function extractTikHubSearchPageState(payload, channel, currentState = {}) {
+  if (channel === 'xiaohongshu') {
+    const searchId = findNestedSearchValue(payload, ['search_id', 'searchId']);
+    const searchSessionId = findNestedSearchValue(payload, ['search_session_id', 'searchSessionId']);
+    if (!searchId && !searchSessionId) return null;
+    return { page: Number(currentState.page || 1) + 1, search_id: searchId || currentState.search_id || '', search_session_id: searchSessionId || currentState.search_session_id || '' };
+  }
+  const cursor = findNestedSearchValue(payload, ['cursor', 'next_cursor', 'nextCursor']);
+  if (!cursor) return null;
+  if (channel === 'wechat_channels') return { cursor };
+  return {
+    cursor: Number(cursor),
+    search_id: findNestedSearchValue(payload, ['search_id', 'searchId']),
+    backtrace: findNestedSearchValue(payload, ['backtrace', 'back_trace'])
+  };
+}
+
+function parseTikHubPayload(raw) {
+  const safeRaw = String(raw || '').replace(/("(?:docID|docId|feedNonceId|exportId)"\s*:\s*)(-?\d{16,})(?=\s*[,}])/g, '$1"$2"');
+  return JSON.parse(safeRaw);
+}
+
+function competitorRequestForChannel(baseUrl, channel, keyword, pageState) {
+  const config = COMPETITOR_CHANNELS[channel] || COMPETITOR_CHANNELS.douyin;
+  if (channel === 'xiaohongshu') {
+    const params = new URLSearchParams({
+      keyword,
+      page: String(Number(pageState.page || 1)),
+      sort_type: 'popularity_descending',
+      note_type: '视频笔记',
+      time_filter: '半年内',
+      search_id: pageState.search_id || '',
+      search_session_id: pageState.search_session_id || '',
+      source: 'explore_feed',
+      ai_mode: '0'
+    });
+    return { url: `${baseUrl}${config.endpoint}?${params.toString()}`, options: { method: 'GET' } };
+  }
+  if (channel === 'wechat_channels') {
+    return {
+      url: `${baseUrl}${config.endpoint}`,
+      options: { method: 'POST', body: JSON.stringify({ keyword, duration: 'all', sort: 'hot', publish_time: 'half_year', offset: 0, cursor: pageState.cursor || '', raw: false }) }
+    };
+  }
+  return {
+    url: `${baseUrl}${config.endpoint}`,
+    options: { method: 'POST', body: JSON.stringify({ keyword, cursor: Number(pageState.cursor || 0), search_id: pageState.search_id || '', backtrace: pageState.backtrace || '', sort_type: '0', publish_time: '180', filter_duration: '0', content_type: '0' }) }
+  };
+}
+
+async function fetchTikHubCompetitorPayload(key, channel, keyword, pageState = {}) {
+  const bases = [...new Set([TIKHUB_BASE_URL, TIKHUB_FALLBACK_BASE_URL].filter(Boolean))];
+  let lastError;
+  for (const baseUrl of bases) {
+    try {
+      const request = competitorRequestForChannel(baseUrl, channel, keyword, pageState);
+      const response = await fetch(request.url, {
+        ...request.options,
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'User-Agent': 'Pipi-AI-Center-MVP' },
+        signal: AbortSignal.timeout(channel === 'wechat_channels' ? 45000 : 30000)
+      });
+      const payload = parseTikHubPayload(await response.text());
+      if (!response.ok || (payload.code && payload.code !== 200)) throw new Error(payload.message_zh || payload.message || payload.detail?.message || `HTTP ${response.status}`);
+      return payload;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error('TikHub 上游连接异常');
+}
+
+async function fetchTikHubWechatVideoDetail(key, source) {
+  const bases = [...new Set([TIKHUB_BASE_URL, TIKHUB_FALLBACK_BASE_URL].filter(Boolean))];
+  let lastError;
+  for (const baseUrl of bases) {
+    try {
+      const response = await fetch(`${baseUrl}${TIKHUB_WECHAT_CHANNELS_DETAIL_ENDPOINT}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'User-Agent': 'Pipi-AI-Center-MVP' },
+        body: JSON.stringify({ export_id: source.exportId, object_nonce_id: source.objectNonceId || '', raw: false }),
+        signal: AbortSignal.timeout(45000)
+      });
+      const payload = parseTikHubPayload(await response.text());
+      if (!response.ok || (payload.code && payload.code !== 200)) throw new Error(payload.message_zh || payload.message || payload.detail?.message || `HTTP ${response.status}`);
+      const data = payload?.data?.data || payload?.data || payload;
+      const mediaValue = data?.media || nestedValueByKeys(data, ['media']);
+      const media = Array.isArray(mediaValue) ? mediaValue[0] : mediaValue;
+      const fullUrl = firstString([media], ['full_url', 'fullUrl']);
+      const baseMediaUrl = firstString([media], ['url', 'media_url', 'mediaUrl']);
+      const urlToken = firstString([media], ['url_token', 'urlToken']);
+      const playUrl = fullUrl || (baseMediaUrl ? `${baseMediaUrl}${urlToken || ''}` : deepExternalUrl(media, /(?:full_url|fullUrl|url)/i));
+      const decodeKey = firstNestedString([media, data], ['decode_key', 'decodeKey']);
+      if (!playUrl) throw new Error('视频号详情未返回媒体地址');
+      return { playUrl, decodeKey, title: String(data?.title || source.caption || '') };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error('视频号详情读取失败');
+}
+
+async function downloadWechatVideoMedia(playUrl) {
+  const response = await fetch(playUrl, {
+    headers: { 'User-Agent': 'Mozilla/5.0 Pipi-AI-Center-MVP', Referer: 'https://channels.weixin.qq.com/' },
+    redirect: 'follow',
+    signal: AbortSignal.timeout(90000)
+  });
+  if (!response.ok) throw new Error(`视频号媒体下载失败（HTTP ${response.status}）`);
+  const contentLength = Number(response.headers.get('content-length') || 0);
+  if (contentLength > COMPETITOR_MEDIA_MAX_BYTES) throw new Error('该视频超过 50MB，暂时无法提取');
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (!buffer.length) throw new Error('视频号媒体文件为空');
+  if (buffer.length > COMPETITOR_MEDIA_MAX_BYTES) throw new Error('该视频超过 50MB，暂时无法提取');
+  return buffer;
+}
+
+async function transcribeWechatVideoBuffer(videoBuffer, user) {
+  const apiKey = providerKeyFor('siliconflow');
+  if (!apiKey) throw new Error('语音识别服务密钥未配置');
+  const started = Date.now();
+  try {
+    const form = new FormData();
+    form.append('file', new Blob([videoBuffer], { type: 'video/mp4' }), 'wechat-channel-video.mp4');
+    form.append('model', SILICONFLOW_ASR_MODEL);
+    const response = await fetch(`${SILICONFLOW_BASE_URL}/audio/transcriptions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+      signal: AbortSignal.timeout(125000)
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(providerFailureMessage('硅基流动语音识别', response.status, payload?.error?.message || payload?.message || ''));
+    const transcript = String(payload?.text || payload?.transcript || payload?.result?.text || '').trim();
+    if (!transcript) throw new Error('语音识别没有返回可用文案');
+    setProviderHealth('siliconflow', 'healthy');
+    logCall({ feature_code: 'competitor_transcript', user_id: user.id, user_name: user.name, provider_code: 'siliconflow', model_code: SILICONFLOW_ASR_MODEL, status: 'success', latency_ms: Date.now() - started });
+    return transcript;
+  } catch (error) {
+    setProviderHealth('siliconflow', 'unhealthy', error.message);
+    logCall({ feature_code: 'competitor_transcript', user_id: user.id, user_name: user.name, provider_code: 'siliconflow', model_code: SILICONFLOW_ASR_MODEL, status: 'failed', latency_ms: Date.now() - started, error_message: error.message });
+    throw error;
+  }
+}
+
+async function transcribeWechatCompetitorVideo(source, user) {
+  const provider = providerConfigs.find((item) => item.code === 'tikhub' && item.status === 'active');
+  if (!provider) throw new Error('TikHub 已在后台停用');
+  const key = providerKeyFor('tikhub');
+  if (!key) throw new Error('TikHub 密钥未配置');
+  const detailStarted = Date.now();
+  let detail;
+  try {
+    detail = await fetchTikHubWechatVideoDetail(key, source);
+    setProviderHealth('tikhub', 'healthy');
+    logCall({ feature_code: 'competitor_media_detail', user_id: user.id, user_name: user.name, provider_code: 'tikhub', model_code: TIKHUB_WECHAT_CHANNELS_DETAIL_ENDPOINT, status: 'success', latency_ms: Date.now() - detailStarted });
+  } catch (error) {
+    setProviderHealth('tikhub', 'unhealthy', error.message);
+    logCall({ feature_code: 'competitor_media_detail', user_id: user.id, user_name: user.name, provider_code: 'tikhub', model_code: TIKHUB_WECHAT_CHANNELS_DETAIL_ENDPOINT, status: 'failed', latency_ms: Date.now() - detailStarted, error_message: error.message });
+    throw error;
+  }
+  const encrypted = await downloadWechatVideoMedia(detail.playUrl);
+  const decrypted = await decryptWechatVideoBuffer(encrypted, detail.decodeKey);
+  const transcript = await transcribeWechatVideoBuffer(decrypted, user);
+  return { transcript, provider: 'siliconflow_asr', degraded: false, notice: '' };
+}
+
+async function searchCompetitorVideos(input, user) {
+  const keyword = String(input.keyword || '教育').trim().slice(0, 40) || '教育';
+  const searchKeyword = normalizeEducationSearchKeyword(keyword);
+  const trendMode = String(input.source || '').trim().toLowerCase() === 'trend';
+  const channel = normalizeCompetitorChannel(input.channel || input.platform);
+  const channelConfig = COMPETITOR_CHANNELS[channel];
+  const requestedCount = normalizeCompetitorResultLimit(input.limit || input.result_count);
+  const provider = providerConfigs.find((item) => item.code === 'tikhub');
+  const feature = getFeatureConfig('competitor_finder');
+  if (!provider || provider.status !== 'active' || !feature?.data_provider_codes?.includes('tikhub')) throw new Error('TikHub 已在后台停用');
+  const key = providerKeyFor('tikhub');
+  if (!key) throw new Error('TikHub 密钥未配置');
+  const reservation = reserveCompetitorQuota(user, requestedCount);
+  if (!reservation.granted) {
+    const error = new Error(`今日已达 ${COMPETITOR_DAILY_VIDEO_LIMIT} 条竞品视频上限，请明天再试`);
+    error.statusCode = 429;
+    error.errorCode = 42901;
+    throw error;
+  }
+  const started = Date.now();
+  try {
+    const collected = new Map();
+    const relevantFallback = new Map();
+    const broadFallback = new Map();
+    const rawCandidates = new Map();
+    const seenPageStates = new Set();
+    let pageState = channel === 'xiaohongshu' ? { page: 1, search_id: '', search_session_id: '' } : { cursor: '', search_id: '', backtrace: '' };
+    let requestCount = 0;
+    for (let page = 0; page < 4; page += 1) {
+      const payload = await fetchTikHubCompetitorPayload(key, channel, searchKeyword, pageState);
+      requestCount += 1;
+      extractDetailedCompetitorItems(payload, channel, keyword)
+        .map((item) => ({ ...item, education_score: educationRelevanceScore(item, keyword, searchKeyword) }))
+        .forEach((item) => {
+          if (!rawCandidates.has(item.id)) rawCandidates.set(item.id, item);
+          if (item.score >= 60 && item.education_score >= 55 && !collected.has(item.id)) collected.set(item.id, item);
+          // 严格结果不足时，优先从同一批响应中补充教育相关但热度稍低的内容，避免筛选规则制造空结果。
+          if (item.score >= 35 && item.education_score >= 45 && !relevantFallback.has(item.id)) relevantFallback.set(item.id, item);
+          const itemText = `${String(item.title || '').toLowerCase()} ${String(item.author || '').toLowerCase()}`;
+          const positiveHits = countTextSignals(itemText, EDUCATION_SEARCH_SIGNALS);
+          const negativeHits = countTextSignals(itemText, NON_EDUCATION_SEARCH_SIGNALS);
+          if (item.score >= 25 && item.education_score >= 30 && positiveHits >= 1 && (negativeHits === 0 || positiveHits >= 2) && !broadFallback.has(item.id)) broadFallback.set(item.id, item);
+        });
+      if (collected.size >= reservation.granted || relevantFallback.size >= reservation.granted) break;
+      const nextPageState = extractTikHubSearchPageState(payload, channel, pageState);
+      if (!nextPageState) break;
+      const pageStateKey = JSON.stringify(nextPageState);
+      if (seenPageStates.has(pageStateKey)) break;
+      seenPageStates.add(pageStateKey);
+      pageState = nextPageState;
+    }
+    const rankItems = (left, right) => (right.education_score * 0.55 + right.score * 0.45) - (left.education_score * 0.55 + left.score * 0.45);
+    const strictItems = [...collected.values()].sort(rankItems);
+    const relevantItems = [...relevantFallback.values()].filter((item) => !collected.has(item.id)).sort(rankItems);
+    const broadItems = [...broadFallback.values()].filter((item) => !collected.has(item.id) && !relevantFallback.has(item.id)).sort(rankItems);
+    const items = [...strictItems, ...relevantItems, ...broadItems].slice(0, reservation.granted);
+    const broadFallbackUsed = items.some((item) => broadItems.includes(item));
+    const relevantFallbackUsed = items.some((item) => !collected.has(item.id));
+    const selectionMode = broadFallbackUsed ? 'broad_fallback' : relevantFallbackUsed ? (trendMode ? 'trend_fallback' : 'relevance_fallback') : 'strict';
+    items.filter((item) => item.play_url || item.export_id).forEach((item) => competitorVideoSources.set(item.id, { channel: item.channel, playUrl: item.play_url, exportId: item.export_id, objectNonceId: item.object_nonce_id, caption: item.title, expiresAt: Date.now() + 30 * 60 * 1000 }));
+    const quota = finalizeCompetitorQuota(user, reservation, items.length);
+    logCall({ feature_code: 'competitor_finder', user_id: user.id, user_name: user.name, provider_code: 'tikhub', model_code: channelConfig.endpoint, status: 'success', latency_ms: Date.now() - started, usage: { items: items.length, requests: requestCount, channel } });
+    setProviderHealth('tikhub', 'healthy');
+    return { keyword, search_keyword: searchKeyword, channel, channel_label: channelConfig.label, items, requested_count: requestedCount, granted_count: reservation.granted, request_count: requestCount, quota, selection_mode: selectionMode, raw_candidate_count: rawCandidates.size, minimum_score: 60, minimum_education_score: 55 };
+  } catch (error) {
+    releaseCompetitorQuota(reservation);
+    setProviderHealth('tikhub', 'unhealthy', error.message);
+    logCall({ feature_code: 'competitor_finder', user_id: user.id, user_name: user.name, provider_code: 'tikhub', model_code: channelConfig.endpoint, status: 'failed', latency_ms: Date.now() - started, error_message: error.message, usage: { channel } });
+    throw error;
+  }
+}
+
+function transcriptFromAsr(result) {
+  const utterances = result?.utterances || result?.result?.utterances || [];
+  if (Array.isArray(utterances) && utterances.length) return utterances.map((item) => String(item.text || item.additions?.text || '')).filter(Boolean).join('\n');
+  return String(result?.text || result?.result?.text || result?.result?.payload?.text || '');
+}
+
+async function transcribeCompetitorVideo(videoId, user) {
+  const source = competitorVideoSources.get(String(videoId));
+  if (!source || source.expiresAt < Date.now() || (!source.playUrl && !source.exportId)) throw new Error('视频地址已过期，请重新搜索后再提取');
+  if (source.channel === 'wechat_channels') return transcribeWechatCompetitorVideo(source, user);
+  const inventory = readInventory();
+  const appId = process.env.VOLC_ASR_APP_ID || inventory['volc-asr-app-id'];
+  const accessToken = process.env.VOLC_ASR_ACCESS_TOKEN || inventory['volc-asr-access-token'];
+  if (!appId || !accessToken) throw new Error('火山 ASR 凭证未配置');
+  const started = Date.now();
+  const requestId = randomUUID();
+  const headers = { 'Content-Type': 'application/json', 'X-Api-App-Key': appId, 'X-Api-Access-Key': accessToken, 'X-Api-Resource-Id': VOLC_ASR_RESOURCE_ID, 'X-Api-Request-Id': requestId, 'X-Api-Sequence': '-1' };
+  try {
+    const submit = await fetch(`${VOLC_ASR_BASE_URL}/api/v3/auc/bigmodel/submit`, { method: 'POST', headers, body: JSON.stringify({ user: { uid: 'pipi-competitor-search' }, audio: { format: 'mp4', url: source.playUrl }, request: { model_name: 'bigmodel', enable_itn: true, enable_punc: true, show_utterances: true } }), signal: AbortSignal.timeout(60000) });
+    const submitted = await submit.json();
+    if (!submit.ok || (submitted.code !== undefined && ![0, 20000000].includes(Number(submitted.code)))) {
+      const reason = submitted.message || submitted.msg || submitted.error?.message || submitted.result?.message || '未返回错误说明';
+      throw new Error(`火山 ASR 提交失败（HTTP ${submit.status} / code ${submitted.code ?? 'unknown'}）：${reason}`);
+    }
+    const taskId = submit.headers.get('x-api-request-id') || submitted.result?.task_id || submitted.task_id || submitted.result?.id || submitted.id || submitted.result?.task?.id || (typeof submitted.result === 'string' ? submitted.result : '') || requestId;
+    for (let attempt = 0; attempt < 24; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+      const query = await fetch(`${VOLC_ASR_BASE_URL}/api/v3/auc/bigmodel/query`, { method: 'POST', headers: { ...headers, 'X-Api-Request-Id': taskId }, body: '{}', signal: AbortSignal.timeout(30000) });
+      const result = await query.json();
+      if (!query.ok || (result.code !== undefined && ![0, 20000000].includes(Number(result.code)))) {
+        const reason = result.message || result.msg || result.error?.message || query.headers.get('x-api-message') || '未返回错误说明';
+        throw new Error(`火山 ASR 查询失败（HTTP ${query.status} / code ${result.code ?? query.headers.get('x-api-status-code') ?? 'unknown'}）：${reason}`);
+      }
+      const transcript = transcriptFromAsr(result.result || result);
+      if (transcript) {
+        logCall({ feature_code: 'competitor_transcript', user_id: user.id, user_name: user.name, provider_code: 'volcengine_asr', model_code: VOLC_ASR_RESOURCE_ID, status: 'success', latency_ms: Date.now() - started });
+        return { transcript, provider: 'volcengine_asr', degraded: false, notice: '' };
+      }
+      if (['failed', 'error'].includes(String(result.result?.status || result.status || '').toLowerCase())) throw new Error(result.result?.message || '火山 ASR 转写失败');
+    }
+    throw new Error('火山 ASR 转写超时，请稍后重试');
+  } catch (error) {
+    logCall({ feature_code: 'competitor_transcript', user_id: user.id, user_name: user.name, provider_code: 'volcengine_asr', model_code: VOLC_ASR_RESOURCE_ID, status: 'failed', latency_ms: Date.now() - started, error_message: error.message });
+    if (error.message.includes('HTTP 403')) {
+      return { transcript: source.caption, provider: 'tikhub_caption', degraded: true, notice: '火山 ASR 当前无转写权限，已展示原平台发布文案，不是口播逐字稿。' };
+    }
+    throw error;
+  }
+}
+
+function parseJsonArray(content) {
+  const cleaned = content.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+  try {
+    const parsed = JSON.parse(cleaned);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    const match = cleaned.match(/\[[\s\S]*\]/);
+    if (!match) return null;
+    try {
+      const parsed = JSON.parse(match[0]);
+      return Array.isArray(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+}
+
+function parseJsonObject(content) {
+  const cleaned = String(content || '').replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+  try {
+    const parsed = JSON.parse(cleaned);
+    return parsed && !Array.isArray(parsed) && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    try {
+      const parsed = JSON.parse(match[0]);
+      return parsed && !Array.isArray(parsed) && typeof parsed === 'object' ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+}
+
+function clampScore(value, fallback = 0) {
+  const score = Number(value);
+  return Number.isFinite(score) ? Math.max(0, Math.min(100, Math.round(score))) : fallback;
+}
+
+function countSignal(text, pattern) {
+  return (text.match(pattern) || []).length;
+}
+
+function resolveSalesConversationOutcome(outcome) {
+  return SALES_CONVERSATION_OUTCOMES[outcome?.code] || SALES_CONVERSATION_OUTCOMES.normal;
+}
+
+function salesReportLevel(score, outcome = SALES_CONVERSATION_OUTCOMES.normal) {
+  if (outcome.code === 'blocked') return '高风险';
+  if (outcome.code === 'disengaged') return '沟通流失';
+  if (score >= 85) return '优秀';
+  if (score >= 75) return '成交进阶';
+  if (score >= 60) return '稳定推进';
+  return '待夯实';
+}
+
+function applySalesConversationOutcome(report, outcomeInput) {
+  const outcome = resolveSalesConversationOutcome(outcomeInput);
+  if (outcome.code === 'normal') return { ...report, level: salesReportLevel(report.overall_score, outcome), conversation_outcome: outcome };
+  const caps = outcome.code === 'blocked'
+    ? { icebreak: 12, objection: 8, close: 5 }
+    : { icebreak: 32, objection: 28, close: 22 };
+  const feedback = outcome.code === 'blocked'
+    ? {
+      icebreak: '攻击性表达直接破坏沟通安全感，信任关系无法继续。',
+      objection: '没有承接顾虑，而是以攻击性表达中断了沟通。',
+      close: '对话被拉黑结束，不能形成有效推进。'
+    }
+    : {
+      icebreak: '赶客表达让对方感到不被尊重，信任关系中断。',
+      objection: '面对犹豫或比较时，没有先确认真实顾虑并提供回应。',
+      close: '用“别报名了”一类表达结束沟通，失去后续推进机会。'
+    };
+  const dimensions = report.dimensions.map((dimension) => ({
+    ...dimension,
+    score: caps[dimension.code] === undefined ? dimension.score : Math.min(dimension.score, caps[dimension.code]),
+    feedback: feedback[dimension.code] || dimension.feedback
+  }));
+  const overallScore = Math.round(dimensions.reduce((sum, item) => sum + item.score * item.weight / 100, 0));
+  const gap = outcome.code === 'blocked'
+    ? '沟通安全感已被破坏：任何成交动作都应建立在尊重和边界之上。'
+    : '沟通流失：客户表达顾虑时，销售方用赶客语言切断了信任和继续了解的机会。';
+  const nextDrill = outcome.code === 'blocked'
+    ? {
+      title: '专项练习：停止攻击性表达',
+      action: '任何不耐烦或冲突出现时，先暂停推进，用一句尊重且有边界的话结束当前沟通。',
+      sample: '我理解您现在还需要比较，我们先不急着做决定。您方便时，我再根据孩子的情况补一份清楚的说明。'
+    }
+    : {
+      title: '专项练习：把拒绝改成澄清',
+      action: '听到比较、犹豫或价格顾虑时，不反击也不赶客，先确认对方真正担心的风险。',
+      sample: '您愿意比较很正常。您现在最想确认的是课程是否适合孩子，还是投入后能不能看到变化？'
+    };
+  return {
+    ...report,
+    overall_score: overallScore,
+    level: salesReportLevel(overallScore, outcome),
+    summary: `${outcome.detail}${report.summary ? ` ${report.summary}` : ''}`,
+    dimensions,
+    gaps: [gap, ...(report.gaps || [])].slice(0, 3),
+    next_drill: nextDrill,
+    conversation_outcome: outcome
+  };
+}
+
+function buildSalesReportFallback(input) {
+  const profile = input.profile && typeof input.profile === 'object' ? input.profile : {};
+  const profileMethodology = profile.methodology && typeof profile.methodology === 'object' ? profile.methodology : {};
+  const userMessages = Array.isArray(input.history)
+    ? input.history.filter((item) => item?.role === 'user').map((item) => String(item.content || ''))
+    : [];
+  const text = userMessages.join('\n');
+  const questionCount = countSignal(text, /[？?]/g);
+  const discoverySubScores = {
+    need: { score: Math.max(30, Math.min(88, 34 + Math.min(4, questionCount) * 8 + Math.min(3, countSignal(text, /孩子|现状|情况|成绩|目标|之前|试过|为什么|多久|担心|着急|希望/g)) * 7)), feedback: '看是否问到了现状、目标、过往尝试和最急的问题。' },
+    payment: { score: Math.max(30, Math.min(88, 34 + Math.min(3, countSignal(text, /价格|预算|投入|费用|效果|价值|担心|顾虑|时间/g)) * 10)), feedback: '看是否确认了投入条件、价值判断和付费风险。' },
+    decision: { score: Math.max(30, Math.min(88, 34 + Math.min(3, countSignal(text, /决策|家人|商量|确定|什么时候|下一步|预约|确认|时间/g)) * 11)), feedback: '看是否确认了决策条件、时间点和可执行的下一步。' }
+  };
+  const raw = [
+    ['icebreak', 42 + countSignal(text, /理解|辛苦|重视|认真|细致|观察|谢谢|愿意/g) * 9, '先用家长已经说出的具体事实建立信任，避免空泛夸奖。'],
+    ['discovery', Math.round(Object.values(discoverySubScores).reduce((sum, item) => sum + item.score, 0) / 3), '围绕需求力、付费力和决策力拿到事实，再介绍方案。', discoverySubScores],
+    ['diagnosis', 38 + Math.min(3, countSignal(text, /核心|问题|不是.*而是|所以|判断|更需要|原因/g)) * 13, '先复述事实，再给出一个清楚的判断和判断依据。'],
+    ['case_match', 38 + Math.min(3, countSignal(text, /案例|同年级|相似|方案|课程|测评|体验|安排|适合/g)) * 13, '案例与方案都要对应家长刚刚确认的问题，不要泛泛介绍。'],
+    ['objection', 38 + Math.min(3, countSignal(text, /担心|顾虑|预算|价格|时间|理解|确实|谨慎|更在意/g)) * 13, '先确认家长最在意的风险，再给出可验证的回应。'],
+    ['close', 38 + Math.min(3, countSignal(text, /下一步|预约|测评|体验|时间|资料|确认|联系/g)) * 13, '最后明确一个低门槛、带时间和方式的下一步。']
+  ];
+  const dimensions = SALES_REPORT_DIMENSIONS.map((dimension) => {
+    const item = raw.find((entry) => entry[0] === dimension.code);
+    return {
+      ...dimension,
+      score: Math.max(35, Math.min(88, Math.round(item[1]))),
+      feedback: item[2],
+      ...(item[3] ? { sub_scores: item[3] } : {})
+    };
+  });
+  const overallScore = Math.round(dimensions.reduce((sum, item) => sum + item.score * item.weight / 100, 0));
+  const strengths = dimensions.filter((item) => item.score >= 64).sort((a, b) => b.score - a.score);
+  const gaps = [...dimensions].sort((a, b) => a.score - b.score);
+  const drill = gaps[0];
+  return applySalesConversationOutcome({
+    overall_score: overallScore,
+    level: salesReportLevel(overallScore),
+    summary: `本轮包含 ${userMessages.length} 次学员表达。评分只依据已经出现的有效对话动作，不按话多给分。${profile.disc ? ` 当前${profile.disc}画像的训练重点是：${profileMethodology.coaching_focus || '先根据实际回复验证沟通偏好。'}` : ''}`,
+    dimensions,
+    strengths: strengths.length
+      ? strengths.slice(0, 2).map((item) => `${item.name}已有可见动作，可以继续保持基于事实推进。`)
+      : ['本轮已开始沟通，但关键的挖需、判断和推进动作还需要更完整地展开。'],
+    gaps: [`当前画像训练重点：${profileMethodology.coaching_focus || '先根据实际回复验证沟通偏好。'}`, ...gaps.slice(0, 2).map((item) => `${item.name}证据不足：${item.feedback}`)].slice(0, 3),
+    next_drill: {
+      title: `专项练习：${drill.name}`,
+      action: `${drill.feedback}${profileMethodology.coaching_focus ? ` ${profileMethodology.coaching_focus}` : ''}`,
+      sample: profileMethodology.drill_sample || (drill.code === 'discovery'
+        ? '孩子现在最让您着急的是哪一件事？之前为了解决它，您们具体试过什么？'
+        : '我先把您刚才最在意的点确认清楚，再给您一个更贴近情况的建议。')
+    },
+    generated_by: 'rule_fallback'
+  }, input.conversation_outcome);
+}
+
+function normalizeSalesReport(content, input) {
+  const fallback = buildSalesReportFallback(input);
+  const parsed = parseJsonObject(content);
+  if (!parsed) return fallback;
+  const sourceDimensions = Array.isArray(parsed.dimensions) ? parsed.dimensions : [];
+  const dimensions = SALES_REPORT_DIMENSIONS.map((dimension) => {
+    const source = sourceDimensions.find((item) => item?.code === dimension.code || item?.name === dimension.name) || {};
+    const fallbackDimension = fallback.dimensions.find((item) => item.code === dimension.code);
+    return {
+      ...dimension,
+      score: clampScore(source.score, fallbackDimension.score),
+      feedback: String(source.feedback || fallbackDimension.feedback).slice(0, 220),
+      ...(dimension.code === 'discovery' ? { sub_scores: source.sub_scores || fallbackDimension.sub_scores || {} } : {})
+    };
+  });
+  const calculatedScore = Math.round(dimensions.reduce((sum, item) => sum + item.score * item.weight / 100, 0));
+  const strengths = Array.isArray(parsed.strengths) ? parsed.strengths.slice(0, 3).map((item) => String(item).slice(0, 140)).filter(Boolean) : fallback.strengths;
+  const gaps = Array.isArray(parsed.gaps) ? parsed.gaps.slice(0, 3).map((item) => String(item).slice(0, 140)).filter(Boolean) : fallback.gaps;
+  const nextDrill = parsed.next_drill && typeof parsed.next_drill === 'object' ? parsed.next_drill : fallback.next_drill;
+  return applySalesConversationOutcome({
+    overall_score: calculatedScore,
+    level: salesReportLevel(calculatedScore),
+    summary: String(parsed.summary || fallback.summary).slice(0, 300),
+    dimensions,
+    strengths: strengths.length ? strengths : fallback.strengths,
+    gaps: gaps.length ? gaps : fallback.gaps,
+    next_drill: {
+      title: String(nextDrill.title || fallback.next_drill.title).slice(0, 100),
+      action: String(nextDrill.action || fallback.next_drill.action).slice(0, 220),
+      sample: String(nextDrill.sample || fallback.next_drill.sample).slice(0, 220)
+    },
+    generated_by: 'model'
+  }, input.conversation_outcome);
+}
+
+function saveRecord(type, title, content, meta = {}) {
+  const record = {
+    id: Date.now(),
+    type,
+    title,
+    content,
+    meta,
+    user_id: meta.user_id || null,
+    user_name: meta.user_name || null,
+    user_role: meta.user_role || null,
+    created_at: new Date().toISOString()
+  };
+  records.unshift(record);
+  if (records.length > 2000) records.length = 2000;
+  return record;
+}
+
+function normalizePipiConversationHistory(history) {
+  if (!Array.isArray(history)) return [];
+  return history.slice(-40).map((item) => ({
+    role: item?.role === 'user' ? 'user' : 'assistant',
+    content: String(item?.content || '').replace(/<br\s*\/?>/gi, '\n').trim().slice(0, 2000)
+  })).filter((item) => item.content);
+}
+
+function pipiConversationTranscript(history) {
+  return history.map((item) => `${item.role === 'user' ? '你' : '皮皮'}：${item.content}`).join('\n\n');
+}
+
+function upsertPipiConversationRecord(user, body, result) {
+  const conversationId = String(body.conversation_id || '').trim().slice(0, 100);
+  if (!conversationId) {
+    return saveRecord('皮皮分身', body.message?.slice(0, 28) || '皮皮分身', result.content, {
+      ...result,
+      user_id: user.id,
+      user_name: user.name,
+      user_role: user.role
+    });
+  }
+  const history = normalizePipiConversationHistory(body.conversation_history);
+  history.push({ role: 'assistant', content: String(result.content || '').replace(/<br\s*\/?>/gi, '\n').trim().slice(0, 2000) });
+  const title = String(body.conversation_title || body.message || '皮皮分身对话').trim().slice(0, 28);
+  const meta = {
+    ...result,
+    conversation_id: conversationId,
+    conversation_title: title,
+    conversation_history: history,
+    user_id: user.id,
+    user_name: user.name,
+    user_role: user.role
+  };
+  const existingIndex = records.findIndex((item) => item.type === '皮皮分身' && item.user_id === user.id && item.meta?.conversation_id === conversationId);
+  if (existingIndex >= 0) {
+    const record = records[existingIndex];
+    record.title = title;
+    record.content = pipiConversationTranscript(history);
+    record.meta = meta;
+    record.user_name = user.name;
+    record.user_role = user.role;
+    record.created_at = new Date().toISOString();
+    records.splice(existingIndex, 1);
+    records.unshift(record);
+    return record;
+  }
+  return saveRecord('皮皮分身', title, pipiConversationTranscript(history), meta);
+}
+
+function patchById(list, id, body) {
+  const item = list.find((entry) => String(entry.id) === String(id));
+  if (!item) return null;
+  Object.assign(item, body);
+  return item;
+}
+
+async function route(req, res) {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  if (!url.pathname.startsWith('/api/')) return serveStatic(req, res, url);
+  applyCors(req, res);
+  if (req.method === 'OPTIONS') return jsonResponse(res, 204, {});
+  try {
+    const body = await readBody(req);
+    if (req.method === 'POST' && url.pathname === '/api/auth/login/password') {
+      const user = managedUsers.find((item) => item.account === body.account || item.phone === body.account);
+      if (!user || !verifyPassword(user, body.password)) return fail(res, 401, '账号或密码错误', 40100);
+      if (effectiveStatus(user) !== 'active') return fail(res, 403, effectiveStatus(user) === 'expired' ? '账号已到期，请联系管理员' : '账号已被禁用，请联系管理员', 40301);
+      return ok(res, publicUser(user));
+    }
+    if (req.method === 'POST' && url.pathname === '/api/auth/register') {
+      if (!ALLOW_SELF_REGISTRATION) return fail(res, 403, '当前未开放自助注册，请联系管理员开通账号', 40302);
+      const account = String(body.account || '').trim();
+      const phone = String(body.phone || '').trim();
+      const password = String(body.password || '');
+      if (!/^[A-Za-z0-9_]{3,24}$/.test(account)) return fail(res, 400, '账号需为 3-24 位字母、数字或下划线', 40001);
+      if (phone && !/^1\d{10}$/.test(phone)) return fail(res, 400, '请输入正确的 11 位手机号', 40001);
+      if (password.length < 8) return fail(res, 400, '密码至少需要 8 位', 40001);
+      if (managedUsers.some((item) => item.account === account || (phone && item.phone === phone))) return fail(res, 409, '账号或手机号已被注册', 40901);
+      const user = {
+        id: Date.now(),
+        account,
+        password_hash: hashPassword(password),
+        name: account,
+        phone,
+        role: 'training',
+        roleName: roleMeta.training.name,
+        status: 'active',
+        paid_product: '自助注册',
+        opened_at: new Date().toISOString().slice(0, 10),
+        expires_at: '',
+        remark: '',
+        enabled_features: roleMeta.training.features
+      };
+      ensurePersonalCenterData(user);
+      managedUsers.push(user);
+      return ok(res, publicUser(user));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/me') {
+      const user = requireUser(req, res);
+      if (!user) return;
+      return ok(res, publicUser(user));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/user/profile') {
+      const user = requireUser(req, res);
+      if (!user) return;
+      return ok(res, publicProfile(user));
+    }
+    if (req.method === 'PATCH' && url.pathname === '/api/user/profile') {
+      const user = requireUser(req, res);
+      if (!user) return;
+      ensurePersonalCenterData(user);
+      const name = String(body.name ?? user.name).trim();
+      if (!name || name.length > 32) return fail(res, 400, '姓名需为 1-32 个字符', 40001);
+      user.name = name;
+      ['bio', 'business_description'].forEach((key) => {
+        if (body[key] !== undefined) user.profile[key] = String(body[key]).trim().slice(0, 800);
+      });
+      return ok(res, publicProfile(user));
+    }
+    if (req.method === 'POST' && url.pathname === '/api/user/avatar') {
+      const user = requireUser(req, res);
+      if (!user) return;
+      ensurePersonalCenterData(user);
+      const mimeTypes = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+      const match = String(body.data_url || '').match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+      if (!match || !mimeTypes[match[1]]) return fail(res, 400, '仅支持 JPG、PNG、WebP 图片', 40001);
+      const buffer = Buffer.from(match[2], 'base64');
+      if (!buffer.length || buffer.length > 2 * 1024 * 1024) return fail(res, 400, '头像图片需小于 2MB', 40001);
+      fs.mkdirSync(USER_AVATAR_DIR, { recursive: true });
+      const file = `user-${user.id}-${Date.now()}.${mimeTypes[match[1]]}`;
+      fs.writeFileSync(path.join(USER_AVATAR_DIR, file), buffer);
+      user.profile.avatar_url = `assets/user-avatars/${file}`;
+      return ok(res, publicProfile(user));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/user/persona') {
+      const user = requireUser(req, res);
+      if (!user) return;
+      return ok(res, { persona: publicPersona(user) });
+    }
+    if (req.method === 'PUT' && url.pathname === '/api/user/persona') {
+      const user = requireUser(req, res);
+      if (!user) return;
+      const fields = ['name', 'identity', 'audience', 'service', 'story'];
+      const persona = Object.fromEntries(fields.map((key) => [key, String(body[key] || '').trim().slice(0, key === 'story' ? 3000 : 300)]));
+      if (!persona.name || !persona.identity || !persona.service) return fail(res, 400, '请至少填写人设名称、我是做什么的和服务内容', 40001);
+      user.persona = { ...persona, updated_at: new Date().toISOString() };
+      return ok(res, { persona: user.persona });
+    }
+    if (req.method === 'DELETE' && url.pathname === '/api/user/persona') {
+      const user = requireUser(req, res);
+      if (!user) return;
+      delete user.persona;
+      return ok(res, { deleted: true });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/user/knowledge') {
+      const user = requireUser(req, res);
+      if (!user) return;
+      ensurePersonalCenterData(user);
+      return ok(res, { items: user.personal_knowledge.map(publicPersonalKnowledge) });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/user/knowledge') {
+      const user = requireUser(req, res);
+      if (!user) return;
+      ensurePersonalCenterData(user);
+      const title = String(body.title || '').trim().slice(0, 100);
+      const content = String(body.content || '').trim().slice(0, 20000);
+      if (!title || !content) return fail(res, 400, '请填写文档标题和内容', 40001);
+      const item = { id: `personal-${Date.now()}`, title, category: String(body.category || '团队产出').trim().slice(0, 60), content, status: 'active', created_at: new Date().toISOString() };
+      user.personal_knowledge.unshift(item);
+      return ok(res, publicPersonalKnowledge(item));
+    }
+    if (req.method === 'POST' && url.pathname === '/api/user/knowledge/upload') {
+      const user = requireUser(req, res);
+      if (!user) return;
+      ensurePersonalCenterData(user);
+      const sourceName = String(body.file_name || '').trim();
+      const extension = path.extname(sourceName).toLowerCase();
+      if (!['.txt', '.md', '.csv', '.rtf', '.docx'].includes(extension)) return fail(res, 400, '仅支持 TXT、MD、CSV、RTF、DOCX 文档', 40001);
+      const match = String(body.data_url || '').match(/^data:([^;,]+);base64,([A-Za-z0-9+/=]+)$/);
+      if (!match) return fail(res, 400, '文档内容格式不正确', 40001);
+      const buffer = Buffer.from(match[2], 'base64');
+      if (!buffer.length || buffer.length > PERSONAL_KNOWLEDGE_MAX_UPLOAD_BYTES) return fail(res, 400, '单份文档需小于 5MB', 40001);
+      const { userDirectory, filePath } = personalKnowledgeUploadPath(user, sourceName);
+      fs.mkdirSync(userDirectory, { recursive: true, mode: 0o700 });
+      fs.writeFileSync(filePath, buffer, { mode: 0o600 });
+      const content = extractPersonalKnowledgeDocument(filePath, extension).replace(/\u0000/g, '').trim().slice(0, 20000);
+      if (!content) {
+        removePersonalKnowledgeUpload({ storage_path: filePath });
+        return fail(res, 400, '未能读取文档文字，请改为粘贴内容或上传可复制文本的文档', 40001);
+      }
+      const title = String(body.title || path.basename(sourceName, extension)).trim().slice(0, 100) || '未命名文档';
+      const item = {
+        id: `personal-${Date.now()}`,
+        title,
+        category: String(body.category || '团队产出').trim().slice(0, 60),
+        content,
+        source_name: sourceName,
+        source_type: extension.slice(1).toUpperCase(),
+        storage_path: filePath,
+        status: 'active',
+        created_at: new Date().toISOString()
+      };
+      user.personal_knowledge.unshift(item);
+      return ok(res, publicPersonalKnowledge(item));
+    }
+    if (req.method === 'PATCH' && url.pathname.startsWith('/api/user/knowledge/')) {
+      const user = requireUser(req, res);
+      if (!user) return;
+      ensurePersonalCenterData(user);
+      const item = user.personal_knowledge.find((entry) => entry.id === url.pathname.split('/').pop());
+      if (!item) return fail(res, 404, '个人知识不存在', 40400);
+      if (body.status !== undefined && !['active', 'disabled'].includes(body.status)) return fail(res, 400, '知识状态不合法', 40001);
+      if (body.status !== undefined) item.status = body.status;
+      return ok(res, publicPersonalKnowledge(item));
+    }
+    if (req.method === 'DELETE' && url.pathname.startsWith('/api/user/knowledge/')) {
+      const user = requireUser(req, res);
+      if (!user) return;
+      ensurePersonalCenterData(user);
+      const index = user.personal_knowledge.findIndex((entry) => entry.id === url.pathname.split('/').pop());
+      if (index < 0) return fail(res, 404, '个人知识不存在', 40400);
+      const [item] = user.personal_knowledge.splice(index, 1);
+      removePersonalKnowledgeUpload(item);
+      return ok(res, { deleted: true });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/user/points') {
+      const user = requireUser(req, res);
+      if (!user) return;
+      ensurePersonalCenterData(user);
+      return ok(res, { balance: user.points_balance, items: user.point_ledger });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/tools/availability') {
+      const user = authenticatedUser(req);
+      if (!user) return fail(res, 401, '登录状态已失效，请重新登录', 40101);
+      return ok(res, toolAvailabilityFor(user));
+    }
+    if (req.method === 'POST' && url.pathname === '/api/auth/sms/send') {
+      return fail(res, 501, '验证码登录尚未接入，请使用账号密码登录', 50100);
+    }
+    if (req.method === 'POST' && url.pathname === '/api/auth/login/sms') {
+      return fail(res, 501, '验证码登录尚未接入，请使用账号密码登录', 50100);
+    }
+    if (req.method === 'POST' && url.pathname === '/api/tools/pipi-assistant/chat') {
+      const user = requireUser(req, res, 'pipi');
+      if (!user) return;
+      const result = await callConfiguredModel('pipi', body, user);
+      const record = upsertPipiConversationRecord(user, body, result);
+      return ok(res, {
+        reply: result.content.replace(/\n/g, '<br>'),
+        cited_knowledge: activePipiKnowledgeCitations().length
+          ? activePipiKnowledgeCitations()
+          : [{ title: '学员可见知识库' }],
+        record_id: record.id,
+        ...result
+      });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/tools/pipi-assistant/config') {
+      const user = requireUser(req, res, 'pipi');
+      if (!user) return;
+      return ok(res, publicPipiConfig());
+    }
+    if (req.method === 'GET' && url.pathname === '/api/tools/copywriting/config') {
+      const user = requireUser(req, res, 'copy');
+      if (!user) return;
+      const config = publicCopywritingCoverConfig();
+      if (user.role === 'training') config.agents = config.agents.filter((item) => item.default_type === 'short' && item.tags?.includes('traffic'));
+      return ok(res, config);
+    }
+    if (req.method === 'POST' && url.pathname === '/api/tools/wechat-layout/analyze') {
+      const user = requireUser(req, res, 'copy');
+      if (!user) return;
+      if (user.role === 'training') return fail(res, 403, '训练营学员暂未开通公众号排版', 40302);
+      const layoutAgent = copyAgentByCode('wechat_layout');
+      if (!layoutAgent) return fail(res, 503, '公众号排版智能体尚未配置', 50303);
+      if (layoutAgent.status !== 'published' && user.role !== 'admin') return fail(res, 403, '公众号排版智能体已下架', 40303);
+      const result = await analyzeWechatArticleLayout(body, user);
+      const titleSegment = result.layout.segments.find((item) => item.index === result.layout.title_index);
+      const record = saveRecord('公众号排版', titleSegment?.text || '公众号文章排版', String(body.article || '').slice(0, 30000), { ...result, layout: undefined, user_id: user.id, user_name: user.name, user_role: user.role, theme: body.theme || 'museum' });
+      return ok(res, { ...result, record_id: record.id });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/tools/coach/sop') {
+      if (!requireAdmin(req, res)) return;
+      if (coachToolboxConfig.enabled === false || coachToolboxConfig.sop_enabled === false) return fail(res, 403, '工作流搭建已在后台停用', 40303);
+      const user = authenticatedUser(req);
+      const task = String(body.task || '').trim().slice(0, 1200);
+      if (!task) return fail(res, 400, '请填写想搭建的工作', 40001);
+      const input = { task, context: String(body.context || '').trim().slice(0, 4000) };
+      let result;
+      let sop;
+      try {
+        result = await callConfiguredModel('coach_sop', input, user);
+        sop = normalizeCoachSop(result.content, input);
+      } catch (error) {
+        result = { provider: 'local_fallback', model: 'coach-sop-template', degraded: true, error_message: error.message };
+        sop = buildCoachSopFallback(input);
+      }
+      const content = sop.steps.map((item, index) => `${index + 1}. ${item.name}\n负责人：${item.owner}\n动作：${item.action}\n产出：${item.deliverable}\n完成标准：${item.standard}`).join('\n\n');
+      const record = saveRecord('教练工作流 SOP', sop.title, content, { ...result, user_id: user.id, user_name: user.name, user_role: user.role, coach_sop: sop });
+      return ok(res, { sop, record_id: record.id, ...result });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/tools/coach/moments') {
+      if (!requireAdmin(req, res)) return;
+      if (coachToolboxConfig.enabled === false || coachToolboxConfig.moments_enabled === false) return fail(res, 403, '交付过程朋友圈已在后台停用', 40303);
+      const user = authenticatedUser(req);
+      const material = String(body.material || '').trim().slice(0, 6000);
+      const input = {
+        material,
+        feelings: material,
+        stage: String(body.stage || '').trim().slice(0, 180),
+        observation: material,
+        approach: material,
+        protect_privacy: body.protect_privacy !== false
+      };
+      if (!material) return fail(res, 400, '请简单写下这次交付', 40001);
+      let result;
+      let content;
+      try {
+        result = await callConfiguredModel('coach_moments', input, user);
+        content = String(result.content || '').trim().slice(0, 3000) || buildCoachMomentsFallback(input);
+      } catch (error) {
+        result = { provider: 'local_fallback', model: 'coach-moments-template', degraded: true, error_message: error.message };
+        content = buildCoachMomentsFallback(input);
+      }
+      const record = saveRecord('教练交付朋友圈', input.stage || '交付记录', content, { ...result, user_id: user.id, user_name: user.name, user_role: user.role, privacy_protected: input.protect_privacy });
+      return ok(res, { content, record_id: record.id, ...result });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/tools/coach/moments/template') {
+      if (!requireAdmin(req, res)) return;
+      try {
+        const image = fs.readFileSync(COACH_MOMENT_FIXED_TEMPLATE_PATH);
+        return ok(res, { image_data_url: `data:image/png;base64,${image.toString('base64')}` });
+      } catch {
+        return fail(res, 500, '固定海报底版读取失败，请检查图片资源。', 50001);
+      }
+    }
+    if (req.method === 'POST' && url.pathname === '/api/tools/coach/moments/image') {
+      if (!requireAdmin(req, res)) return;
+      if (coachToolboxConfig.enabled === false || coachToolboxConfig.moments_enabled === false) return fail(res, 403, '交付过程朋友圈已在后台停用', 40303);
+      const user = authenticatedUser(req);
+      let templateImage;
+      let sceneImage;
+      let layoutReferenceImage;
+      try {
+        templateImage = normalizeCoachMomentImage(body.template_image, '海报底版', 12 * 1024 * 1024);
+        sceneImage = normalizeCoachMomentImage(body.scene_image, '交付现场图', 8 * 1024 * 1024);
+        layoutReferenceImage = `data:image/png;base64,${fs.readFileSync(COACH_MOMENT_LAYOUT_REFERENCE_PATH).toString('base64')}`;
+      } catch (error) {
+        return fail(res, 400, error.message, 40001);
+      }
+      try {
+        const imageResult = await createCoachMomentImage({
+          templateImage,
+          sceneImage,
+          layoutReferenceImage,
+          promptOverride: String(body.prompt_override || '').trim().slice(0, 4000),
+          protectPrivacy: body.protect_privacy !== false,
+          user
+        });
+        return ok(res, { image_data_url: imageResult.imageDataUrl, model: imageResult.model, provider: imageResult.provider });
+      } catch (error) {
+        setProviderHealth('volcengine_ark_plan', 'error', error.message);
+        logCall({
+          provider_code: 'volcengine_ark_plan',
+          provider_name: '火山方舟 Ark',
+          model_code: COACH_MOMENTS_IMAGE_MODEL,
+          feature_code: 'coach_moments_image',
+          status: 'failed',
+          latency_ms: 0,
+          error_message: error.message,
+          usage: {},
+          user_id: user?.id,
+          user_name: user?.name
+        });
+        return fail(res, 502, `智能处理失败：${error.message}`, 50201);
+      }
+    }
+    if (req.method === 'POST' && url.pathname === '/api/tools/topics/generate') {
+      const user = requireUser(req, res, 'topics');
+      if (!user) return;
+      if (!['online', 'local', 'b2b'].includes(String(body.track || ''))) return fail(res, 400, '请选择赛道', 40001);
+      if (!String(body.business || '').trim()) return fail(res, 400, '请填写业务', 40001);
+      try {
+        const result = await callConfiguredModel('topics', body, user);
+        const topics = parseJsonArray(result.content);
+        saveRecord('选题生成', `${body.business || '教育业务'}选题`, result.content, { ...result, user_id: user.id, user_name: user.name, user_role: user.role });
+        return ok(res, { topics: topics || [], items: topics || [], raw: result.content, ...result });
+      } catch (error) {
+        const topics = buildTopicFallback(body);
+        const raw = topics.map((item) => item.title).join('\n');
+        const result = { provider: 'local', provider_name: '本地兜底', model: 'topic-fallback', fallback_reason: error.message, latency_ms: 0 };
+        saveRecord('选题生成', `${body.business || '教育业务'}选题`, raw, { ...result, user_id: user.id, user_name: user.name, user_role: user.role });
+        return ok(res, { topics, items: topics, raw, ...result });
+      }
+    }
+    if (req.method === 'POST' && url.pathname === '/api/tools/copywriting/generate') {
+      const user = requireUser(req, res, 'copy');
+      if (!user) return;
+      const requestedAgent = copyAgentByCode(body.agent) || copyAgentConfigs.find((item) => item.status === 'published');
+      if (!requestedAgent) return fail(res, 503, '当前没有已上架的文案智能体', 50303);
+      if (requestedAgent.status !== 'published' && user.role !== 'admin') return fail(res, 403, '该文案智能体已下架，请选择其他智能体', 40303);
+      const input = { ...body, agent: requestedAgent.code, type: body.type || requestedAgent.default_type || 'short' };
+      if (user.role === 'training' && (input.type !== 'short' || !requestedAgent.tags?.includes('traffic'))) return fail(res, 403, '训练营学员暂时只开放流量类短视频文案', 40302);
+      const result = await callConfiguredModel('copywriting', input, user);
+      saveRecord('文案智能体', `${body.business || '教育业务'}文案`, result.content, { ...result, user_id: user.id, user_name: user.name, user_role: user.role });
+      return ok(res, { content: result.content, ...result });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/tools/sales-simulation/chat') {
+      const user = requireUser(req, res, 'sales');
+      if (!user) return;
+      const profileName = body.profile?.name || '家长模拟';
+      if (body.action === 'review') {
+        let result;
+        let report;
+        try {
+          result = await callConfiguredModel('sales_simulation', body, user);
+          report = normalizeSalesReport(result.content, body);
+        } catch (error) {
+          report = buildSalesReportFallback(body);
+          result = {
+            content: report.summary,
+            provider: 'local_fallback',
+            model: 'rule_score',
+            degraded: true,
+            error_message: error.message
+          };
+        }
+        const session = {
+          profile_code: body.profile_code || '',
+          profile_name: profileName,
+          profile_disc: String(body.profile?.disc || ''),
+          profile_coaching_focus: String(body.profile?.methodology?.coaching_focus || ''),
+          business: String(body.business || '教育业务'),
+          product: String(body.product || '待沟通产品'),
+          difficulty: String(body.difficulty || 'normal'),
+          conversation_outcome: resolveSalesConversationOutcome(body.conversation_outcome),
+          history: Array.isArray(body.history)
+            ? body.history.slice(-40).map((item) => ({ role: item?.role === 'user' ? 'user' : 'parent', content: String(item?.content || '').slice(0, 1000) }))
+            : []
+        };
+        const record = saveRecord('销售模拟报告', `${profileName} · ${report.overall_score} 分`, report.summary, {
+          ...result,
+          user_id: user.id,
+          user_name: user.name,
+          user_role: user.role,
+          sales_report: report,
+          sales_session: session
+        });
+        return ok(res, { content: result.content, report, report_id: record.id, ...result });
+      }
+      const result = await callConfiguredModel('sales_simulation', body, user);
+      const title = body.action === 'guide' ? `${body.step?.title || '六步法'}话术库` : `${profileName}销售模拟`;
+      saveRecord('销售模拟', title, result.content, { ...result, user_id: user.id, user_name: user.name, user_role: user.role });
+      return ok(res, { content: result.content, ...result });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/tools/sales-simulation/config') {
+      const user = requireUser(req, res, 'sales');
+      if (!user) return;
+      return ok(res, { steps: salesMethodSteps.map(({ prompt_rule, ...item }) => item) });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/tools/competitors/generate') {
+      const user = requireUser(req, res, 'competitor');
+      if (!user) return;
+      const search = await searchCompetitorVideos({ ...body, keyword: body.keyword || buildCompetitorKeyword(body), limit: body.limit || 5 }, user);
+      const tikhub = { status: 'success', keyword: search.keyword, items: search.items, raw_count: search.raw_candidate_count, request_count: search.request_count, quota: search.quota };
+      try {
+        const result = await callConfiguredModel('competitor', { ...body, tikhub_status: tikhub.status, tikhub_summary: tikhub.items }, user);
+        saveRecord('找竞品', `${body.business || '教育业务'}竞品策略`, result.content, { ...result, user_id: user.id, user_name: user.name, user_role: user.role });
+        return ok(res, { content: result.content, data_provider: 'tikhub', tikhub, ...result });
+      } catch (error) {
+        const content = buildCompetitorFallback(body, tikhub);
+        saveRecord('找竞品', `${body.business || '教育业务'}竞品策略`, content, { data_provider: 'tikhub', tikhub, degraded: true, error_message: error.message, user_id: user.id, user_name: user.name, user_role: user.role });
+        return ok(res, { content, data_provider: 'tikhub', tikhub, provider: 'local_fallback', model: 'rule_fallback', degraded: true, error_message: error.message });
+      }
+    }
+    if (req.method === 'POST' && url.pathname === '/api/tools/competitors/search') {
+      const user = requireUser(req, res, 'competitor');
+      if (!user) return;
+      return ok(res, await searchCompetitorVideos(body, user));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/tools/competitors/trends') {
+      const user = requireUser(req, res, 'competitor');
+      if (!user) return;
+      return ok(res, await fetchEducationCompetitorTrends(user));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/tools/competitors/quota') {
+      const user = requireUser(req, res, 'competitor');
+      if (!user) return;
+      return ok(res, competitorQuotaFor(user));
+    }
+    if (req.method === 'POST' && url.pathname === '/api/tools/competitors/transcript') {
+      const user = requireUser(req, res, 'competitor');
+      if (!user) return;
+      return ok(res, await transcribeCompetitorVideo(body.video_id, user));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/generation-records') {
+      const user = requireUser(req, res);
+      if (!user) return;
+      const items = user.role === 'admin' && url.searchParams.get('all') === '1'
+        ? records
+        : records.filter((item) => item.user_id === user.id);
+      return ok(res, { items, total: items.length });
+    }
+    if (req.method === 'DELETE' && url.pathname === '/api/generation-records') {
+      const user = requireUser(req, res);
+      if (!user) return;
+      const before = records.length;
+      for (let index = records.length - 1; index >= 0; index -= 1) {
+        if (records[index].user_id === user.id) records.splice(index, 1);
+      }
+      return ok(res, { deleted: before - records.length });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/admin/ai/call-logs') {
+      if (!requireAdmin(req, res)) return;
+      const items = usageLogsInRange(url.searchParams);
+      return ok(res, { items, total: items.length });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/admin/ai/usage') {
+      if (!requireAdmin(req, res)) return;
+      return ok(res, buildUsageSummary(usageLogsInRange(url.searchParams)));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/admin/ai/provider-usage') {
+      if (!requireAdmin(req, res)) return;
+      return ok(res, await buildProviderUsageSummary(usageLogsInRange(url.searchParams)));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/admin/stats') {
+      if (!requireAdmin(req, res)) return;
+      const totalTokens = callLogs.reduce((sum, item) => sum + Number(item.total_tokens || 0), 0);
+      const estimatedCostUsd = callLogs.reduce((sum, item) => sum + Number(item.estimated_cost_usd || 0), 0);
+      return ok(res, {
+        user_total: managedUsers.length,
+        active_user_total: managedUsers.filter((item) => effectiveStatus(item) === 'active').length,
+        generation_total: records.length,
+        sales_report_total: records.filter((item) => item.type === '销售模拟报告' && item.meta?.sales_report).length,
+        call_total: callLogs.length,
+        total_tokens: totalTokens,
+        estimated_cost_usd: Number(estimatedCostUsd.toFixed(6))
+      });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/admin/pipi-assistant/config') {
+      if (!requireAdmin(req, res)) return;
+      return ok(res, pipiAssistantConfig);
+    }
+    if (req.method === 'GET' && url.pathname === '/api/admin/copywriting/config') {
+      if (!requireAdmin(req, res)) return;
+      return ok(res, publicCopywritingCoverConfig({ includeUnpublished: true }));
+    }
+    if (req.method === 'PATCH' && url.pathname === '/api/admin/copywriting/config') {
+      if (!requireAdmin(req, res)) return;
+      const agentCode = String(body.agent_code || '');
+      const coverId = String(body.cover_id || '');
+      if (!copyAgentByCode(agentCode)) return fail(res, 400, '文案智能体不合法', 40001);
+      if (!copyAgentCoverOptions().some((item) => item.id === coverId)) return fail(res, 400, '封面选择不合法', 40001);
+      const layout = body.layout && typeof body.layout === 'object' ? body.layout : {};
+      const focusX = Number(layout.focus_x ?? 50);
+      const focusY = Number(layout.focus_y ?? 50);
+      const zoom = Number(layout.zoom ?? 100);
+      if (![focusX, focusY, zoom].every(Number.isFinite) || focusX < 0 || focusX > 100 || focusY < 0 || focusY > 100 || zoom < 100 || zoom > 200) return fail(res, 400, '封面位置或缩放比例不合法', 40001);
+      copywritingCoverConfig.covers[agentCode] = coverId;
+      copywritingCoverConfig.layouts[agentCode] = { focus_x: focusX, focus_y: focusY, zoom };
+      saveCopywritingCoverConfig(copywritingCoverConfig);
+      return ok(res, publicCopywritingCoverConfig({ includeUnpublished: true }));
+    }
+    if (req.method === 'POST' && url.pathname === '/api/admin/copywriting/agents') {
+      if (!requireAdmin(req, res)) return;
+      const name = String(body.name || '').trim().slice(0, 40);
+      const code = String(body.code || `agent_${Date.now().toString(36)}`).trim().toLowerCase();
+      const modelId = Number(body.model_id || 20);
+      const model = modelConfigs.find((item) => item.id === modelId && item.status === 'active');
+      const provider = model ? providerConfigs.find((item) => item.code === model.provider_code && item.status === 'active' && item.capability === 'llm') : null;
+      if (!name) return fail(res, 400, '智能体名称不能为空', 40001);
+      if (!/^[a-z][a-z0-9_]{2,39}$/.test(code)) return fail(res, 400, '智能体识别码需为 3-40 位小写英文、数字或下划线，并以英文字母开头', 40001);
+      if (copyAgentByCode(code)) return fail(res, 409, '该智能体识别码已存在', 40902);
+      if (!model || !provider) return fail(res, 400, '请选择已启用的大模型', 40001);
+      const defaultType = ['short', 'moments', 'imageText', 'article'].includes(body.default_type) ? body.default_type : 'short';
+      const category = body.category === 'private' ? 'private' : 'traffic';
+      const typeLabel = { short: '短视频', moments: '朋友圈', imageText: '图文卡片', article: '价值长文' }[defaultType];
+      const now = new Date().toISOString();
+      const agent = {
+        code,
+        name,
+        description: String(body.description || '教育内容创作智能体').trim().slice(0, 160),
+        guide: String(body.guide || '告诉我你想写什么，也可以直接发来真实素材。').trim().slice(0, 240),
+        starters: normalizeCopyAgentStarters(body.starters, ['帮我根据这段真实素材写一版内容']),
+        tags: [category, defaultType],
+        tag_labels: [category === 'private' ? '私域' : '流量', typeLabel],
+        default_type: defaultType,
+        status: body.status === 'published' ? 'published' : 'unpublished',
+        model_id: modelId,
+        created_at: now,
+        updated_at: now
+      };
+      copyAgentConfigs.push(agent);
+      const promptContent = String(body.prompt || '').trim() || `${COPYWRITING_OUTPUT_FIRST_RULE}\n\n你是“${name}”。围绕用户提供的真实教育业务素材，直接生成一版完整、可用、克制的内容；不得编造案例、数据、身份或结果承诺。`;
+      promptTemplates.push({ id: Math.max(0, ...promptTemplates.map((item) => Number(item.id) || 0)) + 1, feature_code: 'copywriting_generate', agent_code: code, name: `${name} Prompt`, version: 'v1', status: 'active', content: promptContent });
+      const firstCover = copyAgentCoverOptions()[0];
+      if (firstCover) copywritingCoverConfig.covers[code] = firstCover.id;
+      copywritingCoverConfig.layouts[code] = { focus_x: 50, focus_y: 50, zoom: 100 };
+      saveCopywritingCoverConfig(copywritingCoverConfig);
+      return ok(res, { agent: publicCopyAgentConfig(agent), ...publicCopywritingCoverConfig({ includeUnpublished: true }) });
+    }
+    if (req.method === 'PATCH' && url.pathname.startsWith('/api/admin/copywriting/agents/')) {
+      if (!requireAdmin(req, res)) return;
+      const agentCode = decodeURIComponent(url.pathname.split('/').pop());
+      const agent = copyAgentByCode(agentCode);
+      if (!agent) return fail(res, 404, '文案智能体不存在', 40400);
+      const next = { ...agent };
+      if (body.name !== undefined && !String(body.name).trim()) return fail(res, 400, '智能体名称不能为空', 40001);
+      if (body.guide !== undefined && !String(body.guide).trim()) return fail(res, 400, '开局引导不能为空', 40001);
+      if (body.status !== undefined && !['published', 'unpublished'].includes(body.status)) return fail(res, 400, '上架状态不合法', 40001);
+      if (body.default_type !== undefined && !['short', 'moments', 'imageText', 'article'].includes(body.default_type)) return fail(res, 400, '内容类型不合法', 40001);
+      if (body.model_id !== undefined) {
+        const model = modelConfigs.find((item) => item.id === Number(body.model_id) && item.status === 'active');
+        const provider = model ? providerConfigs.find((item) => item.code === model.provider_code && item.status === 'active' && item.capability === 'llm') : null;
+        if (!model || !provider) return fail(res, 400, '请选择已启用的大模型', 40001);
+        next.model_id = Number(body.model_id);
+      }
+      if (body.status !== undefined) next.status = body.status;
+      if (body.default_type !== undefined) next.default_type = body.default_type;
+      if (body.name !== undefined) next.name = String(body.name).trim().slice(0, 40);
+      if (body.description !== undefined) next.description = String(body.description).trim().slice(0, 160);
+      if (body.guide !== undefined) next.guide = String(body.guide).trim().slice(0, 240);
+      if (body.starters !== undefined) next.starters = normalizeCopyAgentStarters(body.starters);
+      if (body.category !== undefined) {
+        const category = body.category === 'private' ? 'private' : 'traffic';
+        next.tags = [category, next.code === 'wechat_layout' ? 'layout' : (next.default_type || 'short')];
+        const typeLabel = next.code === 'wechat_layout' ? '视觉排版' : { short: '短视频', moments: '朋友圈', imageText: '图文卡片', article: '价值长文' }[next.default_type || 'short'];
+        next.tag_labels = [category === 'private' ? '私域' : '流量', typeLabel];
+      }
+      if (next.status === 'published') {
+        const activeModel = modelConfigs.find((item) => item.id === Number(next.model_id) && item.status === 'active');
+        const activeProvider = activeModel ? providerConfigs.find((item) => item.code === activeModel.provider_code && item.status === 'active' && item.capability === 'llm') : null;
+        if (!activeModel || !activeProvider) return fail(res, 409, '该智能体绑定的模型或供应商已停用，请先重新选择可用模型', 40903);
+      }
+      next.updated_at = new Date().toISOString();
+      Object.assign(agent, next);
+      return ok(res, { agent: publicCopyAgentConfig(agent), ...publicCopywritingCoverConfig({ includeUnpublished: true }) });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/admin/copywriting/covers') {
+      if (!requireAdmin(req, res)) return;
+      const files = Array.isArray(body.files) ? body.files.slice(0, 12) : [];
+      if (!files.length) return fail(res, 400, '请选择至少一张图片', 40001);
+      const mimeTypes = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+      const saved = [];
+      try {
+        fs.mkdirSync(COPY_AGENT_COVER_DIR, { recursive: true });
+        files.forEach((item, index) => {
+          const match = String(item.data_url || '').match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+          if (!match || !mimeTypes[match[1]]) throw new Error(`第 ${index + 1} 张图片格式不支持`);
+          const buffer = Buffer.from(match[2], 'base64');
+          if (!buffer.length || buffer.length > 8 * 1024 * 1024) throw new Error(`第 ${index + 1} 张图片需小于 8MB`);
+          const file = `upload-${Date.now()}-${index + 1}.${mimeTypes[match[1]]}`;
+          fs.writeFileSync(path.join(COPY_AGENT_COVER_DIR, file), buffer);
+          saved.push(file);
+        });
+      } catch (error) {
+        return fail(res, 400, error.message || '图片上传失败', 40001);
+      }
+      return ok(res, { saved, ...publicCopywritingCoverConfig({ includeUnpublished: true }) });
+    }
+    if (req.method === 'PATCH' && url.pathname === '/api/admin/pipi-assistant/config') {
+      if (!requireAdmin(req, res)) return;
+      if (body.knowledge_scope !== undefined) return fail(res, 403, '知识库范围为平台固定安全边界，不支持修改', 40304);
+      const next = { ...pipiAssistantConfig };
+      const allowed = ['enabled', 'display_name', 'welcome_message', 'response_style', 'response_rules', 'stickers_enabled', 'thinking_sticker', 'response_sticker_mode'];
+      allowed.forEach((key) => {
+        if (body[key] === undefined) return;
+        next[key] = ['enabled', 'stickers_enabled'].includes(key) ? Boolean(body[key]) : String(body[key]).trim();
+      });
+      if (!next.display_name || !next.welcome_message) return fail(res, 400, '皮皮名称和欢迎语不能为空', 40001);
+      if (!['auto', 'always', 'never'].includes(next.response_sticker_mode)) return fail(res, 400, '表情包模式不合法', 40001);
+      Object.assign(pipiAssistantConfig, next);
+      return ok(res, pipiAssistantConfig);
+    }
+    if (req.method === 'GET' && url.pathname === '/api/admin/pipi-assistant/knowledge') {
+      if (!requireAdmin(req, res)) return;
+      return ok(res, { items: pipiKnowledgeBase });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/admin/pipi-assistant/knowledge') {
+      if (!requireAdmin(req, res)) return;
+      if (!String(body.title || '').trim() || !String(body.content || '').trim()) return fail(res, 400, '知识库标题和内容不能为空', 40001);
+      const item = {
+        id: Date.now(),
+        title: String(body.title).trim(),
+        category: String(body.category || '未分类').trim(),
+        content: String(body.content).trim(),
+        status: body.status === 'disabled' ? 'disabled' : 'active',
+        source: '管理员录入',
+        updated_at: new Date().toISOString()
+      };
+      pipiKnowledgeBase.unshift(item);
+      return ok(res, item);
+    }
+    if (req.method === 'PATCH' && url.pathname.startsWith('/api/admin/pipi-assistant/knowledge/')) {
+      if (!requireAdmin(req, res)) return;
+      const item = pipiKnowledgeBase.find((entry) => String(entry.id) === url.pathname.split('/').pop());
+      if (!item) return fail(res, 404, '知识库条目不存在', 40400);
+      if (body.title !== undefined && !String(body.title).trim()) return fail(res, 400, '知识库标题不能为空', 40001);
+      if (body.content !== undefined && !String(body.content).trim()) return fail(res, 400, '知识库内容不能为空', 40001);
+      Object.assign(item, {
+        ...(body.title !== undefined ? { title: String(body.title).trim() } : {}),
+        ...(body.category !== undefined ? { category: String(body.category).trim() } : {}),
+        ...(body.content !== undefined ? { content: String(body.content).trim() } : {}),
+        ...(body.status !== undefined ? { status: body.status === 'active' ? 'active' : 'disabled' } : {}),
+        updated_at: new Date().toISOString()
+      });
+      return ok(res, item);
+    }
+    if (req.method === 'DELETE' && url.pathname.startsWith('/api/admin/pipi-assistant/knowledge/')) {
+      if (!requireAdmin(req, res)) return;
+      const index = pipiKnowledgeBase.findIndex((entry) => String(entry.id) === url.pathname.split('/').pop());
+      if (index < 0) return fail(res, 404, '知识库条目不存在', 40400);
+      pipiKnowledgeBase.splice(index, 1);
+      return ok(res, { deleted: true });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/admin/sales-simulation/config') {
+      if (!requireAdmin(req, res)) return;
+      const feature = featureConfigs.find((item) => item.feature_code === 'sales_simulation');
+      return ok(res, { ...salesSimulationConfig, feature, steps: salesMethodSteps });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/admin/coach-toolbox/config') {
+      if (!requireAdmin(req, res)) return;
+      const feature = featureConfigs.find((item) => item.feature_code === 'coach_toolbox');
+      const prompt = promptTemplates.find((item) => item.id === feature?.prompt_template_id) || promptTemplates.find((item) => item.feature_code === 'coach_toolbox');
+      const momentsFeature = featureConfigs.find((item) => item.feature_code === 'coach_moments');
+      const momentsPrompt = promptTemplates.find((item) => item.id === momentsFeature?.prompt_template_id) || promptTemplates.find((item) => item.feature_code === 'coach_moments');
+      return ok(res, { ...coachToolboxConfig, feature, prompt, moments_feature: momentsFeature, moments_prompt: momentsPrompt });
+    }
+    if (req.method === 'PATCH' && url.pathname === '/api/admin/coach-toolbox/config') {
+      if (!requireAdmin(req, res)) return;
+      const next = { ...coachToolboxConfig };
+      ['enabled', 'sop_enabled', 'moments_enabled', 'sop_prompt_note', 'guide_note'].forEach((key) => {
+        if (body[key] !== undefined) next[key] = key.endsWith('_enabled') || key === 'enabled' ? Boolean(body[key]) : String(body[key]).trim().slice(0, 5000);
+      });
+      if (!next.sop_prompt_note) return fail(res, 400, '工作流生成规则不能为空', 40001);
+      Object.assign(coachToolboxConfig, next);
+      return ok(res, coachToolboxConfig);
+    }
+    if (req.method === 'GET' && url.pathname === '/api/admin/sales-simulation/reports') {
+      if (!requireAdmin(req, res)) return;
+      const items = records
+        .filter((item) => item.type === '销售模拟报告' && item.meta?.sales_report)
+        .map((item) => ({
+          id: item.id,
+          title: item.title,
+          user_id: item.user_id,
+          user_name: item.user_name,
+          user_role: item.user_role,
+          created_at: item.created_at,
+          report: item.meta.sales_report,
+          session: item.meta.sales_session
+        }));
+      return ok(res, { items, total: items.length });
+    }
+    if (req.method === 'PATCH' && url.pathname === '/api/admin/sales-simulation/config') {
+      if (!requireAdmin(req, res)) return;
+      const next = { ...salesSimulationConfig };
+      const allowed = ['enabled', 'roleplay_rule', 'review_rule', 'knowledge_scope'];
+      allowed.forEach((key) => {
+        if (body[key] === undefined) return;
+        next[key] = key === 'enabled' ? Boolean(body[key]) : String(body[key]).trim().slice(0, 10000);
+      });
+      if (!next.roleplay_rule || !next.review_rule) return fail(res, 400, '角色规则和复盘规则不能为空', 40001);
+      Object.assign(salesSimulationConfig, next);
+      return ok(res, salesSimulationConfig);
+    }
+    if (req.method === 'PATCH' && url.pathname.startsWith('/api/admin/sales-simulation/steps/')) {
+      if (!requireAdmin(req, res)) return;
+      const code = decodeURIComponent(url.pathname.split('/').pop());
+      const item = salesMethodSteps.find((entry) => entry.code === code);
+      if (!item) return fail(res, 404, '六步法步骤不存在', 40400);
+      const nextItems = Array.isArray(body.items) ? body.items.map((entry) => String(entry).trim()).filter(Boolean) : item.items;
+      if (!String(body.library ?? item.library).trim() || !String(body.short_desc ?? item.short_desc).trim() || !String(body.description ?? item.description).trim() || !String(body.prompt_rule ?? item.prompt_rule).trim()) return fail(res, 400, '库名称、说明和 AI 生成规则不能为空', 40001);
+      if (!nextItems.length) return fail(res, 400, '通用话术至少保留一条', 40001);
+      Object.assign(item, {
+        library: String(body.library ?? item.library).trim(),
+        short_desc: String(body.short_desc ?? item.short_desc).trim(),
+        description: String(body.description ?? item.description).trim(),
+        prompt_rule: String(body.prompt_rule ?? item.prompt_rule).trim(),
+        items: nextItems
+      });
+      return ok(res, item);
+    }
+    if (req.method === 'GET' && url.pathname === '/api/admin/sales-simulation/knowledge') {
+      if (!requireAdmin(req, res)) return;
+      return ok(res, { items: salesKnowledgeBase });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/admin/sales-simulation/knowledge') {
+      if (!requireAdmin(req, res)) return;
+      if (!String(body.title || '').trim() || !String(body.content || '').trim()) return fail(res, 400, '销售知识标题和内容不能为空', 40001);
+      const item = {
+        id: Date.now(),
+        title: String(body.title).trim(),
+        category: String(body.category || '销售方法论').trim(),
+        content: String(body.content).trim(),
+        status: body.status === 'disabled' ? 'disabled' : 'active',
+        source: '管理员录入',
+        updated_at: new Date().toISOString()
+      };
+      salesKnowledgeBase.unshift(item);
+      return ok(res, item);
+    }
+    if (req.method === 'PATCH' && url.pathname.startsWith('/api/admin/sales-simulation/knowledge/')) {
+      if (!requireAdmin(req, res)) return;
+      const item = salesKnowledgeBase.find((entry) => String(entry.id) === url.pathname.split('/').pop());
+      if (!item) return fail(res, 404, '销售知识库条目不存在', 40400);
+      if (body.title !== undefined && !String(body.title).trim()) return fail(res, 400, '销售知识标题不能为空', 40001);
+      if (body.content !== undefined && !String(body.content).trim()) return fail(res, 400, '销售知识内容不能为空', 40001);
+      Object.assign(item, {
+        ...(body.title !== undefined ? { title: String(body.title).trim() } : {}),
+        ...(body.category !== undefined ? { category: String(body.category).trim() } : {}),
+        ...(body.content !== undefined ? { content: String(body.content).trim() } : {}),
+        ...(body.status !== undefined ? { status: body.status === 'active' ? 'active' : 'disabled' } : {}),
+        updated_at: new Date().toISOString()
+      });
+      return ok(res, item);
+    }
+    if (req.method === 'DELETE' && url.pathname.startsWith('/api/admin/sales-simulation/knowledge/')) {
+      if (!requireAdmin(req, res)) return;
+      const index = salesKnowledgeBase.findIndex((entry) => String(entry.id) === url.pathname.split('/').pop());
+      if (index < 0) return fail(res, 404, '销售知识库条目不存在', 40400);
+      if (salesKnowledgeBase[index].built_in) return fail(res, 400, '内置销售方法论不能删除，可以暂停使用', 40001);
+      salesKnowledgeBase.splice(index, 1);
+      return ok(res, { deleted: true });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/admin/users') {
+      if (!requireAdmin(req, res)) return;
+      return ok(res, { items: managedUsers.map(publicManagedUser), total: managedUsers.length });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/admin/users') {
+      if (!requireAdmin(req, res)) return;
+      const role = body.role || 'training';
+      const phone = String(body.phone || '').trim();
+      const name = String(body.name || '').trim();
+      const password = String(body.password || '');
+      if (!name) return fail(res, 400, '学员姓名不能为空', 40001);
+      if (!/^1\d{10}$/.test(phone)) return fail(res, 400, '请输入正确的 11 位手机号', 40001);
+      if (password.length < 8) return fail(res, 400, '初始密码至少需要 8 位', 40001);
+      if (!roleMeta[role] || role === 'admin') return fail(res, 400, '当前只支持开通训练营或陪跑学员', 40001);
+      if (managedUsers.some((item) => item.phone === phone || item.account === phone)) return fail(res, 409, '该手机号已经开通过账号或正在作为登录账号使用', 40901);
+      const item = {
+        id: Date.now(),
+        account: phone,
+        password_hash: hashPassword(password),
+        name,
+        phone,
+        role,
+        roleName: roleMeta[role].name,
+        status: 'active',
+        paid_product: body.paid_product || (role === 'coaching' ? '陪跑服务' : '训练营'),
+        opened_at: new Date().toISOString().slice(0, 10),
+        expires_at: body.expires_at || '',
+        remark: body.remark || '',
+        enabled_features: roleMeta[role].features
+      };
+      ensurePersonalCenterData(item);
+      managedUsers.push(item);
+      return ok(res, publicManagedUser(item));
+    }
+    if (req.method === 'PATCH' && url.pathname.startsWith('/api/admin/users/')) {
+      if (!requireAdmin(req, res)) return;
+      const user = managedUsers.find((item) => String(item.id) === url.pathname.split('/').pop());
+      if (!user) return fail(res, 404, '用户不存在', 40400);
+      if (body.role && (!roleMeta[body.role] || body.role === 'admin')) return fail(res, 400, '角色不合法', 40001);
+      const nextPhone = body.phone !== undefined ? String(body.phone).trim() : user.phone;
+      if (body.phone !== undefined && (!/^1\d{10}$/.test(nextPhone) || managedUsers.some((item) => item.id !== user.id && (item.phone === nextPhone || item.account === nextPhone)))) return fail(res, 400, '手机号格式错误或已被使用', 40001);
+      if (body.status !== undefined && !['active', 'disabled'].includes(body.status)) return fail(res, 400, '账号状态不合法', 40001);
+      if (body.expires_at !== undefined && body.expires_at && !/^\d{4}-\d{2}-\d{2}$/.test(String(body.expires_at))) return fail(res, 400, '到期日期格式不合法', 40001);
+      const allowed = ['name', 'phone', 'role', 'status', 'paid_product', 'expires_at', 'remark'];
+      allowed.forEach((key) => { if (body[key] !== undefined) user[key] = body[key]; });
+      if (body.phone !== undefined && /^1\d{10}$/.test(String(user.account || ''))) user.account = nextPhone;
+      if (body.status === 'active' && user.expires_at && user.expires_at < localDateKey() && body.expires_at === undefined) user.expires_at = '';
+      if (body.role) {
+        user.roleName = roleMeta[body.role].name;
+        user.enabled_features = roleMeta[body.role].features;
+      }
+      return ok(res, publicManagedUser(user));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/admin/ai/providers') {
+      if (!requireAdmin(req, res)) return;
+      return ok(res, { items: providerConfigs.map(publicProviderConfig) });
+    }
+    if (req.method === 'PATCH' && url.pathname.startsWith('/api/admin/ai/providers/')) {
+      if (!requireAdmin(req, res)) return;
+      if (body.status && !['active', 'disabled'].includes(body.status)) return fail(res, 400, '供应商状态不合法', 40001);
+      const provider = providerConfigs.find((item) => String(item.id) === url.pathname.split('/').pop());
+      if (!provider) return fail(res, 404, '供应商不存在', 40400);
+      if (body.status === 'disabled') {
+        const activeModels = modelConfigs.filter((item) => item.provider_code === provider.code && item.status === 'active');
+        const boundFeatures = featureConfigs.filter((feature) => feature.status === 'active' && [feature.primary_model_id, ...(feature.fallback_model_ids || [])].some((id) => activeModels.some((model) => model.id === Number(id))));
+        const boundAgents = copyAgentConfigs.filter((agent) => agent.status === 'published' && activeModels.some((model) => model.id === Number(agent.model_id)));
+        const isDataProviderInUse = featureConfigs.some((feature) => feature.status === 'active' && feature.data_provider_codes?.includes(provider.code));
+        if (boundFeatures.length || boundAgents.length || isDataProviderInUse) return fail(res, 409, '该供应商仍被已启用功能或已上架智能体使用，请先调整绑定后再禁用', 40903);
+      }
+      if (body.status !== undefined) provider.status = body.status;
+      return ok(res, provider);
+    }
+    if (req.method === 'GET' && url.pathname === '/api/admin/ai/models') {
+      if (!requireAdmin(req, res)) return;
+      return ok(res, { items: modelConfigs });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/admin/ai/models/refresh') {
+      if (!requireAdmin(req, res)) return;
+      const providerCode = body.provider_code || 'siliconflow';
+      const provider = providerConfigs.find((item) => item.code === providerCode);
+      if (!provider) return fail(res, 404, '供应商不存在', 40400);
+      if (providerCode === 'volcengine_ark_plan') {
+        return fail(res, 400, 'Ark Plan 不应自动探测 /models；请在模型池手动配置 Plan 模型名，并使用 Plan 专用 API Key。', 40001);
+      }
+      const runtime = providerRuntime(providerCode);
+      if (!runtime.key) return fail(res, 400, `缺少 ${runtime.label} API Key`, 40001);
+      const response = await fetch(`${provider.base_url}/models`, {
+        headers: { Authorization: `Bearer ${runtime.key}`, Accept: 'application/json' },
+        signal: AbortSignal.timeout(30000)
+      });
+      const payload = await response.json();
+      if (!response.ok) return fail(res, response.status, payload.error?.message || payload.message || '模型列表刷新失败', 50200);
+      const models = Array.isArray(payload.data) ? payload.data : [];
+      const existingCodes = new Set(modelConfigs.map((item) => `${item.provider_code}:${item.model_code}`));
+      const added = [];
+      for (const model of models.slice(0, 12)) {
+        if (!model?.id || existingCodes.has(`${providerCode}:${model.id}`)) continue;
+        const item = { id: Date.now() + added.length, provider_code: providerCode, display_name: model.id, model_code: model.id, status: 'disabled', role: 'fallback' };
+        modelConfigs.push(item);
+        added.push(item);
+      }
+      return ok(res, { added, total_available: models.length });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/admin/ai/models') {
+      if (!requireAdmin(req, res)) return;
+      const providerCode = body.provider_code || 'siliconflow';
+      const provider = providerConfigs.find((item) => item.code === providerCode);
+      if (!provider) return fail(res, 404, '供应商不存在', 40400);
+      if (provider.capability !== 'llm') return fail(res, 400, '该供应商不是大模型供应商，不能加入模型池', 40001);
+      if (!body.model_code) return fail(res, 400, '模型 code 不能为空', 40001);
+      if (body.status && !['active', 'disabled'].includes(body.status)) return fail(res, 400, '模型状态不合法', 40001);
+      if (body.role && !['primary', 'fallback'].includes(body.role)) return fail(res, 400, '模型角色不合法', 40001);
+      if (modelConfigs.some((item) => item.provider_code === providerCode && item.model_code === body.model_code)) return fail(res, 409, '该模型已经存在于模型池', 40902);
+      const item = { id: Date.now(), provider_code: providerCode, display_name: body.display_name || body.model_code, model_code: body.model_code, status: body.status || 'active', role: body.role || 'fallback', input_price_cny_per_million: 0, output_price_cny_per_million: 0 };
+      modelConfigs.push(item);
+      return ok(res, item);
+    }
+    if (req.method === 'PATCH' && url.pathname.startsWith('/api/admin/ai/models/')) {
+      if (!requireAdmin(req, res)) return;
+      if (body.status && !['active', 'disabled'].includes(body.status)) return fail(res, 400, '模型状态不合法', 40001);
+      if (body.role && !['primary', 'fallback'].includes(body.role)) return fail(res, 400, '模型角色不合法', 40001);
+      if (body.display_name !== undefined && !String(body.display_name).trim()) return fail(res, 400, '模型名称不能为空', 40001);
+      const next = {};
+      if (body.status !== undefined) next.status = body.status;
+      if (body.role !== undefined) next.role = body.role;
+      if (body.display_name !== undefined) next.display_name = String(body.display_name).trim().slice(0, 120);
+      for (const field of ['input_price_cny_per_million', 'output_price_cny_per_million']) {
+        if (body[field] !== undefined && (!Number.isFinite(Number(body[field])) || Number(body[field]) < 0 || Number(body[field]) > 1000000)) return fail(res, 400, '模型单价必须是有效的非负数字', 40001);
+        if (body[field] !== undefined) next[field] = Number(body[field]);
+      }
+      const model = modelConfigs.find((item) => String(item.id) === url.pathname.split('/').pop());
+      if (!model) return fail(res, 404, '模型不存在', 40400);
+      if (next.status === 'disabled') {
+        const boundFeatures = featureConfigs.filter((feature) => feature.status === 'active' && [feature.primary_model_id, ...(feature.fallback_model_ids || [])].includes(model.id));
+        const boundAgents = copyAgentConfigs.filter((agent) => agent.status === 'published' && Number(agent.model_id) === model.id);
+        if (boundFeatures.length || boundAgents.length) return fail(res, 409, '该模型仍被已启用功能或已上架智能体使用，请先调整绑定后再禁用', 40903);
+      }
+      Object.assign(model, next);
+      return ok(res, model);
+    }
+    if (req.method === 'GET' && url.pathname === '/api/admin/prompts') {
+      if (!requireAdmin(req, res)) return;
+      return ok(res, { items: promptTemplates });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/admin/prompts') {
+      if (!requireAdmin(req, res)) return;
+      if (!configurableFeatureCodes.includes(body.feature_code)) return fail(res, 400, 'Prompt 绑定功能不合法', 40001);
+      if (body.feature_code === 'copywriting_generate' && body.agent_code && !copyAgentByCode(body.agent_code)) return fail(res, 400, '文案智能体不合法', 40001);
+      if (!String(body.name || '').trim() || !String(body.content || '').trim()) return fail(res, 400, 'Prompt 名称和内容不能为空', 40001);
+      if (body.status && !['active', 'disabled'].includes(body.status)) return fail(res, 400, 'Prompt 状态不合法', 40001);
+      const item = { id: Date.now(), feature_code: body.feature_code, agent_code: body.agent_code || '', name: String(body.name).trim(), version: String(body.version || 'v1').trim().slice(0, 40) || 'v1', status: body.status || 'active', content: String(body.content).trim() };
+      promptTemplates.push(item);
+      return ok(res, item);
+    }
+    if (req.method === 'PATCH' && url.pathname.startsWith('/api/admin/prompts/')) {
+      if (!requireAdmin(req, res)) return;
+      const prompt = promptTemplates.find((item) => String(item.id) === url.pathname.split('/').pop());
+      if (!prompt) return fail(res, 404, 'Prompt 不存在', 40400);
+      const next = {
+        ...prompt,
+        ...(body.feature_code !== undefined ? { feature_code: body.feature_code } : {}),
+        ...(body.agent_code !== undefined ? { agent_code: String(body.agent_code).trim() } : {}),
+        ...(body.name !== undefined ? { name: String(body.name).trim() } : {}),
+        ...(body.version !== undefined ? { version: String(body.version).trim().slice(0, 40) } : {}),
+        ...(body.status !== undefined ? { status: body.status } : {}),
+        ...(body.content !== undefined ? { content: String(body.content).trim() } : {})
+      };
+      if (!configurableFeatureCodes.includes(next.feature_code)) return fail(res, 400, 'Prompt 绑定功能不合法', 40001);
+      if (next.feature_code === 'copywriting_generate' && (!next.agent_code || !copyAgentByCode(next.agent_code))) return fail(res, 400, '文案智能体不合法', 40001);
+      if (!next.name || !next.content || !next.version) return fail(res, 400, 'Prompt 名称、版本和内容不能为空', 40001);
+      if (!['active', 'disabled'].includes(next.status)) return fail(res, 400, 'Prompt 状态不合法', 40001);
+      if (next.status === 'disabled' && featureConfigs.some((feature) => feature.status === 'active' && feature.prompt_template_id === prompt.id)) return fail(res, 409, '该 Prompt 仍被已启用功能绑定，请先更换绑定后再禁用', 40903);
+      if (next.feature_code !== 'copywriting_generate') next.agent_code = '';
+      Object.assign(prompt, next);
+      return ok(res, prompt);
+    }
+    if (req.method === 'GET' && url.pathname === '/api/admin/ai/features') {
+      if (!requireAdmin(req, res)) return;
+      return ok(res, { items: featureConfigs });
+    }
+    if (req.method === 'PATCH' && url.pathname.startsWith('/api/admin/ai/features/')) {
+      if (!requireAdmin(req, res)) return;
+      const featureCode = decodeURIComponent(url.pathname.split('/').pop());
+      const feature = featureConfigs.find((item) => item.feature_code === featureCode);
+      if (!feature) return fail(res, 404, 'AI 功能不存在', 40400);
+      const next = {};
+      if (body.status !== undefined) {
+        if (!['active', 'disabled'].includes(body.status)) return fail(res, 400, 'AI 功能状态不合法', 40001);
+        next.status = body.status;
+      }
+      if (body.primary_model_id !== undefined) {
+        const primary = modelConfigs.find((item) => item.id === Number(body.primary_model_id));
+        if (!primary || primary.status !== 'active' || providerConfigs.find((item) => item.code === primary.provider_code)?.status !== 'active') return fail(res, 400, '主模型必须来自已启用的模型供应商和启用中的模型', 40001);
+        next.primary_model_id = Number(body.primary_model_id);
+      }
+      if (body.prompt_template_id !== undefined) {
+        const prompt = promptTemplates.find((item) => item.id === Number(body.prompt_template_id));
+        if (!prompt || prompt.status !== 'active' || prompt.feature_code !== featureCode) return fail(res, 400, '绑定的 Prompt 不存在、已禁用或不属于当前功能', 40001);
+        next.prompt_template_id = Number(body.prompt_template_id);
+      }
+      if (body.fallback_model_ids !== undefined) {
+        const rawIds = Array.isArray(body.fallback_model_ids) ? body.fallback_model_ids : String(body.fallback_model_ids).split(',');
+        const fallbackIds = [...new Set(rawIds.map((item) => Number(String(item).trim())).filter(Number.isFinite))];
+        if (fallbackIds.some((id) => {
+          const model = modelConfigs.find((item) => item.id === id);
+          return !model || model.status !== 'active' || providerConfigs.find((item) => item.code === model.provider_code)?.status !== 'active';
+        })) return fail(res, 400, '备用模型必须全部来自已启用的模型供应商和启用中的模型', 40001);
+        next.fallback_model_ids = fallbackIds.filter((id) => id !== Number(next.primary_model_id ?? feature.primary_model_id));
+      }
+      if (body.provider_codes !== undefined) {
+        const codes = (Array.isArray(body.provider_codes) ? body.provider_codes : String(body.provider_codes).split(',')).map((item) => String(item).trim()).filter(Boolean);
+        if (codes.some((code) => !providerConfigs.some((item) => item.code === code && item.capability === 'llm'))) return fail(res, 400, '模型供应商配置不合法', 40001);
+        next.provider_codes = [...new Set(codes)];
+      }
+      if (body.data_provider_codes !== undefined) {
+        const codes = (Array.isArray(body.data_provider_codes) ? body.data_provider_codes : String(body.data_provider_codes).split(',')).map((item) => String(item).trim()).filter(Boolean);
+        if (codes.some((code) => !providerConfigs.some((item) => item.code === code && item.capability === 'social_data'))) return fail(res, 400, '数据供应商配置不合法', 40001);
+        next.data_provider_codes = [...new Set(codes)];
+      }
+      Object.assign(feature, next);
+      return ok(res, feature);
+    }
+    return fail(res, 404, '接口不存在', 40400);
+  } catch (error) {
+    return fail(res, Number(error.statusCode) || 500, error.message, Number(error.errorCode) || 50200);
+  }
+}
+
+const STATIC_CONTENT_TYPES = {
+  '.css': 'text/css; charset=utf-8',
+  '.html': 'text/html; charset=utf-8',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.js': 'application/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.webp': 'image/webp'
+};
+
+function serveStatic(req, res, url) {
+  if (!['GET', 'HEAD'].includes(req.method)) return fail(res, 405, '请求方法不允许', 40500);
+  let pathname;
+  try {
+    pathname = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname);
+  } catch {
+    return fail(res, 400, '请求路径不合法', 40000);
+  }
+  const publicRootFiles = new Set(['/index.html', '/app.js', '/config.js', '/styles.css']);
+  const publicAsset = pathname.startsWith('/assets/') && ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg'].includes(path.extname(pathname).toLowerCase());
+  const publicVendor = pathname === '/vendor/lucide.min.js';
+  if (!publicRootFiles.has(pathname) && !publicAsset && !publicVendor) return fail(res, 404, '资源不存在', 40400);
+  const filePath = path.resolve(APP_ROOT, `.${pathname}`);
+  if (!filePath.startsWith(`${APP_ROOT}${path.sep}`)) return fail(res, 403, '无权访问该资源', 40300);
+  try {
+    const stats = fs.statSync(filePath);
+    if (!stats.isFile()) return fail(res, 404, '资源不存在', 40400);
+    const extension = path.extname(filePath).toLowerCase();
+    res.writeHead(200, {
+      'Content-Type': STATIC_CONTENT_TYPES[extension] || 'application/octet-stream',
+      'Content-Length': stats.size,
+      'Cache-Control': ['.html', '.js', '.css'].includes(extension) ? 'no-cache' : 'public, max-age=86400',
+      'X-Content-Type-Options': 'nosniff'
+    });
+    if (req.method === 'HEAD') return res.end();
+    fs.createReadStream(filePath).pipe(res);
+  } catch {
+    return fail(res, 404, '资源不存在', 40400);
+  }
+}
+
+async function handleRequest(req, res) {
+  await route(req, res);
+  if (['POST', 'PATCH', 'DELETE'].includes(req.method) && req.url.startsWith('/api/') && res.statusCode >= 200 && res.statusCode < 300) savePersistentState();
+}
+
+http.createServer(handleRequest).listen(PORT, HOST, () => {
+  console.log(`Pipi API server listening on http://localhost:${PORT}`);
+  console.log('Static assets, API routes, and runtime secrets are served from one local-only process.');
+});
+
+// 只额外监听 IPv6 回环地址，不向局域网暴露服务；配合前端回环地址兜底，解决内嵌浏览器偶发的 IPv4 连接失败。
+if (HOST === '127.0.0.1') {
+  const ipv6LoopbackServer = http.createServer(handleRequest);
+  ipv6LoopbackServer.on('error', (error) => {
+    console.warn(`IPv6 本机入口启动失败：${error.message}`);
+  });
+  ipv6LoopbackServer.listen({ port: PORT, host: '::1', ipv6Only: true }, () => {
+    console.log(`Pipi API server also listening on http://[::1]:${PORT}`);
+  });
+}
+
+LEGACY_PORTS.forEach((legacyPort) => {
+  const legacyServer = http.createServer((req, res) => {
+    const target = `http://127.0.0.1:${PORT}${String(req.url || '/').startsWith('/') ? req.url : '/'}`;
+    res.writeHead(307, {
+      Location: target,
+      'Cache-Control': 'no-store',
+      'Content-Type': 'text/plain; charset=utf-8',
+      'X-Content-Type-Options': 'nosniff'
+    });
+    res.end(`皮皮中台入口已迁移，正在前往 ${target}`);
+  });
+  legacyServer.on('error', (error) => {
+    console.warn(`旧入口 ${legacyPort} 启动失败：${error.message}`);
+  });
+  legacyServer.listen(legacyPort, HOST, () => {
+    console.log(`Legacy entry http://localhost:${legacyPort} redirects to http://localhost:${PORT}`);
+  });
+});

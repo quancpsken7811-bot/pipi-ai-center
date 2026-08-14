@@ -1,0 +1,9 @@
+.env
+.env.*
+!.env.example
+data/
+.DS_Store
+.codex/
+assets/user-avatars/
+docs/
+ops/

@@ -1,0 +1,54 @@
+{
+  "covers": {
+    "local_city": "image-pipi-cafe-jpg",
+    "persona_story": "image-pipi-reading-jpg",
+    "education_vertical": "image-pipi-winter-city-jpg",
+    "education_dry_goods": "image-pipi-hanfu-jpg",
+    "education_marketing": "image-pipi-white-sea-jpg",
+    "moments": "image-pipi-blue-sea-jpg",
+    "xiaohongshu": "image-pipi-sunset-yellow-jpg",
+    "wechat_article": "image-pipi-arch-sea-jpg"
+  },
+  "layouts": {
+    "local_city": {
+      "focus_x": 52,
+      "focus_y": 77,
+      "zoom": 114
+    },
+    "persona_story": {
+      "focus_x": 84,
+      "focus_y": 16,
+      "zoom": 100
+    },
+    "education_vertical": {
+      "focus_x": 50,
+      "focus_y": 31,
+      "zoom": 100
+    },
+    "education_dry_goods": {
+      "focus_x": 50,
+      "focus_y": 64,
+      "zoom": 100
+    },
+    "education_marketing": {
+      "focus_x": 50,
+      "focus_y": 78,
+      "zoom": 100
+    },
+    "moments": {
+      "focus_x": 50,
+      "focus_y": 78,
+      "zoom": 100
+    },
+    "xiaohongshu": {
+      "focus_x": 77,
+      "focus_y": 69,
+      "zoom": 100
+    },
+    "wechat_article": {
+      "focus_x": 50,
+      "focus_y": 63,
+      "zoom": 100
+    }
+  }
+}

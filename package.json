@@ -1,0 +1,13 @@
+{
+  "name": "pipi-ai-center",
+  "version": "1.0.0",
+  "private": true,
+  "description": "皮皮 AI 中台",
+  "scripts": {
+    "start": "node api-server.js",
+    "check": "node --check api-server.js && node --check app.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

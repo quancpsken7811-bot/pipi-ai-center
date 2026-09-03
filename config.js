@@ -9,7 +9,7 @@ window.PIPI_API_CONFIG = {
   ],
   useMockWhenEmpty: false,
   allowDemoLogin: false,
-  selfRegistrationEnabled: false,
+  selfRegistrationEnabled: true,
   endpoints: {
     loginPassword: '/api/auth/login/password',
     register: '/api/auth/register',

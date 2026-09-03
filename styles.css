@@ -409,6 +409,7 @@ h1 { margin-top: 4px; font-size: 24px; }
 .continue-item { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); padding: 12px 0; }
 .continue-item:first-child { border-top: 0; padding-top: 0; }
 .continue-item-main { display: grid; gap: 4px; min-width: 0; }
+.continue-actions, .record-actions { display: flex; align-items: center; flex: 0 0 auto; gap: 10px; }
 .continue-item-main span { color: var(--green); font-size: 10px; font-weight: 900; letter-spacing: .06em; }
 .continue-item-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 .continue-item-main small { color: var(--muted); font-size: 10px; }
@@ -582,14 +583,15 @@ h1 { margin-top: 4px; font-size: 24px; }
 .agent-simple-composer .agent-composer-footer .agent-send-button { font-size: 18px; }
 .agent-chat-main:not(.has-conversation) #copyCopywriting,
 .agent-chat-main:not(.has-conversation) #exportCopywriting { display: none; }
-.copy-compose-open { overflow: hidden; }
-.copy-compose-open .app { grid-template-columns: minmax(0, 1fr); height: 100vh; overflow: hidden; }
-.copy-compose-open .sidebar, .copy-compose-open .topbar, .copy-compose-open .floating { display: none !important; }
+.copy-compose-open { overflow: visible; }
+/* 智能体工作区属于中台右侧内容，而不是一个脱离中台的独立窗口。
+   保留左侧导览和顶部账号栏，让用户随时能切换其他功能。 */
+.copy-compose-open .app { grid-template-columns: 252px minmax(0, 1fr); min-height: 100vh; height: auto; overflow: visible; }
 .sales-page-open .floating { display: none !important; }
-.copy-compose-open main { height: 100vh; overflow: hidden; }
-.copy-compose-open #copyPage.page { height: 100vh; padding: 0; }
-.copy-compose-open .agent-chat-layout { height: 100vh; min-height: 0; border: 0; border-radius: 0; box-shadow: none; }
-.copy-compose-open .wechat-layout-workspace { height: 100vh; overflow: hidden; }
+.copy-compose-open main { height: auto; overflow: visible; }
+.copy-compose-open #copyPage.page { min-height: calc(100dvh - 78px); padding: 0; }
+.copy-compose-open .agent-chat-layout { height: calc(100dvh - 78px); min-height: 600px; }
+.copy-compose-open .wechat-layout-workspace { min-height: calc(100dvh - 78px); height: calc(100dvh - 78px); overflow: hidden; }
 .wechat-layout-workspace { min-height: 760px; color: #392f29; background: #f3efe9; }
 .wechat-layout-header { display: flex; min-height: 112px; align-items: center; justify-content: space-between; gap: 24px; border-bottom: 1px solid #ded5cc; background: rgba(255, 253, 249, .96); padding: 18px 28px; }
 .wechat-layout-header > div:first-child { min-width: 0; flex: 1 1 auto; }
@@ -625,6 +627,21 @@ h1 { margin-top: 4px; font-size: 24px; }
 .wechat-theme-picker [data-wechat-theme="gallery"] > span { background: linear-gradient(180deg, #aa796d 0 42%, #f1d9d4 42%); }
 .wechat-theme-picker strong { font-size: 10px; }
 .wechat-theme-picker small { color: #a2958d; font-size: 8px; }
+.wechat-editor-tools { margin-top: 22px; padding-top: 2px; border-top: 1px solid #eee5dd; }
+.wechat-setting-row { display: grid; grid-template-columns: 46px minmax(0, 1fr) 42px; align-items: center; gap: 8px; margin: 11px 0; color: #75665c; font-size: 10px; }
+.wechat-setting-row input[type="range"] { width: 100%; accent-color: #ac572e; }
+.wechat-setting-row output { color: #ac572e; font-size: 10px; text-align: right; }
+.wechat-setting-row select { grid-column: 2 / 4; min-width: 0; border: 1px solid #e4dbd2; border-radius: 6px; color: #5e5047; background: #fff; padding: 8px; font-size: 10px; }
+.wechat-color-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.wechat-color-row label { margin-right: 3px; }
+.wechat-color-row button { border: 1px solid #e4dbd2; border-radius: 99px; color: #75665c; background: #fff; padding: 4px 8px; font-size: 9px; }
+.wechat-color-row button.active { border-color: #ac572e; color: #8f4525; background: #fff5ee; }
+.wechat-color-row input[type="color"] { width: 25px; height: 22px; margin-left: auto; border: 0; padding: 0; background: transparent; }
+.wechat-fixed-toggle { display: flex; align-items: center; gap: 7px; margin: 14px 0 8px; color: #65574e; font-size: 10px; }
+.wechat-fixed-toggle input { accent-color: #ac572e; }
+.wechat-editor-tools > textarea { width: 100%; min-height: 60px; resize: vertical; border: 1px solid #e4dbd2; border-radius: 7px; color: #594b43; background: #fff; padding: 9px; font-size: 10px; line-height: 1.6; }
+.wechat-import-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0 8px; }
+.wechat-import-actions button { padding: 8px 7px; font-size: 10px; }
 .wechat-image-list { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
 .wechat-image-list span { color: #a1948b; font-size: 9px; }
 .wechat-image-thumb { position: relative; width: 48px; height: 48px; overflow: hidden; border: 1px solid #e1d7ce; border-radius: 6px; background: #f6f1ec; }
@@ -777,6 +794,44 @@ select:required:invalid option { color: var(--ink); }
   background: #fff;
   padding: 15px 16px;
 }
+.topic-item { display: flex; align-items: center; gap: 13px; }
+.topic-item-copy { flex: 1; min-width: 0; outline: none; }
+.topic-gacha-button { flex: 0 0 auto; border: 1px solid #e7c7aa; border-radius: 999px; background: #fff8f1; color: #a64f27; padding: 8px 11px; font-size: 11px; font-weight: 850; white-space: nowrap; transition: transform .18s ease, background .18s ease; }
+.topic-gacha-button:hover:not(:disabled) { background: #ffebda; transform: translateY(-1px); }
+.topic-gacha-button:disabled { border-color: #c7d8ce; background: #eef5ef; color: #578068; cursor: default; }
+
+/* 灵感扭蛋机：让“存选题”成为可见、可玩的内容仪式，而不是又一个收藏夹。 */
+.gacha-page-shell { max-width: 1160px; margin: 0 auto; }
+.topic-gacha-shell { margin-top: 30px; border-top: 1px solid #eaded4; padding-top: 30px; }
+.gacha-page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 22px; margin-bottom: 20px; }
+.gacha-page-head h2 { margin: 5px 0 7px; color: #3d2b22; font-size: clamp(28px, 4vw, 40px); letter-spacing: -.055em; }
+.gacha-page-head p { margin: 0; color: #88766d; font-size: 14px; }
+.gacha-page-head .secondary { display: inline-flex; align-items: center; gap: 7px; }
+.gacha-stage { display: grid; grid-template-columns: minmax(310px, .91fr) minmax(360px, 1.09fr); overflow: hidden; border: 1px solid #ead8ca; border-radius: 24px; background: #fffdf9; box-shadow: 0 18px 42px rgba(92, 54, 31, .08); }
+.gacha-machine-card { position: relative; overflow: hidden; display: grid; justify-items: center; align-content: start; min-height: 585px; background: radial-gradient(circle at 50% 32%, #fff1df 0 24%, transparent 24.2%), linear-gradient(145deg, #684231 0%, #9b512e 49%, #d1743d 100%); padding: 28px 30px 24px; }
+.gacha-machine-card::before, .gacha-machine-card::after { position: absolute; width: 260px; height: 260px; border: 1px solid rgba(255,255,255,.15); border-radius: 50%; content: ''; }
+.gacha-machine-card::before { top: -170px; left: -105px; }.gacha-machine-card::after { right: -135px; bottom: -145px; }
+.gacha-machine-top { position: relative; z-index: 1; display: flex; align-items: baseline; gap: 7px; color: #fff5e9; font-size: 11px; letter-spacing: .08em; }
+.gacha-machine-top b { color: #f8ce57; font-size: 22px; letter-spacing: 0; }.gacha-machine-top small { color: rgba(255,245,233,.7); }
+.gacha-machine { position: relative; z-index: 1; width: min(300px, 100%); margin: 25px auto 13px; filter: drop-shadow(0 20px 12px rgba(38, 16, 7, .2)); }
+.gacha-crown { position: relative; z-index: 2; width: 134px; height: 22px; margin: 0 auto -7px; border: 5px solid #f6c548; border-bottom: 0; border-radius: 68px 68px 8px 8px; background: linear-gradient(90deg, #bf632c, #f9cc5e, #bb5628); }
+.gacha-dome { position: relative; z-index: 1; aspect-ratio: 1; overflow: hidden; border: 8px solid #f7e6cd; border-bottom-width: 6px; border-radius: 50%; background: radial-gradient(circle at 36% 25%, rgba(255,255,255,.82), rgba(255,224,183,.38) 22%, rgba(142,73,45,.18) 69%); box-shadow: inset -15px -17px 32px rgba(87, 34, 18, .22), inset 10px 8px 20px rgba(255,255,255,.48); }
+.gacha-dome::after { position: absolute; z-index: 3; top: 17%; left: 20%; width: 22%; height: 11%; border-radius: 50%; background: rgba(255,255,255,.45); content: ''; filter: blur(4px); transform: rotate(-33deg); }
+.gacha-balls { position: absolute; inset: 0; }
+.gacha-ball { position: absolute; top: 50%; left: 50%; width: 48px; height: 48px; border: 2px solid rgba(90,45,26,.2); border-radius: 50%; background: radial-gradient(circle at 31% 24%, rgba(255,255,255,.83) 0 8%, transparent 9%), linear-gradient(137deg, var(--ball-color) 0 49%, #fff6e9 50% 53%, var(--ball-color) 54%); box-shadow: inset -6px -7px 9px rgba(65,32,18,.18), 2px 4px 6px rgba(57,26,11,.15); transform: translate(calc(var(--x) - 50%), calc(var(--y) - 50%)) rotate(var(--spin)); }
+.gacha-ball b { position: absolute; top: 2px; bottom: 2px; left: 50%; width: 1px; background: rgba(70,37,21,.18); }
+.gacha-glass-shine { position: absolute; z-index: 4; top: 7%; left: 8%; width: 19%; height: 63%; border-left: 5px solid rgba(255,255,255,.45); border-radius: 50%; transform: rotate(24deg); }
+.gacha-chute { position: relative; z-index: 3; display: grid; width: 96px; height: 59px; margin: -6px auto 0; border: 6px solid #f5d597; border-radius: 9px 9px 28px 28px; background: #6e3825; place-items: center; box-shadow: inset 0 6px 9px rgba(31,13,7,.38); }.gacha-chute span { color: #f7c849; font-size: 24px; }
+.gacha-output-tray { position: relative; z-index: 2; width: 148px; height: 35px; margin: -2px auto -7px; border: 5px solid #f2d594; border-top: 0; border-radius: 0 0 74px 74px; background: linear-gradient(#743a26, #4e251a); box-shadow: inset 0 -5px 6px rgba(0,0,0,.18); }.gacha-output-tray::after { position: absolute; right: 19px; bottom: 6px; left: 19px; height: 5px; border-radius: 50%; background: rgba(21,8,4,.25); content: ''; }.gacha-drop-ball { position: absolute; z-index: 2; top: -43px; left: calc(50% - 22px); width: 44px; height: 44px; border: 2px solid rgba(85,37,19,.23); border-radius: 50%; opacity: 0; background: radial-gradient(circle at 30% 24%, rgba(255,255,255,.86) 0 8%, transparent 9%), linear-gradient(138deg, var(--drop-color, #d96038) 0 49%, #fff6e9 50% 53%, var(--drop-color, #d96038) 54%); box-shadow: inset -6px -7px 9px rgba(65,32,18,.2), 2px 4px 6px rgba(31,11,5,.28); }
+.gacha-base { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 23px; min-height: 67px; margin-top: -4px; border: 7px solid #f6dda7; border-radius: 42% 42% 11px 11px / 30% 30% 9px 9px; background: linear-gradient(#d9763d, #ab502b); box-shadow: inset 0 7px rgba(255,236,197,.18); }.gacha-base i { width: 9px; height: 9px; border-radius: 50%; background: #713520; box-shadow: inset 1px 1px 1px rgba(0,0,0,.28); }
+.gacha-draw-button { position: relative; z-index: 2; display: flex; align-items: center; justify-content: center; gap: 8px; width: min(295px, 100%); margin-top: 10px; border: 0; border-radius: 14px; background: #f6cb4b; color: #57301f; padding: 15px 15px; box-shadow: 0 8px 0 #cf9527, 0 13px 20px rgba(45,19,8,.23); font-weight: 900; letter-spacing: .025em; transition: transform .18s ease, box-shadow .18s ease; }.gacha-draw-button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 0 #cf9527, 0 16px 22px rgba(45,19,8,.25); }.gacha-draw-button:active:not(:disabled) { transform: translateY(6px); box-shadow: 0 2px 0 #cf9527; }.gacha-draw-button:disabled { opacity: .75; }.gacha-draw-button small { color: rgba(83,43,23,.64); font-weight: 700; }.draw-icon { font-size: 18px; }
+.gacha-tip { position: relative; z-index: 1; max-width: 290px; margin: 21px 0 0; color: rgba(255,245,234,.76); font-size: 11px; line-height: 1.6; text-align: center; }
+.gacha-reveal-card { display: grid; align-content: center; min-height: 585px; padding: clamp(31px, 5vw, 72px); background: linear-gradient(140deg, #fffdfa, #f9f1e8); }.gacha-reveal-label { display: flex; align-items: center; justify-content: space-between; color: #a65b33; font-size: 11px; font-weight: 900; letter-spacing: .13em; text-transform: uppercase; }.gacha-spark { color: #e8b32b; font-size: 23px; }
+.gacha-result-empty, .gacha-result-content { margin: 22px 0; }.gacha-result-empty { border-left: 2px solid #e5d4c4; padding: 7px 0 7px 18px; color: #75655a; }.gacha-result-empty strong { display: block; color: #4b392e; font-size: 25px; letter-spacing: -.04em; }.gacha-result-empty p, .gacha-result-content p { margin: 12px 0 0; color: #927d70; font-size: 13px; line-height: 1.8; }.gacha-result-content { position: relative; padding: 36px 0 29px; }.gacha-result-content::before { position: absolute; top: 0; left: 0; width: 53px; height: 3px; border-radius: 2px; background: #d37a42; content: ''; }.gacha-result-content strong { display: block; max-width: 560px; color: #3b2c24; font-family: Georgia, 'Songti SC', serif; font-size: clamp(25px, 3.3vw, 38px); font-weight: 600; line-height: 1.48; letter-spacing: -.045em; }.gacha-result-orb { display: grid; width: 31px; height: 31px; margin-bottom: 17px; border-radius: 50%; background: #b95c31; color: #fff7ee; font-size: 12px; font-weight: 900; place-items: center; box-shadow: 0 5px 12px rgba(156,75,37,.2); }.gacha-result-actions { display: flex; flex-wrap: wrap; gap: 10px; }.gacha-result-actions .primary { background: #ad542d; }.is-drawing { animation: gacha-text-pulse .65s ease-in-out infinite alternate; }
+.gacha-inventory { margin-top: 19px; border: 1px solid #eaded4; border-radius: 18px; background: #fff; padding: 23px; }.gacha-inventory .panel-head { align-items: end; margin-bottom: 16px; }.gacha-inventory .panel-head h3 { margin: 2px 0 0; color: #49362b; font-size: 19px; }.gacha-inventory-note { color: #9a887b; font-size: 11px; }.gacha-inventory-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }.gacha-inventory-item { display: flex; align-items: flex-start; gap: 10px; border: 1px solid #ede3dc; border-radius: 12px; background: #fffcfa; padding: 13px; }.gacha-inventory-item > div:nth-child(2) { flex: 1; min-width: 0; }.gacha-inventory-item strong { display: block; color: #4b3a31; font-size: 13px; line-height: 1.55; }.gacha-inventory-item .meta { margin-top: 7px; }.gacha-inventory-item .meta span { font-size: 10px; }.gacha-inventory-orb { display: grid; flex: 0 0 auto; width: 27px; height: 27px; border-radius: 50%; background: linear-gradient(135deg, #f3c24c 0 48%, #da683b 49%); color: #fff; font-size: 12px; place-items: center; }.gacha-delete { align-self: center; border: 0; border-radius: 50%; background: transparent; color: #aa988d; font-size: 20px; line-height: 1; }.gacha-delete:hover { background: #f5ebe5; color: #a1492b; }.gacha-empty-inventory { grid-column: 1 / -1; padding: 22px; color: #8c7c71; text-align: center; }.gacha-empty-inventory span { display: block; color: #dfb094; font-size: 27px; }.gacha-empty-inventory strong { display: block; margin-top: 3px; color: #645047; }.gacha-empty-inventory p { margin: 7px 0 0; font-size: 12px; }
+.gacha-machine-card.is-spinning .gacha-balls { animation: gacha-balls-churn .72s linear infinite; }.gacha-machine-card.is-spinning .gacha-ball { animation: gacha-ball-jostle .39s cubic-bezier(.36,.02,.65,.98) infinite alternate; animation-delay: var(--delay); }.gacha-machine-card.is-spinning .gacha-machine { animation: gacha-machine-shake .23s ease-in-out infinite alternate; }.gacha-machine-card.is-spinning .gacha-chute span { animation: gacha-drop .45s ease-in-out infinite; }.gacha-machine-card.is-dropping .gacha-drop-ball { animation: gacha-capsule-drop .68s cubic-bezier(.18,.85,.38,1) forwards; }.gacha-machine-card.has-drop .gacha-drop-ball { opacity: 1; transform: translateY(27px) rotate(238deg) scale(.98); }
+@keyframes gacha-balls-churn { 0% { transform: rotate(0deg) scale(1); } 35% { transform: rotate(96deg) scale(.98); } 71% { transform: rotate(212deg) scale(1.01); } 100% { transform: rotate(310deg) scale(1); } } @keyframes gacha-ball-jostle { 0% { transform: translate(calc(var(--x) - 50%), calc(var(--y) - 50%)) rotate(var(--spin)); } 55% { transform: translate(calc(var(--x) + var(--dx) - 50%), calc(var(--y) + var(--dy) - 50%)) rotate(calc(var(--spin) + 35deg)); } 100% { transform: translate(calc(var(--x) - var(--dy) - 50%), calc(var(--y) + var(--dx) - 50%)) rotate(calc(var(--spin) - 21deg)); } } @keyframes gacha-machine-shake { from { transform: rotate(-2.2deg) translateX(-2px); } to { transform: rotate(2.2deg) translateX(2px); } } @keyframes gacha-drop { 50% { transform: translateY(10px) rotate(180deg); } } @keyframes gacha-capsule-drop { 0% { opacity: 0; transform: translateY(-24px) rotate(-34deg) scale(.7); } 18% { opacity: 1; } 64% { opacity: 1; transform: translateY(31px) rotate(178deg) scale(1); } 81% { opacity: 1; transform: translateY(22px) rotate(220deg) scale(.94); } 100% { opacity: 1; transform: translateY(27px) rotate(238deg) scale(.98); } } @keyframes gacha-text-pulse { to { opacity: .42; } }
+@media (max-width: 760px) { .gacha-page-head { align-items: flex-start; flex-direction: column; }.gacha-stage { grid-template-columns: 1fr; }.gacha-machine-card, .gacha-reveal-card { min-height: auto; }.gacha-machine-card { padding-top: 24px; }.gacha-reveal-card { padding: 34px 27px; }.gacha-inventory-list { grid-template-columns: 1fr; }.topic-item { align-items: flex-start; }.topic-gacha-button { margin-top: 2px; } }
 .topic-item[contenteditable="true"], .editable-output {
   outline: none;
 }
@@ -788,6 +843,9 @@ select:required:invalid option { color: var(--ink); }
   box-shadow: 0 0 0 3px rgba(36,107,74,.1);
 }
 .topic-item strong, .record-item strong { display: block; font-size: 14px; line-height: 1.55; }
+.record-item-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.record-item-head .meta { margin-top: 8px; }
+.record-item-preview { margin: 11px 0 0; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.65; text-overflow: ellipsis; white-space: nowrap; }
 .conversation-record-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .conversation-record-head .meta { margin-top: 8px; }
 .conversation-record > p { margin-top: 12px; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.6; text-overflow: ellipsis; white-space: nowrap; }
@@ -798,6 +856,15 @@ select:required:invalid option { color: var(--ink); }
 .record-transcript p.user { margin-left: auto; border-right: 2px solid #b9d9c8; border-left: 0; padding-right: 9px; padding-left: 0; color: #4d6554; text-align: right; }
 .record-transcript p b { display: block; margin-bottom: 2px; color: #a46b45; font-size: 10px; }
 .record-transcript p.user b { color: #6f927a; }
+.record-detail-modal { position: fixed; z-index: 90; inset: 0; display: grid; place-items: center; background: rgba(34, 44, 37, .42); padding: 22px; backdrop-filter: blur(5px); }
+.record-detail-modal.hidden { display: none; }
+.record-detail-card { display: flex; width: min(880px, 100%); max-height: min(780px, calc(100dvh - 44px)); flex-direction: column; overflow: hidden; border: 1px solid #dfe5df; border-radius: 14px; background: #fff; box-shadow: 0 24px 72px rgba(26, 42, 31, .24); }
+.record-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; border-bottom: 1px solid var(--line); padding: 22px 24px 17px; }
+.record-detail-head h2 { margin: 5px 0 0; font-size: 20px; }
+.record-detail-head p { margin-top: 7px; color: var(--muted); font-size: 12px; }
+.record-detail-head .modal-close { position: static; flex: 0 0 auto; }
+.record-detail-content { min-height: 180px; flex: 1; overflow: auto; margin: 0; padding: 22px 24px; color: #2d3930; background: #fcfdfc; font: 13px/1.85 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+.record-detail-actions { display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid var(--line); padding: 15px 24px; }
 .meta { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
 .meta span {
   border-radius: 999px;
@@ -1454,7 +1521,7 @@ select:required:invalid option { color: var(--ink); }
 }
 
 @media (max-width: 620px) {
-  .copy-compose-open .wechat-layout-workspace { height: 100dvh; overflow-y: auto; }
+  .copy-compose-open .wechat-layout-workspace { height: auto; min-height: 0; overflow-y: auto; }
   .wechat-layout-header { position: static; min-height: 0; padding: 15px; }
   .wechat-layout-header p { line-height: 1.5; }
   .wechat-layout-actions { display: grid; width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1897,4 +1964,125 @@ select:required:invalid option { color: var(--ink); }
   .sales-report-admin-list { max-height: 230px; border-right: 0; border-bottom: 1px solid var(--line); }
   .sales-report-admin-detail { padding: 16px; }
   .sales-report-admin-title time { text-align: left; }
+}
+
+/* Punk 微排参考工作区：保持编辑器、工具栏、预览三段式结构 */
+.wechat-layout-workspace { min-height: 100dvh; color: #40352f; background: #f7f4ef; }
+.wechat-layout-header { min-height: 72px; border-bottom: 1px solid #eaded5; background: #fffdfb; padding: 12px 22px; }
+.wechat-brandbar { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.wechat-brandbar img { width: 38px; height: 38px; border-radius: 10px; object-fit: cover; }
+.wechat-brandbar strong { display: block; color: #3a271f; font-size: 16px; letter-spacing: -.04em; }
+.wechat-brandbar small { display: block; margin-top: 2px; color: #9a8e84; font-family: Arial, sans-serif; font-size: 8px; letter-spacing: .12em; }
+.wechat-brandbar p { margin-left: 12px; color: #85756b; font-size: 11px; }
+.wechat-back-button { border: 0; color: #a85d2e; background: transparent; padding: 5px 8px; font-size: 19px; }
+.wechat-layout-actions { max-width: none; flex: 0 0 auto; }
+.wechat-layout-actions button { border-radius: 6px; padding: 8px 10px; font-size: 10px; }
+.wechat-reference-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 52px; border-bottom: 1px solid #eaded5; background: #fffdfb; padding: 8px 22px; }
+.wechat-reference-tools, .wechat-reference-settings { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.wechat-reference-tools button { border: 1px solid #ead8c9; border-radius: 6px; color: #8f4a2a; background: #fffaf4; padding: 7px 9px; font-size: 10px; cursor: pointer; }
+.wechat-reference-tools button:hover { border-color: #b55e32; background: #fff3e9; }
+.wechat-setting-compact { display: flex; align-items: center; gap: 5px; color: #6f7e94; font-size: 9px; }
+.wechat-setting-compact input[type="range"] { width: 62px; margin: 0; accent-color: #b55e32; }
+.wechat-setting-compact output { min-width: 28px; color: #8f4a2a; font-size: 9px; }
+.wechat-reference-settings select { width: auto; min-width: 90px; margin: 0; border: 1px solid #dfe5ee; border-radius: 5px; background: #fff; padding: 6px 7px; color: #5f6f86; font-size: 9px; }
+.wechat-setting-color { display: flex; align-items: center; gap: 4px; color: #6f7e94; font-size: 9px; }
+.wechat-setting-color button { width: 21px; height: 21px; border: 1px solid #dfe5ee; border-radius: 50%; color: #72829b; background: #fff; padding: 0; font-size: 9px; }
+.wechat-setting-color button.active { border-color: #b55e32; color: #fff; background: #b55e32; }
+.wechat-setting-color input[type="color"] { width: 23px; height: 22px; margin: 0; border: 0; padding: 0; background: transparent; }
+.wechat-contrast-badge { border-radius: 999px; color: #2f7c50; background: #e9f7ef; padding: 4px 7px; font-size: 9px; }
+.wechat-chapter-style { border-left: 1px solid #e5eaf2; color: #78879d; padding-left: 10px; font-size: 9px; }
+.wechat-chapter-style strong { color: #8f4a2a; font-weight: 700; }
+.wechat-layout-grid { grid-template-columns: minmax(390px, 42%) minmax(0, 58%); height: calc(100dvh - 124px); min-height: 620px; }
+.wechat-layout-controls { border-right: 1px solid #eaded5; background: #fffdfb; padding: 0 24px 34px; }
+.wechat-layout-controls::before { display: block; margin: 0 -24px 18px; border-bottom: 4px solid #f6dfaa; background: #b55e32; padding: 10px 24px; color: #fff; content: 'MARKDOWN / TXT     原稿'; font-family: Arial, sans-serif; font-size: 10px; font-weight: 800; letter-spacing: .08em; }
+.wechat-layout-step { margin-top: 16px; }
+.wechat-layout-step:not(:first-child) { margin-top: 20px; }
+.wechat-layout-step b { width: 24px; height: 24px; border-radius: 4px; color: #b55e32; background: #fff0e4; font-size: 9px; }
+.wechat-layout-step strong { color: #40352f; font-size: 12px; }
+.wechat-layout-step small { color: #85756b; }
+#wechatLayoutArticle { min-height: 330px; border-color: #ead8c9; border-radius: 4px; background: #fffdfb; color: #40352f; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.75; }
+#wechatLayoutArticle:focus { border-color: #c88761; box-shadow: 0 0 0 3px rgba(181, 94, 50, .1); }
+.wechat-editor-footer { display: flex; gap: 14px; margin-top: 8px; color: #9a8e84; font-size: 9px; }
+.wechat-editor-footer span:first-child { color: #8f4a2a; }
+.wechat-import-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.wechat-output-mode, .wechat-theme-picker, .wechat-editor-tools, .wechat-layout-controls > .wechat-layout-step:nth-of-type(n+2), .wechat-import-actions, #selectWechatLayoutImages, #wechatLayoutImageList, .wechat-layout-generate, .wechat-layout-note { /* 保留旧功能，按参考站收进左栏 */ }
+.wechat-output-mode button, .wechat-theme-picker button { border-radius: 5px; }
+.wechat-theme-picker [data-wechat-theme="punk"] > span { background: linear-gradient(180deg, #b55e32 0 42%, #f6dfaa 42%); }
+.wechat-theme-picker button:hover, .wechat-theme-picker button.active { border-color: #b55e32; color: #3a271f; background: #fff9f2; box-shadow: 0 0 0 2px rgba(181, 94, 50, .10); }
+.wechat-editor-tools { margin-top: 16px; border-top-color: #eaded5; }
+.wechat-preview-panel, .wechat-layout-preview-panel { background: #f1ede8; }
+.wechat-preview-toolbar { height: 52px; border-bottom-color: #ead8c9; background: #b55e32; padding: 0 20px; }
+.wechat-preview-toolbar strong { color: #fff; }
+.wechat-preview-toolbar small, .wechat-preview-toolbar em { color: #fceadb; }
+.wechat-preview-toolbar div > span { background: #f6dfaa; box-shadow: 13px 0 #fff, 26px 0 rgba(255,255,255,.55); }
+.wechat-preview-actions button { border-color: rgba(255,255,255,.45); }
+.wechat-preview-actions .primary { border-color: #f6dfaa; color: #704020; background: #f6dfaa; }
+.wechat-preview-shell { height: calc(100% - 52px); background-color: #f7f3ee; background-image: radial-gradient(#e6d9ce 1px, transparent 1px); background-size: 12px 12px; padding: 28px; }
+#wechatLayoutPreview { width: min(677px, 100%); box-shadow: 0 18px 45px rgba(113, 58, 25, .14); }
+.wechat-preview-empty { min-height: 480px; border-color: #dcc9bb; background: rgba(255,255,255,.8); }
+.wechat-preview-empty b { border-color: #d39b79; color: #b55e32; }
+.wechat-preview-empty strong { color: #5a4338; }
+.wechat-layout-workspace.wechat-focus-preview .wechat-layout-header,
+.wechat-layout-workspace.wechat-focus-preview .wechat-reference-toolbar,
+.wechat-layout-workspace.wechat-focus-preview .wechat-layout-controls { display: none; }
+.wechat-layout-workspace.wechat-focus-preview .wechat-layout-grid { grid-template-columns: 1fr; height: 100dvh; }
+.wechat-layout-workspace.wechat-focus-preview .wechat-layout-preview-panel { grid-column: 1; }
+.wechat-reference-modal { position: fixed; z-index: 80; inset: 0; display: grid; place-items: center; background: rgba(62, 24, 8, .35); padding: 20px; }
+.wechat-reference-modal.hidden { display: none; }
+.wechat-reference-modal-card { position: relative; width: min(620px, 100%); max-height: min(760px, 90vh); overflow: auto; border: 1px solid #ead8c9; border-radius: 10px; background: #fffdfb; padding: 28px; box-shadow: 0 24px 80px rgba(87, 54, 33, .22); }
+.wechat-reference-modal-close { position: absolute; top: 12px; right: 14px; border: 0; color: #9a8e84; background: transparent; font-size: 22px; }
+.wechat-reference-modal-kicker { color: #b55e32; font-family: Arial, sans-serif; font-size: 9px; font-weight: 800; letter-spacing: .15em; }
+.wechat-reference-modal-card h2 { margin: 9px 0; color: #3a271f; font-size: 23px; }
+.wechat-reference-modal-card p { color: #85756b; font-size: 12px; line-height: 1.7; }
+.wechat-reference-modal-body { margin-top: 18px; }
+.wechat-reference-palette-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 9px; }
+.wechat-reference-palette-grid button { border: 1px solid #e0e6f0; border-radius: 7px; background: #fff; padding: 12px; text-align: left; }
+.wechat-reference-palette-grid button:hover { border-color: #b55e32; background: #fff5ee; }
+.wechat-reference-palette-grid span { display: block; height: 24px; margin-bottom: 8px; border-radius: 4px; }
+.wechat-reference-modal-body textarea { min-height: 120px; }
+@media (max-width: 900px) {
+  .wechat-reference-toolbar { align-items: flex-start; flex-direction: column; }
+  .wechat-reference-settings { width: 100%; }
+  .wechat-layout-grid { grid-template-columns: 1fr; height: auto; }
+  .wechat-layout-controls { max-height: none; border-right: 0; border-bottom: 1px solid #eaded5; }
+  .wechat-layout-preview-panel { min-height: 640px; }
+  .wechat-brandbar p { display: none; }
+}
+
+/* 公众号独立工作台：与短视频文案广场分区，文案和排版在同一入口内并列呈现 */
+.copy-gallery-view #copyAgentGrid [data-wechat-only="true"] { display: none !important; }
+.wechat-hub { min-height: calc(100dvh - 110px); padding: 34px 42px 54px; background: #f7f4ef; color: #2e2521; }
+.wechat-hub-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 28px; max-width: 1180px; margin: 0 auto 28px; border-bottom: 1px solid #ded3c8; padding-bottom: 25px; }
+.wechat-hub-hero .eyebrow { color: #b55e32; letter-spacing: .16em; }
+.wechat-hub-hero h2 { margin: 8px 0 4px; color: #3a271f; font-family: Georgia, 'Times New Roman', serif; font-size: clamp(32px, 4vw, 52px); letter-spacing: -.045em; }
+.wechat-hub-hero p { margin: 0; color: #85756b; font-size: 14px; }
+.wechat-hub-mark { display: grid; width: 74px; height: 74px; place-items: center; border: 1px solid #c8ad98; border-radius: 50%; color: #b55e32; background: #fffaf4; font-family: Georgia, serif; font-size: 36px; transform: rotate(-8deg); }
+.wechat-hub-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; max-width: 1180px; margin: 0 auto; }
+.wechat-hub-card { display: grid; grid-template-columns: minmax(150px, 34%) minmax(0, 1fr); min-height: 270px; overflow: hidden; border: 1px solid #e2d8ce; border-radius: 8px; background: #fffdfb; box-shadow: 0 12px 30px rgba(87, 54, 33, .06); transition: transform .2s ease, box-shadow .2s ease; }
+.wechat-hub-card:hover { transform: translateY(-3px); box-shadow: 0 18px 40px rgba(87, 54, 33, .12); }
+.wechat-hub-card-art { min-height: 100%; overflow: hidden; background: #ece4db; }
+.wechat-hub-card-art img { width: 100%; height: 100%; min-height: 270px; object-fit: cover; transition: transform .3s ease; }
+.wechat-hub-card:hover .wechat-hub-card-art img { transform: scale(1.035); }
+.wechat-hub-card-layout .wechat-hub-card-art { background: #eee0bd; }
+.wechat-hub-card-body { display: flex; flex-direction: column; align-items: flex-start; padding: 28px 26px 24px; }
+.wechat-hub-card-body .eyebrow { color: #b55e32; font-size: 10px; letter-spacing: .12em; }
+.wechat-hub-card-body h3 { margin: 12px 0 10px; color: #382720; font-family: Georgia, 'Times New Roman', serif; font-size: 27px; letter-spacing: -.04em; }
+.wechat-hub-card-body p { margin: 0; color: #786960; font-size: 14px; line-height: 1.8; }
+.wechat-hub-card-body button { margin-top: auto; border-radius: 3px; padding: 10px 15px; }
+.wechat-hub-card-body button span { margin-left: 12px; }
+.wechat-hub-tip { display: flex; align-items: center; gap: 15px; max-width: 1180px; margin: 24px auto 0; border-left: 3px solid #c1815c; background: #fbf5ee; padding: 13px 17px; color: #806f65; font-size: 13px; line-height: 1.7; }
+.wechat-hub-tip strong { flex: 0 0 auto; color: #49352b; }
+.wechat-hub-empty .wechat-hub-tip { display: none; }
+.wechat-hub-empty .wechat-hub-grid::after { display: block; grid-column: 1 / -1; border: 1px dashed #d9c9ba; border-radius: 8px; background: #fffdfb; padding: 46px 20px; color: #8d7e74; content: '当前没有已上架的公众号智能体，请联系管理员。'; text-align: center; }
+@media (max-width: 800px) {
+  .wechat-hub { padding: 24px 16px 40px; }
+  .wechat-hub-hero { align-items: flex-start; }
+  .wechat-hub-mark { width: 56px; height: 56px; font-size: 28px; }
+  .wechat-hub-grid { grid-template-columns: 1fr; }
+  .wechat-hub-card { grid-template-columns: 110px minmax(0, 1fr); min-height: 210px; }
+  .wechat-hub-card-art img { min-height: 210px; }
+  .wechat-hub-card-body { padding: 20px 17px 17px; }
+  .wechat-hub-card-body h3 { margin: 8px 0; font-size: 23px; }
+  .wechat-hub-card-body p { font-size: 13px; }
+  .wechat-hub-tip { align-items: flex-start; flex-direction: column; gap: 4px; }
 }

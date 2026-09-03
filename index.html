@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>皮皮 AI 中台 MVP</title>
   <link rel="preload" as="image" href="assets/pipi-teacher-profile-web.png" />
-  <link rel="stylesheet" href="styles.css?v=20260810-16" />
+  <link rel="stylesheet" href="styles.css?v=20260822-02" />
 </head>
 <body>
   <section id="loginPage" class="login-page">
@@ -39,21 +39,20 @@
       </div>
       <div class="login-tabs" role="tablist" aria-label="账号操作">
         <button class="login-tab active" id="showLoginMode" type="button" role="tab" aria-selected="true">登录</button>
-        <button class="login-tab hidden" id="showRegisterMode" type="button" role="tab" aria-selected="false">注册</button>
+        <button class="login-tab" id="showRegisterMode" type="button" role="tab" aria-selected="false">注册</button>
       </div>
       <div id="passwordLogin" class="login-form">
-        <label>账号 / 手机号<input id="loginAccount" autocomplete="username" placeholder="请输入账号或手机号" /></label>
+        <label>账号<input id="loginAccount" autocomplete="username" placeholder="请输入账号" /></label>
         <label>密码<input id="loginPassword" type="password" autocomplete="current-password" placeholder="请输入密码" /></label>
       </div>
       <div id="registerForm" class="login-form hidden">
         <label>账号<input id="registerAccount" autocomplete="username" placeholder="3-24 位字母、数字或下划线" /></label>
-        <label>手机号（选填）<input id="registerPhone" autocomplete="tel" inputmode="numeric" placeholder="用于后续找回账号" /></label>
         <label>密码<input id="registerPassword" type="password" autocomplete="new-password" placeholder="至少 8 位" /></label>
         <label>确认密码<input id="registerPasswordConfirm" type="password" autocomplete="new-password" placeholder="再次输入密码" /></label>
       </div>
       <button class="primary full" id="loginButton">登录</button>
       <button class="primary full hidden" id="registerButton">注册并进入</button>
-      <p class="login-note" id="loginNote">账号由管理员统一开通；没有账号请联系交付老师。</p>
+      <p class="login-note" id="loginNote">没有账号？点击上方“注册”即可创建。</p>
     </div>
     </div>
   </section>
@@ -73,6 +72,7 @@
         <button class="nav-item" data-page="pipi"><i data-lucide="bot-message-square"></i><span>皮皮分身</span></button>
         <button class="nav-item" data-page="topics"><i data-lucide="lightbulb"></i><span>选题生成</span></button>
         <button class="nav-item" data-page="copy"><i data-lucide="pen-line"></i><span>文案智能体</span></button>
+        <button class="nav-item" data-page="wechat"><i data-lucide="newspaper"></i><span>公众号</span></button>
         <button class="nav-item" data-page="competitor"><i data-lucide="search"></i><span>找竞品</span></button>
         <button class="nav-item" data-page="sales"><i data-lucide="messages-square"></i><span>销售模拟</span></button>
         <button class="nav-item admin-only" data-page="coach"><i data-lucide="briefcase-business"></i><span>教练工具箱</span></button>
@@ -119,15 +119,11 @@
           <div class="quick-start-grid">
             <button class="quick-start-card" data-page="topics"><span>题</span><strong>我想找选题</strong><small>按赛道和业务快速生成一组方向</small><em>开始 →</em></button>
             <button class="quick-start-card" data-page="copy"><span>文</span><strong>我想写文案</strong><small>选择一个文案智能体直接开始</small><em>开始 →</em></button>
+            <button class="quick-start-card" data-page="wechat"><span>刊</span><strong>我想做公众号</strong><small>从公众号文案到视觉排版一站完成</small><em>开始 →</em></button>
             <button class="quick-start-card" data-page="competitor"><span>竞</span><strong>我想做竞品调研</strong><small>整理平台、账号和内容参考</small><em>开始 →</em></button>
             <button class="quick-start-card" data-page="pipi"><span>皮</span><strong>我想问皮皮</strong><small>不会使用中台时，先问一步</small><em>开始 →</em></button>
             <button class="quick-start-card" data-page="sales"><span>销</span><strong>我想练销售对话</strong><small>选择一种家长类型，开始模拟沟通</small><em>开始 →</em></button>
           </div>
-        </section>
-
-        <section class="continue-panel panel">
-          <div class="panel-head"><div><span class="eyebrow">CONTINUE</span><h3>继续上次工作</h3></div><button class="link-button" data-page="personal">查看全部</button></div>
-          <div id="continueList" class="continue-list"></div>
         </section>
 
         <section class="panel">
@@ -180,6 +176,31 @@
             <div id="topicResults" class="topic-list"></div>
           </section>
         </div>
+        <section class="gacha-page-shell topic-gacha-shell">
+          <header class="gacha-page-head">
+            <div><span class="eyebrow">TOPIC IDEA LAB · 01</span><h2>选题灵感扭蛋机</h2><p>把上面值得留下的选题投进来；没灵感时，摇一颗新的开始。</p></div>
+          </header>
+          <div class="gacha-stage">
+            <section class="gacha-machine-card" id="gachaMachineCard">
+              <div class="gacha-machine-top"><span>今天的灵感仓</span><b id="gachaCount">0</b><small>颗待抽取</small></div>
+              <div class="gacha-machine" aria-label="灵感扭蛋机">
+                <div class="gacha-crown"></div>
+                <div class="gacha-dome"><div class="gacha-balls" id="gachaBalls"></div><div class="gacha-glass-shine"></div></div>
+                <div class="gacha-chute"><span>✦</span></div>
+                <div class="gacha-output-tray"><i id="gachaDropBall" class="gacha-drop-ball" aria-hidden="true"></i></div>
+                <div class="gacha-base"><i></i><i></i><i></i></div>
+              </div>
+              <button class="gacha-draw-button" id="drawGacha"><span class="draw-icon">✦</span><span>摇一颗灵感</span><small>选题 / 皮皮金句</small></button>
+              <p class="gacha-tip">每次抽取，都会从你的选题仓或皮皮老师的金句里随机掉落一颗。</p>
+            </section>
+            <section class="gacha-reveal-card" aria-live="polite">
+              <div class="gacha-reveal-label"><span id="gachaResultType">等待抽取</span><span class="gacha-spark">✦</span></div>
+              <div id="gachaResult" class="gacha-result-empty"><strong>让灵感转一会儿</strong><p>抽中选题后，可以直接带去文案智能体；抽中金句，也可以收藏到你的表达库。</p></div>
+              <div class="gacha-result-actions hidden" id="gachaResultActions"><button class="primary" id="useGachaResult">用这个写内容</button><button class="secondary" id="drawAgain">再摇一颗</button></div>
+            </section>
+          </div>
+          <section class="gacha-inventory"><div class="panel-head"><div><span class="eyebrow">DRAWN MOMENTS</span><h3>我抽到的灵感</h3></div><span class="gacha-inventory-note">只保留真正被抽出来的选题和金句</span></div><div id="gachaInventory" class="gacha-inventory-list"></div></section>
+        </section>
       </section>
 
       <section id="copyPage" class="page hidden">
@@ -202,8 +223,8 @@
             <article class="agent-market-card" data-copy-agent="education_marketing" data-agent-tags="traffic short"><div class="agent-cover large"><img src="assets/agent-covers/pipi-white-sea.jpg" alt="营销智能体封面" /></div><div class="agent-card-body"><h3>营销智能体</h3><p>用专业表达承接咨询、公开课和产品了解。</p><div class="agent-meta"><span>流量</span><span>营销</span></div><button class="primary full agent-use">使用智能体</button></div></article>
             <article class="agent-market-card" data-copy-agent="moments" data-agent-tags="private moments"><div class="agent-cover large"><img src="assets/agent-covers/pipi-blue-sea.jpg" alt="朋友圈智能体封面" /></div><div class="agent-card-body"><h3>朋友圈智能体</h3><p>围绕日常表达、专业判断、案例和信任场生成内容。</p><div class="agent-meta"><span>私域</span><span>信任场</span></div><button class="primary full agent-use">使用智能体</button></div></article>
             <article class="agent-market-card" data-copy-agent="xiaohongshu" data-agent-tags="private imageText"><div class="agent-cover large"><img src="assets/agent-covers/pipi-pink-sea.jpg" alt="小绿书智能体封面" /></div><div class="agent-card-body"><h3>小绿书智能体</h3><p>面向小绿书图文场景，生成适合教育表达的内容。</p><div class="agent-meta"><span>私域</span><span>图文卡片</span></div><button class="primary full agent-use">使用智能体</button></div></article>
-            <article class="agent-market-card" data-copy-agent="wechat_article" data-agent-tags="private article"><div class="agent-cover large"><img src="assets/agent-covers/pipi-arch-sea.jpg" alt="公众号文案封面" /></div><div class="agent-card-body"><h3>公众号文案</h3><p>围绕长文结构、观点表达和教育内容沉淀生成文案。</p><div class="agent-meta"><span>私域</span><span>价值长文</span></div><button class="primary full agent-use">使用智能体</button></div></article>
-            <article class="agent-market-card" data-copy-agent="wechat_layout" data-agent-tags="private layout"><div class="agent-cover large"><img src="assets/agent-covers/pipi-sunset-yellow.jpg" alt="公众号排版封面" /></div><div class="agent-card-body"><h3>公众号排版</h3><p>把已经写好的长文直接变成可预览、可复制的公众号视觉成品。</p><div class="agent-meta"><span>私域</span><span>视觉排版</span></div><button class="primary full agent-use">使用智能体</button></div></article>
+            <article class="agent-market-card" data-copy-agent="wechat_article" data-wechat-only="true" data-agent-tags="private article"><div class="agent-cover large"><img src="assets/agent-covers/pipi-arch-sea.jpg" alt="公众号文案封面" /></div><div class="agent-card-body"><h3>公众号文案</h3><p>围绕长文结构、观点表达和教育内容沉淀生成文案。</p><div class="agent-meta"><span>私域</span><span>价值长文</span></div><button class="primary full agent-use">使用智能体</button></div></article>
+            <article class="agent-market-card" data-copy-agent="wechat_layout" data-wechat-only="true" data-agent-tags="private layout"><div class="agent-cover large"><img src="assets/agent-covers/pipi-sunset-yellow.jpg" alt="公众号排版封面" /></div><div class="agent-card-body"><h3>公众号排版</h3><p>把已经写好的长文直接变成可预览、可复制的公众号视觉成品。</p><div class="agent-meta"><span>私域</span><span>视觉排版</span></div><button class="primary full agent-use">使用智能体</button></div></article>
           </div>
         </section>
         </div>
@@ -253,54 +274,115 @@
         </div>
         <section class="wechat-layout-workspace hidden" id="wechatLayoutWorkspace">
           <header class="wechat-layout-header">
-            <div>
-              <button class="link-button" type="button" id="backFromWechatLayout">← 返回智能体广场</button>
-              <span class="eyebrow">WECHAT ARTICLE DESIGNER</span>
-              <h2>公众号排版</h2>
-              <p>粘贴已经写好的文章，系统只做结构识别和视觉排版，不改写原文。</p>
+            <div class="wechat-brandbar">
+              <button class="wechat-back-button" type="button" id="backFromWechatLayout" aria-label="返回智能体广场">←</button>
+              <img src="assets/pipi-avatar.png" alt="皮皮头像" />
+              <div><strong>Punk微排</strong><small>MARKDOWN → WECHAT</small></div>
+              <p>让每一份好内容，都有一身好排版。</p>
             </div>
             <div class="wechat-layout-actions">
               <button class="secondary" type="button" id="resetWechatLayout">重新排版</button>
-              <button class="secondary" type="button" id="copyWechatLayout" disabled>复制公众号格式</button>
-              <button class="secondary" type="button" id="exportWechatPng" disabled>导出视觉长图</button>
+              <button class="secondary" type="button" id="copyWechatLayout" disabled>复制到公众号</button>
+              <button class="secondary" type="button" id="exportWechatPng" disabled>导出长图</button>
               <button class="secondary" type="button" id="exportWechatMarkdown" disabled>导出 Markdown</button>
               <button class="primary" type="button" id="exportWechatHtml" disabled>导出 HTML</button>
             </div>
           </header>
+          <div class="wechat-reference-toolbar">
+            <div class="wechat-reference-tools">
+              <button type="button" data-wechat-tool="palette">🎨 配色实验室</button>
+              <button type="button" data-wechat-tool="ending">◎ 固定结尾</button>
+              <button type="button" data-wechat-tool="tutorial">? 新手教程</button>
+            </div>
+            <div class="wechat-reference-settings">
+              <div class="wechat-setting-compact"><label>字号</label><input id="wechatFontSizeRef" type="range" min="14" max="20" step="1" value="16"/><output id="wechatFontSizeRefValue">16px</output></div>
+              <div class="wechat-setting-compact"><label>行距</label><input id="wechatLineHeightRef" type="range" min="1.5" max="2.4" step="0.1" value="1.9"/><output id="wechatLineHeightRefValue">1.9</output></div>
+              <select id="wechatFontFamilyRef" aria-label="参考站字体"><option value="system">思源黑体</option><option value="yahei">微软雅黑</option><option value="serif">宋体</option></select>
+              <div class="wechat-setting-color wechat-color-row"><span>正文色</span><button type="button" class="active" data-wechat-color-ref="auto">◐</button><button type="button" data-wechat-color-ref="dark">●</button><button type="button" data-wechat-color-ref="light">○</button><input id="wechatAccentColorRef" type="color" value="#B55E32" title="强调色"/></div>
+              <span class="wechat-contrast-badge">15.6:1</span>
+              <div class="wechat-chapter-style">章节样式&nbsp; <strong>粗下划线⌄</strong></div>
+            </div>
+          </div>
           <div class="wechat-layout-grid">
             <aside class="wechat-layout-controls">
               <div class="wechat-layout-step"><b>01</b><div><strong>粘贴完整成稿</strong><small>标题和正文都可以一起粘贴，原文不会被改写。</small></div></div>
               <textarea id="wechatLayoutArticle" rows="18" maxlength="30000" placeholder="在这里粘贴已经写好的公众号文章……"></textarea>
+              <div class="wechat-editor-footer"><span id="wechatArticleCount">0 字</span><span id="wechatArticleReadTime">约 0 分钟阅读</span><span>已自动保存</span></div>
               <div class="wechat-layout-step"><b>02</b><div><strong>选择视觉风格</strong><small>每种风格都有独立构图；切换时立即查看对应版式。</small></div></div>
               <div class="wechat-output-mode" id="wechatOutputMode">
-                <button class="active" type="button" data-wechat-mode="visual"><strong>视觉长图</strong><small>参考图式杂志构图</small></button>
-                <button type="button" data-wechat-mode="editable"><strong>可编辑正文</strong><small>适合复制到公众号</small></button>
+                <button class="active" type="button" data-wechat-mode="editable"><strong>可编辑正文</strong><small>结构清楚，直接复制到公众号</small></button>
+                <button type="button" data-wechat-mode="visual"><strong>视觉长图</strong><small>参考图式杂志构图</small></button>
               </div>
               <div class="wechat-theme-picker" id="wechatThemePicker">
-                <button class="active" type="button" data-wechat-theme="museum"><span></span><strong>艺展留白</strong><small>米白 · 共生美学</small></button>
+                <button class="active" type="button" data-wechat-theme="punk"><span></span><strong>Punk 皮皮主视觉</strong><small>暖白 · 橙金编辑感</small></button>
+                <button type="button" data-wechat-theme="museum"><span></span><strong>艺展留白</strong><small>米白 · 共生美学</small></button>
                 <button type="button" data-wechat-theme="slow"><span></span><strong>时间漫序</strong><small>黑白 · 叙事杂志</small></button>
                 <button type="button" data-wechat-theme="geometry"><span></span><strong>几何拼贴</strong><small>橙黑 · 视觉节奏</small></button>
                 <button type="button" data-wechat-theme="noir"><span></span><strong>墨金档案</strong><small>黑金 · 编辑档案</small></button>
                 <button type="button" data-wechat-theme="nature"><span></span><strong>自然手账</strong><small>草绿 · 松弛感</small></button>
                 <button type="button" data-wechat-theme="gallery"><span></span><strong>暖调画册</strong><small>裸粉 · 人物故事</small></button>
               </div>
-              <div class="wechat-layout-step"><b>03</b><div><strong>加入文章图片</strong><small>按上传顺序放入智能图片位，最多 6 张。</small></div></div>
+              <div class="wechat-editor-tools">
+                <div class="wechat-layout-step"><b>03</b><div><strong>编辑器设置</strong><small>参考 Punk 微排：字号、行距和固定结尾独立控制。</small></div></div>
+                <div class="wechat-setting-row"><label for="wechatFontSize">字号</label><input id="wechatFontSize" type="range" min="14" max="20" step="1" value="16"/><output id="wechatFontSizeValue">16px</output></div>
+                <div class="wechat-setting-row"><label for="wechatLineHeight">行距</label><input id="wechatLineHeight" type="range" min="1.5" max="2.4" step="0.1" value="1.9"/><output id="wechatLineHeightValue">1.9</output></div>
+                <div class="wechat-setting-row"><label for="wechatFontFamily">字体</label><select id="wechatFontFamily"><option value="system">思源黑体 / 系统无衬线</option><option value="yahei">微软雅黑</option><option value="serif">宋体 / 思源宋体</option></select></div>
+                <div class="wechat-setting-row wechat-color-row"><label>正文色</label><button type="button" class="active" data-wechat-color="auto">自动</button><button type="button" data-wechat-color="dark">黑色</button><button type="button" data-wechat-color="light">浅色</button><input id="wechatAccentColor" type="color" value="#B55E32" title="强调色"/></div>
+                <label class="wechat-fixed-toggle"><input id="wechatFixedEndingEnabled" type="checkbox"/> 自动追加固定结尾</label>
+                <textarea id="wechatFixedEnding" rows="3" placeholder="例如：\n感谢你读到这里，欢迎把这篇文章转给需要的朋友。"></textarea>
+              </div>
+              <div class="wechat-layout-step"><b>04</b><div><strong>加入文章图片</strong><small>按上传顺序放入智能图片位，最多 6 张。</small></div></div>
               <input id="wechatLayoutImages" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden />
+              <input id="wechatLayoutArticleFile" type="file" accept=".md,.markdown,.txt,text/plain,text/markdown" hidden />
+              <div class="wechat-import-actions"><button class="secondary" type="button" id="importWechatLayoutBundle">导入文章包</button><button class="secondary" type="button" id="importWechatLayoutArticle">导入 MD / TXT</button><button class="secondary" type="button" id="clearWechatLayoutArticle">清空</button></div>
               <button class="secondary full" type="button" id="selectWechatLayoutImages">＋ 选择文章图片</button>
               <div class="wechat-image-list" id="wechatLayoutImageList"><span>暂未上传，预览中会保留图片位置</span></div>
               <button class="primary full wechat-layout-generate" type="button" id="generateWechatLayout">一键智能排版</button>
               <p class="wechat-layout-note" id="wechatLayoutStatus">建议成稿不少于 300 字；系统会识别文章结构，再按所选视觉模板编排。</p>
             </aside>
             <section class="wechat-layout-preview-panel">
-              <div class="wechat-preview-toolbar"><div><span></span><strong>公众号成品预览</strong><small>677 px 内容画布</small></div><em id="wechatLayoutModelStatus">等待排版</em></div>
+              <div class="wechat-preview-toolbar"><div><span></span><strong>WECHAT PREVIEW&nbsp;&nbsp;公众号预览</strong><small>677 px 内容画布</small></div><div class="wechat-preview-actions"><em id="wechatLayoutModelStatus">等待排版</em><button class="secondary" type="button" id="wechatFocusPreview">⛶ 专注预览</button><button class="primary" type="button" id="wechatCopyShortcut" disabled>▣ 复制到公众号</button></div></div>
               <div class="wechat-preview-shell">
                 <div class="wechat-preview-empty" id="wechatLayoutEmpty"><b>版</b><strong>你的公众号成品会出现在这里</strong><span>粘贴文章并点击“一键智能排版”</span></div>
                 <iframe id="wechatLayoutPreview" title="公众号排版预览" sandbox="allow-same-origin" class="hidden"></iframe>
               </div>
             </section>
           </div>
+          <div class="wechat-reference-modal hidden" id="wechatReferenceModal" role="dialog" aria-modal="true" aria-labelledby="wechatReferenceModalTitle">
+            <div class="wechat-reference-modal-card">
+              <button class="wechat-reference-modal-close" type="button" id="wechatReferenceModalClose" aria-label="关闭">×</button>
+              <span class="wechat-reference-modal-kicker" id="wechatReferenceModalKicker">PUNK MICRO LAYOUT</span>
+              <h2 id="wechatReferenceModalTitle">工具</h2>
+              <p id="wechatReferenceModalText">在这里调整公众号排版的视觉细节。</p>
+              <div class="wechat-reference-modal-body" id="wechatReferenceModalBody"></div>
+            </div>
+          </div>
         </section>
         </div>
+      </section>
+
+      <section id="wechatPage" class="page hidden">
+        <section class="wechat-hub">
+          <header class="wechat-hub-hero">
+            <div>
+              <span class="eyebrow">WECHAT STUDIO · PIPI AI CENTER</span>
+              <h2>公众号工作台</h2>
+              <p>从内容到成品，公众号文案与视觉排版集中在这里完成。</p>
+            </div>
+            <div class="wechat-hub-mark" aria-hidden="true">刊</div>
+          </header>
+          <div class="wechat-hub-grid">
+            <article class="wechat-hub-card wechat-hub-card-article" data-wechat-hub-agent="wechat_article">
+              <div class="wechat-hub-card-art"><img src="assets/agent-covers/pipi-arch-sea.jpg" alt="公众号文案" /></div>
+              <div class="wechat-hub-card-body"><span class="eyebrow">01 · CONTENT</span><h3>公众号文案</h3><p>围绕教育观点、家长问题和真实案例，生成有结构、有信任感的长文。</p><button class="primary" type="button">开始写文章 <span>→</span></button></div>
+            </article>
+            <article class="wechat-hub-card wechat-hub-card-layout" data-wechat-hub-agent="wechat_layout">
+              <div class="wechat-hub-card-art"><img src="assets/agent-covers/pipi-sunset-yellow.jpg" alt="公众号排版" /></div>
+              <div class="wechat-hub-card-body"><span class="eyebrow">02 · LAYOUT</span><h3>公众号排版</h3><p>粘贴已经写好的文章，选择视觉风格，一键生成可预览、可复制的公众号成品。</p><button class="primary" type="button">开始排版 <span>→</span></button></div>
+            </article>
+          </div>
+          <div class="wechat-hub-tip"><strong>建议工作流</strong><span>先用“公众号文案”完成内容，再进入“公众号排版”做视觉成品；两个环节也可以单独使用。</span></div>
+        </section>
       </section>
 
       <section id="salesPage" class="page hidden">
@@ -584,11 +666,19 @@
     </main>
   </div>
 
+  <div id="recordDetailModal" class="record-detail-modal hidden" role="dialog" aria-modal="true" aria-labelledby="recordDetailTitle">
+    <section class="record-detail-card">
+      <header class="record-detail-head"><div><span class="eyebrow" id="recordDetailType">生成记录</span><h2 id="recordDetailTitle">查看完整内容</h2><p id="recordDetailMeta"></p></div><button class="modal-close" id="closeRecordDetail" type="button" aria-label="关闭完整内容">×</button></header>
+      <pre id="recordDetailContent" class="record-detail-content"></pre>
+      <footer class="record-detail-actions"><button class="secondary" id="copyRecordDetail" type="button">复制内容</button><button class="primary" id="goToRecordTool" type="button">前往对应工具</button></footer>
+    </section>
+  </div>
+
   <button class="floating" data-page="pipi"><img src="assets/pipi-avatar.png" alt="" /><span>问皮皮</span></button>
   <div id="appToast" class="app-toast" role="status" aria-live="polite"></div>
   <script src="vendor/lucide.min.js?v=20260804-01"></script>
   <script>window.lucide?.createIcons({ attrs: { 'aria-hidden': 'true', 'stroke-width': 1.8 } });</script>
-  <script src="config.js?v=20260810-04"></script>
-  <script src="app.js?v=20260810-09"></script>
+  <script src="config.js?v=20260822-05"></script>
+  <script src="app.js?v=20260822-05"></script>
 </body>
 </html>

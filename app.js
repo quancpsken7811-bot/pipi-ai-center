@@ -1,4 +1,24 @@
-const API_CONFIG = window.PIPI_API_CONFIG || { baseUrl: '', useMockWhenEmpty: true, endpoints: {} };
+// config.js 由静态托管单独加载；如果云托管缓存了旧入口或暂时漏发该文件，
+// 不能因此静默切到 Mock 模式。内置同源 API 兜底，保证线上仍会真实请求后端。
+const DEFAULT_API_ENDPOINTS = {
+  loginPassword: '/api/auth/login/password', register: '/api/auth/register', loginSms: '/api/auth/login/sms', sendSms: '/api/auth/sms/send', me: '/api/me',
+  personalProfile: '/api/user/profile', personalAvatar: '/api/user/avatar', personalPersona: '/api/user/persona', personalKnowledge: '/api/user/knowledge', personalKnowledgeUpload: '/api/user/knowledge/upload', personalPoints: '/api/user/points',
+  toolAvailability: '/api/tools/availability', pipiChat: '/api/tools/pipi-assistant/chat', salesSimulation: '/api/tools/sales-simulation/chat', salesMethodConfig: '/api/tools/sales-simulation/config', pipiConfig: '/api/tools/pipi-assistant/config', topics: '/api/tools/topics/generate', inspirationCapsules: '/api/inspiration-capsules', inspirationDraws: '/api/inspiration-capsules/draw', copywriting: '/api/tools/copywriting/generate', copywritingConfig: '/api/tools/copywriting/config', wechatLayout: '/api/tools/wechat-layout/analyze', competitor: '/api/tools/competitors/generate', competitorTrends: '/api/tools/competitors/trends', competitorQuota: '/api/tools/competitors/quota', competitorSearch: '/api/tools/competitors/search', competitorTranscript: '/api/tools/competitors/transcript', coachSop: '/api/tools/coach/sop', coachMoments: '/api/tools/coach/moments', coachMomentsTemplate: '/api/tools/coach/moments/template', coachMomentsImage: '/api/tools/coach/moments/image', records: '/api/generation-records',
+  adminUsers: '/api/admin/users', adminStats: '/api/admin/stats', adminPipiConfig: '/api/admin/pipi-assistant/config', adminPipiKnowledge: '/api/admin/pipi-assistant/knowledge', adminSalesConfig: '/api/admin/sales-simulation/config', adminSalesKnowledge: '/api/admin/sales-simulation/knowledge', adminSalesReports: '/api/admin/sales-simulation/reports', adminCoachToolbox: '/api/admin/coach-toolbox/config', adminCopywritingConfig: '/api/admin/copywriting/config', adminCopywritingAgents: '/api/admin/copywriting/agents', adminCopywritingCovers: '/api/admin/copywriting/covers', adminProviders: '/api/admin/ai/providers', adminModels: '/api/admin/ai/models', adminRefreshModels: '/api/admin/ai/models/refresh', adminPrompts: '/api/admin/prompts', adminFeatures: '/api/admin/ai/features', adminUsage: '/api/admin/ai/usage', adminProviderUsage: '/api/admin/ai/provider-usage', adminCallLogs: '/api/admin/ai/call-logs'
+};
+const DEFAULT_API_CONFIG = {
+  baseUrl: /^https?:$/.test(window.location.protocol) ? window.location.origin : 'http://127.0.0.1:8787',
+  fallbackBaseUrls: [],
+  useMockWhenEmpty: false,
+  allowDemoLogin: false,
+  selfRegistrationEnabled: true,
+  endpoints: DEFAULT_API_ENDPOINTS
+};
+const API_CONFIG = {
+  ...DEFAULT_API_CONFIG,
+  ...(window.PIPI_API_CONFIG || {}),
+  endpoints: { ...DEFAULT_API_ENDPOINTS, ...(window.PIPI_API_CONFIG?.endpoints || {}) }
+};
 const COACH_MOMENT_FIXED_TEMPLATE = 'assets/coach-moment-fixed-template.png';
 const API_REQUEST_TIMEOUTS = {
   loginPassword: 15000,
@@ -18,6 +38,8 @@ const API_REQUEST_TIMEOUTS = {
   salesMethodConfig: 15000,
   pipiConfig: 15000,
   topics: 75000,
+  inspirationCapsules: 15000,
+  inspirationDraws: 15000,
   copywriting: 105000,
   copywritingConfig: 15000,
   wechatLayout: 135000,
@@ -50,8 +72,10 @@ const state = {
   activeCopySessionId: null,
   copyView: 'gallery',
   copyGeneration: null,
-  wechatLayout: { theme: 'museum', mode: 'visual', layout: null, layouts: {}, images: [], html: '', article: '', result: null },
+  wechatLayout: { theme: 'punk', mode: 'editable', layout: null, layouts: {}, images: [], html: '', article: '', result: null, settings: { fontSize: 16, lineHeight: 1.9, fontFamily: 'system', bodyColor: 'auto', accent: '#B55E32', fixedEndingEnabled: false, fixedEnding: '' } },
   competitorFinder: { keyword: '教育', channel: 'douyin', channelLabel: '抖音', loading: false, items: [], transcripts: {} },
+  gacha: { loaded: false, loading: false, items: [], drawHistory: [], quotes: [], lastResult: null },
+  latestTopics: { items: [], payload: null },
   competitorTrends: { loaded: false, loading: false, platforms: {}, items: [], meta: null, error: '' },
   competitorQuota: { loaded: false, loading: false, date: '', limit: 100, used: 0, reserved: 0, remaining: 100 },
   salesSession: null,
@@ -110,6 +134,7 @@ const pages = {
   pipi: '皮皮分身',
   topics: '选题生成',
   copy: '文案智能体',
+  wechat: '公众号',
   competitor: '找竞品',
   sales: '销售模拟',
   coach: '教练工具箱',
@@ -120,6 +145,7 @@ const tools = [
   { page: 'pipi', icon: '皮', title: '皮皮分身', desc: '不会使用中台时，可以直接问皮皮获取操作指南。', roles: ['training', 'coaching', 'admin'] },
   { page: 'topics', icon: '题', title: '选题生成', desc: '按赛道、业务和方向生成教育赛道内容选题。', roles: ['training', 'coaching', 'admin'] },
   { page: 'copy', icon: '文', title: '文案智能体', desc: '训练营可用短视频文案，陪跑开放朋友圈和贴图号。', roles: ['training', 'coaching', 'admin'] },
+  { page: 'wechat', icon: '刊', title: '公众号', desc: '独立完成公众号文案与视觉排版，生成可复制的长文成品。', roles: ['coaching', 'admin'] },
   { page: 'competitor', icon: '竞', title: '找竞品', desc: '搜索教育爆款内容，提取文案后带去智能体改写。', roles: ['training', 'coaching', 'admin'] },
   { page: 'sales', icon: '销', title: '销售模拟', desc: '选择家长类型，练习真实销售沟通和成交推进。', roles: ['training', 'coaching', 'admin'] },
   { page: 'coach', icon: '教', title: '教练工具箱', desc: '沉淀交付 SOP，并快速产出交付朋友圈和分享图。', roles: ['admin'] }
@@ -492,9 +518,12 @@ async function apiRequest(endpointKey, payload = {}, options = {}) {
 function canUsePage(page) {
   if (!state.user) return false;
   if (page === 'admin' || page === 'coach') return state.user.role === 'admin';
-  if (state.toolAvailability[page] === false) return false;
+  if (page === 'wechat' && state.user.role === 'training') return false;
+  // 扭蛋机复用选题权限：它只保存用户主动投喂的选题，不新增一套账号授权成本。
+  const availabilityPage = page === 'wechat' ? 'copy' : page;
+  if (state.toolAvailability[availabilityPage] === false) return false;
   if (Array.isArray(state.user.enabledFeatures) && state.user.enabledFeatures.length) {
-    return page === 'home' || page === 'personal' || state.user.enabledFeatures.includes(page);
+    return page === 'home' || page === 'personal' || state.user.enabledFeatures.includes(page) || (page === 'wechat' && state.user.enabledFeatures.includes('copy'));
   }
   const tool = tools.find((item) => item.page === page);
   return !tool || tool.roles.includes(state.user.role);
@@ -622,7 +651,6 @@ async function loginWithPassword() {
 
 async function registerAccount() {
   const account = value('registerAccount').trim();
-  const phone = value('registerPhone').trim();
   const password = value('registerPassword');
   const passwordConfirm = value('registerPasswordConfirm');
   if (password !== passwordConfirm) {
@@ -630,7 +658,7 @@ async function registerAccount() {
     return;
   }
   try {
-    const apiUser = await apiRequest('register', { account, phone, password });
+    const apiUser = await apiRequest('register', { account, password });
     state.user = normalizeApiUser(apiUser);
     saveAuthSession();
     showApp();
@@ -654,7 +682,7 @@ function setLoginMode(mode) {
   $('showRegisterMode').setAttribute('aria-selected', String(isRegister));
   $('loginTitle').textContent = isRegister ? '注册皮皮 AI 中台' : '登录皮皮 AI 中台';
   $('loginDescription').textContent = isRegister ? '创建账号后即可进入你的教育内容工作台。' : '登录后进入你的专属教育内容工作台。';
-  $('loginNote').textContent = isRegister ? '注册账号默认开通训练营基础功能。' : registrationEnabled ? '没有账号？点击上方“注册”即可创建。' : '账号由管理员统一开通；没有账号请联系交付老师。';
+  $('loginNote').textContent = isRegister ? '注册后默认开通训练营基础功能；有效期由管理员按购买产品设置。' : registrationEnabled ? '没有账号？点击上方“注册”即可创建。' : '账号由管理员统一开通；没有账号请联系交付老师。';
 }
 
 async function loginWithSms() {
@@ -737,6 +765,7 @@ function setPage(page) {
     alert(page === 'admin' ? '只有管理员可以查看后台。' : '当前账号暂未开通该功能。');
     return;
   }
+  const previousPage = state.page;
   state.page = page;
   document.body.classList.remove('copy-compose-open');
   document.body.classList.toggle('sales-page-open', page === 'sales');
@@ -744,7 +773,15 @@ function setPage(page) {
   document.querySelectorAll('[data-page]').forEach((button) => button.classList.toggle('active', button.dataset.page === page));
   $('pageTitle').textContent = page === 'pipi' ? (state.pipiConfig.display_name || pages[page]) : pages[page];
   if (page === 'copy') {
+    if (previousPage === 'wechat') {
+      state.copyView = 'gallery';
+      state.copyOriginPage = '';
+    }
     setCopyView(state.copyView);
+    loadCopywritingConfig();
+  }
+  if (page === 'wechat') {
+    renderWechatHub();
     loadCopywritingConfig();
   }
   if (page === 'competitor') {
@@ -754,6 +791,7 @@ function setPage(page) {
     if (!state.competitorTrends.loaded && !state.competitorTrends.loading) loadCompetitorTrends();
     if (!state.competitorQuota.loaded && !state.competitorQuota.loading) loadCompetitorQuota();
   }
+  if (page === 'topics') loadGachaCapsules();
   if (page === 'coach') renderCoachMomentPoster();
   if (page === 'personal') loadPersonalCenter();
   if (page === 'admin') loadAdminConfig();
@@ -792,6 +830,7 @@ async function loadCopywritingConfig() {
   state.copywritingConfig = { ...state.copywritingConfig, ...result };
   syncCopyAgentDefinitions();
   renderCopyAgentGallery();
+  renderWechatHub();
   renderCopyAgentCovers();
   if (!$('copyComposeView').classList.contains('hidden')) renderCopyAgentChat();
 }
@@ -839,7 +878,7 @@ function renderContinue() {
   const container = $('continueList');
   if (!container) return;
   const items = state.records.slice(0, 3);
-  container.innerHTML = items.length ? items.map((item) => `<article class="continue-item"><div class="continue-item-main"><span>${escapeHtml(item.type || '内容记录')}</span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.createdAt || item.created_at || '')}</small></div><button class="link-button" data-page="${recordPage(item.type || '')}">继续 →</button></article>`).join('') : '<div class="continue-empty"><strong>还没有进行中的内容</strong><span>从上面的快速开始进入一个工具，生成内容后会显示在这里。</span></div>';
+  container.innerHTML = items.length ? items.map((item) => `<article class="continue-item"><div class="continue-item-main"><span>${escapeHtml(item.type || '内容记录')}</span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.createdAt || item.created_at || '')}</small></div><div class="continue-actions"><button class="link-button" data-record-open="${escapeHtml(item.id)}">查看</button><button class="link-button" data-page="${recordPage(item.type || '')}">继续 →</button></div></article>`).join('') : '<div class="continue-empty"><strong>还没有进行中的内容</strong><span>从上面的快速开始进入一个工具，生成内容后会显示在这里。</span></div>';
 }
 
 async function loadPersonalCenter() {
@@ -912,12 +951,33 @@ function renderHistory() {
     const preview = (latest.content || '').split('\n').find(Boolean) || '已生成内容，可回到原工具继续查看。';
     const transcript = Array.isArray(latest.conversationHistory) ? latest.conversationHistory : [];
     const transcriptHtml = transcript.length ? `<details class="record-transcript"><summary>查看完整对话 · ${transcript.length} 条消息</summary><div>${transcript.map((message) => `<p class="${message.role === 'user' ? 'user' : 'assistant'}"><b>${message.role === 'user' ? '你' : '皮皮'}</b>${escapeHtml(message.content || '')}</p>`).join('')}</div></details>` : '';
-    return `<article class="record-item conversation-record"><div class="conversation-record-head"><div><strong>${escapeHtml(title)}</strong><div class="meta"><span>${escapeHtml(latest.type || '内容记录')}</span><span>${transcript.length ? `${transcript.length} 条消息` : `${items.length} 次生成`}</span><span>${escapeHtml(latest.createdAt || latest.created_at || '')}</span></div></div><button class="link-button" data-page="${recordPage(latest.type || '')}">继续对话 →</button></div><p>${escapeHtml(preview.slice(0, 120))}</p>${transcriptHtml}</article>`;
+    return `<article class="record-item conversation-record"><div class="conversation-record-head"><div><strong>${escapeHtml(title)}</strong><div class="meta"><span>${escapeHtml(latest.type || '内容记录')}</span><span>${transcript.length ? `${transcript.length} 条消息` : `${items.length} 次生成`}</span><span>${escapeHtml(latest.createdAt || latest.created_at || '')}</span></div></div><div class="record-actions"><button class="secondary mini" data-record-open="${escapeHtml(latest.id)}">查看完整内容</button><button class="link-button" data-page="${recordPage(latest.type || '')}">继续 →</button></div></div><p>${escapeHtml(preview.slice(0, 120))}</p>${transcriptHtml}</article>`;
   }).join('');
 }
 
 function recordHtml(item) {
-  return `<article class="record-item"><strong>${escapeHtml(item.title)}</strong><div class="meta"><span>${escapeHtml(item.type)}</span><span>${escapeHtml(item.createdAt || item.created_at || '')}</span>${item.user_name ? `<span>${escapeHtml(item.user_name)}</span>` : ''}</div></article>`;
+  return `<article class="record-item"><div class="record-item-head"><div><strong>${escapeHtml(item.title)}</strong><div class="meta"><span>${escapeHtml(item.type)}</span><span>${escapeHtml(item.createdAt || item.created_at || '')}</span>${item.user_name ? `<span>${escapeHtml(item.user_name)}</span>` : ''}</div></div><button class="secondary mini" data-record-open="${escapeHtml(item.id)}">查看</button></div><p class="record-item-preview">${escapeHtml(recordContent(item).replace(/\s+/g, ' ').slice(0, 110))}</p></article>`;
+}
+
+function recordContent(record) {
+  return String(record?.content || record?.meta?.content || '这条记录暂未保存可查看的正文。').trim();
+}
+
+function openRecordDetail(recordId) {
+  const record = state.records.find((item) => String(item.id) === String(recordId));
+  if (!record) return showToast('这条历史记录暂时无法找到，请刷新后重试');
+  state.selectedRecordId = record.id;
+  $('recordDetailType').textContent = record.type || '生成记录';
+  $('recordDetailTitle').textContent = record.conversationTitle || record.title || '生成内容';
+  $('recordDetailMeta').textContent = [record.createdAt || record.created_at || '', record.user_name || ''].filter(Boolean).join(' · ');
+  $('recordDetailContent').textContent = recordContent(record);
+  $('goToRecordTool').textContent = `前往${pages[recordPage(record.type || '')] || '对应工具'}`;
+  $('recordDetailModal').classList.remove('hidden');
+}
+
+function closeRecordDetail() {
+  $('recordDetailModal').classList.add('hidden');
+  state.selectedRecordId = null;
 }
 
 function renderCopySessions() {
@@ -1149,7 +1209,8 @@ const copyAgentNames = {
   education_marketing: '营销智能体',
   moments: '朋友圈智能体',
   xiaohongshu: '小绿书智能体',
-  wechat_article: '公众号文案'
+  wechat_article: '公众号文案',
+  wechat_layout: '公众号排版'
 };
 
 const defaultCopyAgentCovers = {
@@ -1160,7 +1221,8 @@ const defaultCopyAgentCovers = {
   education_marketing: 'image-pipi-white-sea-jpg',
   moments: 'image-pipi-blue-sea-jpg',
   xiaohongshu: 'image-pipi-pink-sea-jpg',
-  wechat_article: 'image-pipi-arch-sea-jpg'
+  wechat_article: 'image-pipi-arch-sea-jpg',
+  wechat_layout: 'image-pipi-sunset-yellow-jpg'
 };
 
 const defaultCopyCoverOptions = [
@@ -1620,7 +1682,7 @@ function renderAdminUsers() {
       <div class="user-main"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.phone || item.account)} · ${escapeHtml(item.paid_product || '未填写产品')}</small></div>
       ${item.role === 'admin' ? `<span class="role-tag admin">管理员</span>` : `<select class="user-role-select" data-user-role="${item.id}"><option value="coaching" ${item.role === 'coaching' ? 'selected' : ''}>陪跑学员</option><option value="training" ${item.role === 'training' ? 'selected' : ''}>训练营学员</option></select>`}
       <span class="status-tag ${item.status}">${statusLabel(item.status)}</span>
-      <div class="user-meta"><small>开通 ${escapeHtml(item.opened_at || '-')}</small><label>到期 <input type="date" value="${escapeHtml(item.expires_at || '')}" data-user-expires="${item.id}" /></label></div>
+      <div class="user-meta"><small>开通 ${escapeHtml(item.opened_at || '-')}</small>${item.role === 'admin' ? '<strong>永久有效</strong>' : `<label>到期 <input type="date" value="${escapeHtml(item.expires_at || '')}" data-user-expires="${item.id}" /></label>`}</div>
       ${item.role === 'admin' ? '<span class="user-lock">系统账号</span>' : `<div class="row-actions"><button class="secondary mini" data-user-save="${item.id}">保存</button><button class="pill-button ${item.status === 'active' ? 'on' : ''}" data-user-toggle="${item.id}" data-next-status="${item.status === 'active' ? 'disabled' : 'active'}">${item.status === 'active' ? '禁用账号' : '启用账号'}</button></div>`}
     </div>`).join('') : '<div class="empty-box">暂无已开通账号</div>';
 }
@@ -2194,7 +2256,10 @@ function setCopyView(view) {
   $('copyGalleryView').classList.toggle('hidden', isCompose);
   $('copyComposeView').classList.toggle('hidden', !isCompose);
   if (isCompose) renderCopyAgentChat();
-  if (state.page === 'copy') $('pageTitle').textContent = isCompose ? '生成文案' : '文案智能体';
+  if (state.page === 'copy') {
+    const activeAgent = copyAgentDefinition(value('copyAgent'));
+    $('pageTitle').textContent = isCompose ? (activeAgent?.name || '文案智能体') : '文案智能体';
+  }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -2206,8 +2271,8 @@ const copyAgentMeta = {
   education_marketing: { title: '营销智能体', desc: '用专业、克制的教育表达承接咨询、公开课和产品了解。', guide: '告诉我你的产品、用户当前的需求，以及这条内容希望承接什么动作。' },
   moments: { title: '朋友圈智能体', desc: '围绕日常表达、专业判断、案例和信任场，生成真实、有温度的朋友圈文案。', guide: '告诉我今天想表达的事情、真实素材和希望建立的信任感。' },
   xiaohongshu: { title: '小绿书智能体', desc: '把教育主题拆成封面明确、单页易读、适合微信传播的小绿书图文内容。', guide: '告诉我图文主题、目标人群和你准备使用的图片或案例。' },
-  wechat_article: { title: '公众号文案', desc: '围绕长文结构、观点表达和教育内容沉淀，生成高信任的公众号价值文章。', guide: '告诉我文章主题、读者对象和你希望沉淀的核心观点。' }
-  ,wechat_layout: { title: '公众号排版', desc: '把已经写好的文章变成可预览、可复制、可导出的公众号视觉成品。', guide: '粘贴完整成稿，选择风格和图片；系统会保留原文完成结构识别与视觉排版。' }
+  wechat_article: { title: '公众号文案', desc: '围绕长文结构、观点表达和教育内容沉淀，生成高信任的公众号价值文章。', guide: '告诉我文章主题、读者对象和你希望沉淀的核心观点。' },
+  wechat_layout: { title: '公众号排版', desc: '把已经写好的文章变成可预览、可复制、可导出的公众号视觉成品。', guide: '粘贴完整成稿，选择风格和图片；系统会保留原文完成结构识别与视觉排版。' }
 };
 
 const defaultCopyAgentExtras = {
@@ -2248,10 +2313,11 @@ function syncCopyAgentDefinitions() {
 function renderCopyAgentGallery() {
   const container = $('copyAgentGrid');
   if (!container) return;
-  const agents = copyAgentDefinitions().filter((item) => item.status !== 'unpublished' && (state.user?.role !== 'training' || (item.default_type === 'short' && item.tags?.includes('traffic'))));
+  const agents = copyAgentDefinitions().filter((item) => item.status !== 'unpublished' && !['wechat_article', 'wechat_layout'].includes(item.code) && (state.user?.role !== 'training' || (item.default_type === 'short' && item.tags?.includes('traffic'))));
   const currentCode = value('copyAgent');
-  const activeAgent = agents.find((item) => item.code === currentCode) || agents[0];
-  if (activeAgent && currentCode !== activeAgent.code) {
+  const isWechatAgent = ['wechat_article', 'wechat_layout'].includes(currentCode);
+  const activeAgent = agents.find((item) => item.code === currentCode) || (isWechatAgent ? copyAgentDefinitions().find((item) => item.code === currentCode) : agents[0]);
+  if (activeAgent && currentCode !== activeAgent.code && !(isWechatAgent && state.copyView === 'compose')) {
     $('copyAgent').value = activeAgent.code;
     state.activeCopySessionId = null;
   }
@@ -2268,6 +2334,29 @@ function renderCopyAgentGallery() {
     return `<article class="agent-market-card ${agent.code === activeAgent.code ? 'active' : ''}" data-copy-agent="${escapeHtml(agent.code)}" data-agent-tags="${escapeHtml(tags)}"><div class="agent-cover large"><img src="${escapeHtml(cover.file)}" alt="${escapeHtml(agent.name)}封面" style="--cover-focus:${escapeHtml(cover.focus || '50% 48%')};--cover-zoom:${zoom}" /></div><div class="agent-card-body"><h3>${escapeHtml(agent.name)}</h3><p>${escapeHtml(agent.description || '')}</p><div class="agent-meta">${labels.map((label) => `<span>${escapeHtml(label)}</span>`).join('')}</div><button class="primary full agent-use">使用智能体</button></div></article>`;
   }).join('');
   filterCopyAgents();
+}
+
+function renderWechatHub() {
+  const page = $('wechatPage');
+  if (!page) return;
+  const definitions = copyAgentDefinitions();
+  page.querySelectorAll('[data-wechat-hub-agent]').forEach((card) => {
+    const code = card.dataset.wechatHubAgent;
+    const agent = definitions.find((item) => item.code === code);
+    const available = Boolean(agent && agent.status !== 'unpublished' && (state.user?.role !== 'training' || (agent.default_type === 'short' && agent.tags?.includes('traffic'))));
+    card.classList.toggle('hidden', !available);
+    card.setAttribute('aria-hidden', String(!available));
+  });
+  const visibleCount = Array.from(page.querySelectorAll('[data-wechat-hub-agent]')).filter((card) => !card.classList.contains('hidden')).length;
+  page.classList.toggle('wechat-hub-empty', visibleCount === 0);
+}
+
+function openWechatHubAgent(agentCode) {
+  $('copyAgent').value = agentCode;
+  state.activeCopySessionId = null;
+  state.copyOriginPage = 'wechat';
+  setPage('copy');
+  setCopyView('compose');
 }
 
 function renderCopyAgentChat() {
@@ -2516,6 +2605,177 @@ function mockTopics(payload) {
   }));
 }
 
+function gachaBallMarkup(count = 16) {
+  const colors = ['#d85f38', '#f4c647', '#7eaa93', '#f4a6a6', '#4c7c9a', '#f1dfc7'];
+  // 每颗球都有独立落点与抖动方向，故静止时是“堆在仓里”，摇动时才会互相错位滚动，避免形成转盘。
+  const positions = [[-80,-59],[-31,-82],[26,-82],[75,-55],[-87,-11],[-47,-32],[-1,-38],[46,-27],[82,-3],[-75,36],[-33,18],[13,10],[61,28],[-50,69],[-2,57],[43,70],[-17,-5],[28,-58],[3,-69],[-69,3],[77,47],[-62,-73],[44,-67],[-18,83]];
+  return Array.from({ length: count }, (_, index) => {
+    const [x, y] = positions[index % positions.length];
+    const driftX = ((index * 17) % 15) - 7;
+    const driftY = ((index * 11) % 17) - 8;
+    return `<i class="gacha-ball" style="--ball-color:${colors[index % colors.length]};--x:${x}px;--y:${y}px;--spin:${(index * 37) % 180}deg;--dx:${driftX}px;--dy:${driftY}px;--delay:-${(index % 7) * .07}s"><b></b></i>`;
+  }).join('');
+}
+
+function renderGachaInventory() {
+  const capsules = state.gacha.items || [];
+  const drawnItems = state.gacha.drawHistory || [];
+  $('gachaCount').textContent = capsules.length;
+  $('gachaBalls').innerHTML = gachaBallMarkup(Math.max(14, Math.min(24, capsules.length + 10)));
+  $('gachaInventory').innerHTML = drawnItems.length
+    ? drawnItems.map((item) => `<article class="gacha-inventory-item"><div class="gacha-inventory-orb">${item.type === 'quote' ? '句' : '题'}</div><div><strong>${escapeHtml(item.text)}</strong><div class="meta">${item.type === 'quote' ? '<span>皮皮老师金句</span>' : '<span>已抽到的选题</span>'}${item.sub ? `<span>${escapeHtml(item.sub)}</span>` : ''}</div></div><button class="gacha-delete" data-gacha-delete="${escapeHtml(item.id)}" aria-label="移除这条抽取记录">×</button></article>`).join('')
+    : '<div class="gacha-empty-inventory"><span>○</span><strong>还没有抽到的灵感</strong><p>摇一颗扭蛋，抽到的选题和金句会留在这里。</p></div>';
+}
+
+function renderGachaResult(result = state.gacha.lastResult) {
+  const type = $('gachaResultType');
+  const container = $('gachaResult');
+  const actions = $('gachaResultActions');
+  if (!result) {
+    type.textContent = '等待抽取';
+    container.className = 'gacha-result-empty';
+    container.innerHTML = '<strong>让灵感转一会儿</strong><p>抽中选题后，可以直接带去文案智能体；抽中金句，也可以收藏到你的表达库。</p>';
+    actions.classList.add('hidden');
+    return;
+  }
+  type.textContent = result.type === 'topic' ? '你的灵感扭蛋' : '皮皮老师金句';
+  container.className = 'gacha-result-content';
+  container.innerHTML = `<span class="gacha-result-orb">${result.type === 'topic' ? '题' : '句'}</span><strong>${escapeHtml(result.text)}</strong>${result.sub ? `<p>${escapeHtml(result.sub)}</p>` : ''}`;
+  actions.classList.remove('hidden');
+  $('useGachaResult').textContent = result.type === 'topic' ? '用这个写内容' : '带着这句去创作';
+}
+
+async function loadGachaCapsules(force = false) {
+  if (state.gacha.loading || (state.gacha.loaded && !force)) return;
+  state.gacha.loading = true;
+  try {
+    const result = await apiRequest('inspirationCapsules', {}, { method: 'GET' });
+    state.gacha.items = Array.isArray(result?.items) ? result.items : [];
+    state.gacha.drawHistory = Array.isArray(result?.draw_history) ? result.draw_history : [];
+    state.gacha.quotes = Array.isArray(result?.quotes) ? result.quotes : [];
+    state.gacha.loaded = true;
+  } catch (error) {
+    toast(error.message || '灵感扭蛋机暂时无法读取');
+  } finally {
+    state.gacha.loading = false;
+    renderGachaInventory();
+    renderGachaResult();
+  }
+}
+
+async function saveTopicToGacha(index) {
+  const topic = state.latestTopics.items[index];
+  if (!topic) return;
+  const titleNode = document.querySelector(`[data-topic-index="${index}"] .topic-item-copy strong`);
+  const title = titleNode?.innerText.replace(/^\s*\d+\.\s*/, '').trim() || topic.title;
+  const button = document.querySelector(`[data-save-topic="${index}"]`);
+  if (button) {
+    button.dataset.defaultText = button.textContent;
+    button.disabled = true;
+    button.textContent = '投喂中...';
+  }
+  try {
+    const result = await apiRequest('inspirationCapsules', {
+      title,
+      track: topic.track || state.latestTopics.payload?.track || '',
+      angle: topic.angle || topic.dimension || '',
+      business: state.latestTopics.payload?.business || ''
+    });
+    state.gacha.items.unshift(result.item);
+    state.gacha.loaded = true;
+    renderGachaInventory();
+    button.textContent = '已投喂 ✓';
+    button.disabled = true;
+    toast('已投进灵感扭蛋机');
+  } catch (error) {
+    toast(error.message || '投喂失败，请稍后重试');
+  } finally {
+    if (button && button.textContent === '投喂中...') {
+      button.disabled = false;
+      button.textContent = button.dataset.defaultText || '投入扭蛋机 ✦';
+    }
+  }
+}
+
+function drawGacha() {
+  const topics = state.gacha.items || [];
+  const quotes = state.gacha.quotes || [];
+  if (!topics.length && !quotes.length) {
+    toast('先生成并投喂一条选题，再来摇扭蛋吧');
+    setPage('topics');
+    return;
+  }
+  const button = $('drawGacha');
+  const machine = $('gachaMachineCard');
+  if (machine.classList.contains('is-spinning')) return;
+  machine.classList.remove('is-dropping', 'has-drop');
+  machine.classList.add('is-spinning');
+  const shouldDrawTopic = topics.length && (Math.random() < .72 || !quotes.length);
+  const source = shouldDrawTopic ? topics[Math.floor(Math.random() * topics.length)] : quotes[Math.floor(Math.random() * quotes.length)];
+  const selectedResult = shouldDrawTopic
+    ? { type: 'topic', text: source.title, sub: [source.track, source.angle].filter(Boolean).join(' · '), source }
+    : { type: 'quote', text: source, sub: '适合用作内容开头、结尾或提醒自己的经营判断' };
+  button.disabled = true;
+  $('gachaResultType').textContent = '正在摇动';
+  $('gachaResult').className = 'gacha-result-empty is-drawing';
+  $('gachaResult').innerHTML = '<strong>灵感正在转动…</strong><p>从你的选题仓和皮皮老师的表达里，随机掉落一颗。</p>';
+  $('gachaResultActions').classList.add('hidden');
+  window.setTimeout(() => {
+    const ball = $('gachaDropBall');
+    ball.style.setProperty('--drop-color', selectedResult.type === 'topic' ? '#d96038' : '#f2c545');
+    machine.classList.add('is-dropping');
+  }, 1120);
+  window.setTimeout(() => {
+    state.gacha.lastResult = selectedResult;
+    machine.classList.remove('is-spinning');
+    machine.classList.remove('is-dropping');
+    machine.classList.add('has-drop');
+    button.disabled = false;
+    renderGachaResult();
+    persistGachaDraw(state.gacha.lastResult);
+  }, 1850);
+}
+
+async function persistGachaDraw(result) {
+  if (!result) return;
+  try {
+    const response = await apiRequest('inspirationDraws', {
+      type: result.type,
+      text: result.text,
+      sub: result.sub || '',
+      source_capsule_id: result.source?.id || ''
+    });
+    state.gacha.drawHistory = Array.isArray(response?.items) ? response.items : [response.item, ...state.gacha.drawHistory];
+    renderGachaInventory();
+  } catch {
+    // 抽取体验不因一次记录失败被打断，下次进入页面会从服务端重新同步。
+  }
+}
+
+async function deleteGachaCapsule(id) {
+  if (!id) return;
+  try {
+    await apiRequest('inspirationDraws', {}, { method: 'DELETE', path: `/api/inspiration-draws/${encodeURIComponent(id)}` });
+    state.gacha.drawHistory = state.gacha.drawHistory.filter((item) => item.id !== id);
+    renderGachaInventory();
+    toast('已移除这条抽取记录');
+  } catch (error) {
+    toast(error.message || '删除失败，请稍后重试');
+  }
+}
+
+function useGachaResult() {
+  const result = state.gacha.lastResult;
+  if (!result) return;
+  setPage('copy');
+  window.setTimeout(() => {
+    const input = $('copyInput');
+    if (!input) return;
+    input.value = result.type === 'topic' ? `围绕这个选题写一条内容：${result.text}` : `请围绕这句表达写一条教育内容：${result.text}`;
+    input.focus();
+  }, 80);
+}
+
 async function generateTopics() {
   if (!validateTopicRequiredFields()) {
     const firstInvalid = value('topicTrack') ? $('topicBusiness') : $('topicTrack');
@@ -2529,11 +2789,13 @@ async function generateTopics() {
     const apiResult = await apiRequest('topics', payload);
     const apiTopics = apiResult?.items || apiResult?.topics;
     const topics = Array.isArray(apiTopics) && apiTopics.length ? apiTopics : mockTopics(payload);
-    $('topicResults').innerHTML = `${modelBadge(apiResult)}<div class="edit-hint">生成后可直接点进每条选题修改。</div>${topics.map((item, index) => `<article class="topic-item" contenteditable="true"><strong>${index + 1}. ${escapeHtml(item.title)}</strong><div class="meta"><span>${escapeHtml(item.track || payload.track)}</span><span>${escapeHtml(item.angle || item.dimension || '内容角度')}</span><span>可拍</span></div></article>`).join('')}`;
+    state.latestTopics = { items: topics, payload };
+    $('topicResults').innerHTML = `${modelBadge(apiResult)}<div class="edit-hint">生成后可直接点进每条选题修改；喜欢的题目可以投进灵感扭蛋机。</div>${topics.map((item, index) => `<article class="topic-item" data-topic-index="${index}"><div class="topic-item-copy" contenteditable="true"><strong>${index + 1}. ${escapeHtml(item.title)}</strong><div class="meta"><span>${escapeHtml(item.track || payload.track)}</span><span>${escapeHtml(item.angle || item.dimension || '内容角度')}</span><span>可拍</span></div></div><button class="topic-gacha-button" data-save-topic="${index}">投入扭蛋机 <span>✦</span></button></article>`).join('')}`;
     addRecord('选题生成', `${payload.business}选题`, topics.map((item) => item.title).join('\n'));
   } catch (error) {
     const topics = mockTopics(payload);
-    $('topicResults').innerHTML = `${fallbackNotice(error.message)}<div class="edit-hint">下面是本地兜底选题，生成后可直接点进每条选题修改。</div>${topics.map((item, index) => `<article class="topic-item" contenteditable="true"><strong>${index + 1}. ${escapeHtml(item.title)}</strong><div class="meta"><span>${escapeHtml(item.track || payload.track)}</span><span>${escapeHtml(item.angle || item.dimension || '内容角度')}</span><span>本地兜底</span></div></article>`).join('')}`;
+    state.latestTopics = { items: topics, payload };
+    $('topicResults').innerHTML = `${fallbackNotice(error.message)}<div class="edit-hint">下面是本地兜底选题，生成后可直接点进每条选题修改；喜欢的题目可以投进灵感扭蛋机。</div>${topics.map((item, index) => `<article class="topic-item" data-topic-index="${index}"><div class="topic-item-copy" contenteditable="true"><strong>${index + 1}. ${escapeHtml(item.title)}</strong><div class="meta"><span>${escapeHtml(item.track || payload.track)}</span><span>${escapeHtml(item.angle || item.dimension || '内容角度')}</span><span>本地兜底</span></div></div><button class="topic-gacha-button" data-save-topic="${index}">投入扭蛋机 <span>✦</span></button></article>`).join('')}`;
     addRecord('选题生成', `${payload.business}选题`, topics.map((item) => item.title).join('\n'));
   } finally {
     setButtonLoading('generateTopics', false);
@@ -2867,6 +3129,7 @@ function downloadCoachMomentPoster() {
 }
 
 const WECHAT_LAYOUT_THEMES = {
+  punk: { name: 'Punk 皮皮主视觉', primary: '#B55E32', dark: '#3A271F', ink: '#40352F', muted: '#85756B', paper: '#FBF8F3', soft: '#FFF0E4', accent: '#F6DFAA', label: 'PIPI · WECHAT', variant: 'punk' },
   museum: { name: '艺展留白', primary: '#9B8C64', dark: '#30302C', ink: '#3A3933', muted: '#8D897B', paper: '#E9E5CF', soft: '#F7F5EB', accent: '#C6B991', label: 'WHERE ART MEETS EDUCATION', variant: 'museum' },
   slow: { name: '时间漫序', primary: '#202020', dark: '#111111', ink: '#252525', muted: '#7F7F7C', paper: '#FFFFFF', soft: '#F0F0ED', accent: '#CFCFC9', label: 'SLOW TIME SEQUENCE', variant: 'slow' },
   geometry: { name: '几何拼贴', primary: '#E76E4C', dark: '#171512', ink: '#352D28', muted: '#897A6E', paper: '#FFF0D9', soft: '#FFE2B8', accent: '#1C1A18', label: 'EDITORIAL COLLAGE', variant: 'geometry' },
@@ -2883,6 +3146,106 @@ function wechatLayoutFilename(extension) {
   const title = state.wechatLayout.layout?.segments?.find((item) => item.index === state.wechatLayout.layout.title_index)?.text || '公众号排版';
   const safe = title.replace(/[\\/:*?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 36) || '公众号排版';
   return `${safe}.${extension}`;
+}
+
+function wechatInlineMarkdown(value) {
+  let text = escapeHtml(String(value || ''));
+  const tokens = [];
+  const hold = (html) => { const key = `\u0000${tokens.length}\u0000`; tokens.push(html); return key; };
+  text = text.replace(/!\[([^\]]*)\]\(([^\s)]+)(?:\s+"([^"]*)")?\)/g, (_, alt, url, title) => {
+    const safeUrl = /^(?:https?:\/\/|data:image\/|assets\/|\/)/i.test(url) ? url : '';
+    return safeUrl ? hold(`<img src="${safeUrl}" alt="${alt}"${title ? ` title="${title}"` : ''}>`) : escapeHtml(alt);
+  });
+  text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, label, url) => hold(`<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`));
+  text = text.replace(/`([^`]+)`/g, (_, code) => hold(`<code>${code}</code>`));
+  text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/__([^_]+)__/g, '<strong>$1</strong>');
+  text = text.replace(/~~([^~]+)~~/g, '<del>$1</del>').replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>');
+  return text.replace(/\u0000(\d+)\u0000/g, (_, index) => tokens[Number(index)] || '');
+}
+
+function buildWechatEditableHtml(article, theme, images = []) {
+  const raw = String(article || '').replace(/\r\n?/g, '\n').trim();
+  const settings = state.wechatLayout.settings || {};
+  const fontSize = Math.max(14, Math.min(20, Number(settings.fontSize) || 16));
+  const lineHeight = Math.max(1.5, Math.min(2.4, Number(settings.lineHeight) || 1.9));
+  const fontFamily = settings.fontFamily === 'serif' ? "Georgia,'Songti SC','STSong',serif" : settings.fontFamily === 'yahei' ? "'Microsoft YaHei','PingFang SC',sans-serif" : "-apple-system,BlinkMacSystemFont,'PingFang SC','Source Han Sans SC','Microsoft YaHei',sans-serif";
+  const bodyColor = settings.bodyColor === 'light' ? '#F7F3EE' : settings.bodyColor === 'dark' ? '#1F2933' : theme.ink;
+  const accent = /^#[0-9a-f]{6}$/i.test(settings.accent || '') ? settings.accent : theme.primary;
+  const paper = theme.variant === 'slow' ? '#FFFFFF' : '#FFFCF8';
+  const blocks = raw.split(/\n\s*\n+/).map((item) => item.trim()).filter(Boolean);
+  let imageCursor = 0;
+  let firstContent = true;
+  const titleCandidate = blocks[0]?.replace(/^#{1,6}\s*/, '').trim() || '公众号文章';
+  const rendered = [];
+  const renderImage = (alt, src) => {
+    const uploaded = images[imageCursor++];
+    const imageSrc = uploaded?.dataUrl || src;
+    if (imageSrc) return `<figure style="margin:26px 0 30px;text-align:center;"><img src="${imageSrc}" alt="${escapeHtml(alt || '文章配图')}" style="display:block;width:100%;height:auto;border-radius:2px;"/><figcaption style="margin-top:8px;color:#9a8e84;font-size:11px;line-height:1.5;">${escapeHtml(alt || '文章配图')}</figcaption></figure>`;
+    return `<figure style="display:flex;min-height:150px;margin:26px 0 30px;align-items:center;justify-content:center;border:1px dashed ${accent};background:${theme.soft};color:${accent};font-size:12px;"><span>图片位置 · ${escapeHtml(alt || '上传文章配图')}</span></figure>`;
+  };
+  const renderList = (items, ordered) => `<${ordered ? 'ol' : 'ul'} style="margin:16px 0 24px;padding-left:24px;color:${bodyColor};font-size:${fontSize}px;line-height:${lineHeight};">${items.map((item) => `<li style="padding:4px 0;">${wechatInlineMarkdown(item.replace(/^(?:[-*+]\s+|\d+[.)、]\s+)/, ''))}</li>`).join('')}</${ordered ? 'ol' : 'ul'}>`;
+  const renderTable = (lines) => {
+    const rows = lines.filter((line) => !/^\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?$/.test(line));
+    const parsedRows = rows.map((line) => line.replace(/^\||\|$/g, '').split('|').map((cell) => cell.trim()));
+    if (!parsedRows.length) return '';
+    const head = parsedRows[0];
+    const body = parsedRows.slice(1);
+    return `<table style="width:100%;margin:22px 0 28px;border-collapse:collapse;color:${bodyColor};font-size:${Math.max(13, fontSize - 1)}px;line-height:1.65;"><thead><tr>${head.map((cell) => `<th style="padding:10px 8px;border:1px solid ${theme.soft};background:${theme.soft};font-weight:700;text-align:left;">${wechatInlineMarkdown(cell)}</th>`).join('')}</tr></thead><tbody>${body.map((row) => `<tr>${head.map((_, i) => `<td style="padding:9px 8px;border:1px solid ${theme.soft};vertical-align:top;">${wechatInlineMarkdown(row[i] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  };
+  const renderParagraph = (lines, intro = false) => `<p style="margin:${intro ? '0 0 24px' : '0 0 20px'};color:${bodyColor};font-size:${intro ? fontSize + 1 : fontSize}px;line-height:${lineHeight};letter-spacing:.025em;text-align:justify;">${lines.map((line) => wechatInlineMarkdown(line)).join('<br>')}</p>`;
+  blocks.forEach((block, blockIndex) => {
+    const lines = block.split('\n').map((line) => line.trim()).filter(Boolean);
+    if (!lines.length) return;
+    const h = lines[0].match(/^(#{1,3})\s+(.+)$/);
+    if (blockIndex === 0 && !h && lines.length === 1 && lines[0].length <= 80 && !/[。！？.!?]$/.test(lines[0])) {
+      firstContent = false;
+      return;
+    }
+    if (h) {
+      const level = h[1].length;
+      const text = wechatInlineMarkdown(h[2]);
+      if (level === 1 && firstContent) {
+        firstContent = false;
+        return;
+      }
+      if (level === 2) {
+        const chapterNumber = String(rendered.filter((item) => /data-wechat-chapter/.test(item)).length + 1).padStart(2, '0');
+        rendered.push(theme.variant === 'punk'
+          ? `<h2 data-wechat-chapter="true" style="display:flex;align-items:flex-start;gap:12px;margin:38px 0 18px;padding:0 0 12px;border-bottom:2px solid ${theme.primary};color:${theme.dark};font-size:${fontSize + 6}px;line-height:1.4;letter-spacing:.01em;"><span style="display:inline-grid;width:30px;height:30px;flex:0 0 30px;place-items:center;margin-top:2px;color:${theme.dark};background:${theme.accent};font-family:Georgia,serif;font-size:13px;font-style:italic;">${chapterNumber}</span><span>${text}</span></h2>`
+          : `<h2 data-wechat-chapter="true" style="margin:34px 0 16px;padding:0 0 9px;border-bottom:3px solid ${accent};color:${theme.dark};font-size:${fontSize + 6}px;line-height:1.4;letter-spacing:.01em;">${text}</h2>`);
+      } else rendered.push(theme.variant === 'punk'
+        ? `<h3 style="margin:27px 0 12px;padding:9px 0 9px 13px;border-left:5px solid ${theme.primary};color:${theme.dark};font-size:${fontSize + 3}px;line-height:1.5;">${text}</h3>`
+        : `<h3 style="margin:27px 0 12px;padding-left:12px;border-left:4px solid ${accent};color:${theme.dark};font-size:${fontSize + 3}px;line-height:1.5;">${text}</h3>`);
+      if (lines.length > 1) rendered.push(renderParagraph(lines.slice(1), false));
+      return;
+    }
+    if (/^```/.test(lines[0])) {
+      const codeLines = lines.slice(1, lines[lines.length - 1]?.startsWith('```') ? -1 : undefined);
+      rendered.push(`<pre style="margin:22px 0 28px;padding:18px 16px;overflow:auto;border-radius:6px;background:${theme.dark};color:#F8F4EE;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:${Math.max(12, fontSize - 2)}px;line-height:1.7;"><code>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
+      return;
+    }
+    if (/^>\s?/.test(lines[0])) {
+      rendered.push(`<blockquote style="margin:22px 0 28px;padding:17px 20px;border-left:${theme.variant === 'punk' ? '5px' : '4px'} solid ${accent};background:${theme.soft};color:${theme.dark};font-size:${fontSize + 1}px;line-height:${lineHeight};">${lines.map((line) => wechatInlineMarkdown(line.replace(/^>\s?/, ''))).join('<br>')}</blockquote>`);
+      return;
+    }
+    if (lines.length >= 2 && lines.every((line) => /^\|/.test(line))) { rendered.push(renderTable(lines)); return; }
+    if (/^[-*+]\s+/.test(lines[0])) { rendered.push(renderList(lines, false)); return; }
+    if (/^\d+[.)、]\s+/.test(lines[0])) { rendered.push(renderList(lines, true)); return; }
+    if (/^[-*_]{3,}$/.test(lines[0])) { rendered.push(`<hr style="margin:30px 0;border:0;border-top:1px solid ${theme.soft};"/>`); return; }
+    const imageMatch = lines.length === 1 && lines[0].match(/^!\[([^\]]*)\]\(([^\s)]+)(?:\s+"([^"]*)")?\)$/);
+    if (imageMatch) { rendered.push(renderImage(imageMatch[1], imageMatch[2])); return; }
+    rendered.push(renderParagraph(lines, firstContent));
+    firstContent = false;
+  });
+  if (!rendered.length && raw) rendered.push(renderParagraph([raw], true));
+  if (images.slice(imageCursor).length) rendered.push(images.slice(imageCursor).map((item, index) => renderImage(item.name || `文章配图 ${index + 1}`, item.dataUrl)).join(''));
+  if (settings.fixedEndingEnabled && String(settings.fixedEnding || '').trim()) {
+    rendered.push(`<section style="margin:34px 0 0;padding:20px 18px;border-top:1px solid ${accent};border-bottom:1px solid ${accent};color:${bodyColor};font-size:${fontSize - 1}px;line-height:${lineHeight};">${String(settings.fixedEnding).trim().split(/\n+/).map((line) => `<p style="margin:0 0 8px;">${wechatInlineMarkdown(line)}</p>`).join('')}</section>`);
+  }
+  const editableCover = theme.variant === 'punk'
+    ? `<header class="wechat-editable-cover" style="position:relative;overflow:hidden;padding:38px 34px 40px;background:linear-gradient(90deg,${theme.paper} 0 64%,${theme.primary} 64%);border-top:0;border-bottom:7px solid ${theme.accent};"><span style="position:relative;display:block;color:${theme.primary};font-family:Arial,sans-serif;font-size:10px;font-weight:800;letter-spacing:.22em;">PIPI</span><span style="position:absolute;top:38px;right:30px;color:#fff;font-family:Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:.16em;">MADE FOR WECHAT</span><span style="position:relative;display:block;margin-top:22px;color:${theme.muted};font-family:Arial,sans-serif;font-size:10px;letter-spacing:.14em;">皮皮公众号&nbsp; · &nbsp;刚刚 · 原创</span><h1 style="position:relative;max-width:72%;margin:26px 0 0;color:${theme.dark};font-size:${fontSize + 15}px;line-height:1.3;letter-spacing:.01em;">${wechatInlineMarkdown(titleCandidate)}</h1><span style="position:relative;display:block;width:46px;height:5px;margin-top:27px;background:${theme.primary};box-shadow:12px 0 0 ${theme.accent};"></span><strong style="position:absolute;right:28px;bottom:28px;color:#fff;font-family:Georgia,serif;font-size:12px;font-style:italic;letter-spacing:.16em;">ORIGINAL</strong></header>`
+    : `<header class="wechat-editable-cover" style="padding:48px 32px 34px;background:${theme.paper};border-top:7px solid ${accent};"><span style="display:block;margin-bottom:18px;color:${accent};font-family:Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:.2em;">WECHAT ARTICLE</span><h1 style="margin:0;color:${theme.dark};font-size:${fontSize + 15}px;line-height:1.35;letter-spacing:.01em;">${wechatInlineMarkdown(titleCandidate)}</h1></header>`;
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(titleCandidate)}</title><style>@media(max-width:520px){body{padding:0!important}.wechat-editable{width:100%!important;box-shadow:none!important}.wechat-editable-body{padding:30px 20px 40px!important}.wechat-editable-cover{padding:34px 24px 30px!important}.wechat-editable-cover h1{max-width:100%!important;font-size:28px!important}}</style></head><body style="margin:0;padding:20px;background:${theme.variant === 'punk' ? '#F1EDE8' : '#eee9e3'};font-family:${fontFamily};"><article class="wechat-article wechat-editable" style="width:677px;max-width:100%;margin:0 auto;overflow:hidden;background:${paper};box-shadow:0 12px 42px rgba(113,58,25,.14);">${editableCover}<section class="wechat-editable-body" style="padding:36px 32px 46px;">${rendered.join('')}<footer style="margin-top:36px;padding-top:18px;border-top:1px solid ${theme.soft};color:${theme.muted};font-family:Arial,sans-serif;font-size:10px;letter-spacing:.13em;text-align:center;">PIPI · WECHAT ARTICLE</footer></section></article></body></html>`;
 }
 
 function buildReferenceWechatLayoutHtml(layout, theme, images = []) {
@@ -2927,7 +3290,13 @@ function buildReferenceWechatLayoutHtml(layout, theme, images = []) {
   const chapterTitle = (chapter, index, className = '') => chapter.title ? `<header class="visual-chapter ${className}"><span>${String(index + 1).padStart(2, '0')}</span><h2>${wechatLayoutText(chapter.title)}</h2></header>` : '';
 
   let body = '';
-  if (theme.variant === 'museum') {
+  if (theme.variant === 'punk') {
+    const punkParagraph = (item) => item.highlight
+      ? `<p style="margin:24px 0;padding:20px 22px;border-left:6px solid ${theme.primary};background:${theme.soft};color:${theme.dark};font-size:19px;font-weight:750;line-height:1.8;">${wechatLayoutText(item.text)}</p>`
+      : `<p style="margin:0 0 20px;color:${theme.ink};font-size:16px;line-height:2.05;letter-spacing:.035em;text-align:justify;">${wechatLayoutText(item.text)}</p>`;
+    const punkChapter = (chapter, index) => chapter.title ? `<section style="margin:52px 0 0;padding-top:24px;border-top:2px solid ${theme.primary};"><div style="display:flex;align-items:flex-start;gap:13px;margin-bottom:19px;"><span style="display:inline-grid;width:37px;height:37px;flex:0 0 37px;place-items:center;color:${theme.dark};background:${theme.accent};font-family:Georgia,serif;font-size:16px;font-style:italic;">${String(index + 1).padStart(2, '0')}</span><h2 style="margin:0;color:${theme.dark};font-size:27px;line-height:1.4;">${wechatLayoutText(chapter.title)}</h2></div><div style="padding-left:50px;">${chapter.items.map(punkParagraph).join('')}</div>${index % 2 === 0 ? visualImage(index === 0 ? 'wide' : 'square') : ''}</section>` : '';
+    body = `<header style="position:relative;min-height:450px;overflow:hidden;padding:40px 40px 46px;background:linear-gradient(90deg,${theme.paper} 0 63%,${theme.primary} 63%);border-bottom:8px solid ${theme.accent};"><span style="position:relative;display:block;color:${theme.primary};font:800 11px Arial,sans-serif;letter-spacing:.24em;">PIPI</span><span style="position:absolute;top:40px;right:34px;color:#fff;font:700 10px Arial,sans-serif;letter-spacing:.16em;">MADE FOR WECHAT</span><span style="position:relative;display:block;margin-top:24px;color:${theme.muted};font:10px Arial,sans-serif;letter-spacing:.14em;">皮皮公众号&nbsp; · &nbsp;刚刚 · 原创</span><h1 style="position:relative;max-width:72%;margin:34px 0 0;color:${theme.dark};font-size:42px;line-height:1.3;letter-spacing:.01em;">${wechatLayoutText(title)}</h1>${subtitle ? `<p style="position:relative;max-width:68%;margin:20px 0 0;color:${theme.muted};font-size:15px;line-height:1.8;">${wechatLayoutText(subtitle)}</p>` : ''}<span style="position:relative;display:block;width:54px;height:6px;margin-top:31px;background:${theme.primary};box-shadow:15px 0 0 ${theme.accent};"></span><strong style="position:absolute;right:34px;bottom:34px;color:#fff;font:italic 12px Georgia,serif;letter-spacing:.16em;">ORIGINAL</strong></header><main style="padding:0 34px 56px;background:${paper};">${intro ? `<section style="margin:0 -6px;padding:38px 22px 29px;border-bottom:1px solid ${theme.soft};"><span style="display:block;margin-bottom:12px;color:${theme.primary};font:800 10px Arial,sans-serif;letter-spacing:.18em;">LEAD / 01</span>${punkParagraph(primaryItems[0])}</section>` : ''}${chapters.map(punkChapter).join('')}${footer}</main>`;
+  } else if (theme.variant === 'museum') {
     body = `<header class="museum-hero"><span>WHERE ART<br>MEETS EDUCATION</span><b>01 / EXHIBITION</b><h1>${wechatLayoutText(title)}</h1><i>${subtitle || '把真实的教育经验，布置成一场可以慢读的展览。'}</i></header><main class="visual-main visual-museum"><section class="museum-invitation"><span>AN INVITATION</span><h3>${wechatLayoutText(title)}</h3><p>${subtitle || '把真实的教育经验，整理成一篇值得慢慢读完的文章。'}</p></section>${visualImage('wide')}${chapters.map((chapter, index) => `<section class="museum-room room-${index % 2}">${chapterTitle(chapter, index)}<div class="museum-text-card">${itemList(chapter)}</div>${index % 2 === 0 ? visualImage(index === 0 ? 'square' : 'tall') : ''}</section>`).join('')}${footer}</main>`;
   } else if (theme.variant === 'slow') {
     body = `<header class="slow-masthead"><span>${theme.label}</span><h1>${wechatLayoutText(title)}</h1><p>${subtitle || '时间不语，把故事排成一页一页的慢读。'}</p><b>${new Date().getFullYear()} — ${new Date().getFullYear() + 1}</b></header><main class="visual-main visual-slow"><section class="slow-title-page"><b>ROMANCE AND ART</b>${intro}<span>↓</span></section>${visualImage('tall')}${chapters.map((chapter, index) => `<section class="slow-spread spread-${index % 2}"><aside>${chapter.title ? wechatLayoutText(chapter.title) : `CHAPTER ${index + 1}`}</aside><div>${chapterTitle(chapter, index, 'slow-chapter')}<div class="slow-copy">${chapter.items.slice(index === 0 ? 1 : 0).map((item) => para(item)).join('')}</div></div>${index % 2 === 0 ? visualImage('wide') : visualImage('square')}</section>`).join('')}${footer}</main>`;
@@ -3006,7 +3375,13 @@ function buildWechatVisualLongformHtml(layout, theme, images = []) {
   const footer = `<footer class="vl-footer"><span>END</span><strong>${escapeHtml(theme.name)}</strong><span>${theme.label}</span></footer>`;
   let body = '';
 
-  if (theme.variant === 'museum') {
+  if (theme.variant === 'punk') {
+    const punkParagraph = (item) => item.highlight
+      ? `<blockquote style="margin:24px 0;padding:19px 21px;border-left:6px solid ${theme.primary};background:${theme.soft};color:${theme.dark};font-size:19px;font-weight:750;line-height:1.8;">${wechatLayoutText(item.text)}</blockquote>`
+      : `<p class="vl-closing" style="margin:0 0 20px;color:${theme.ink};font-size:16px;line-height:2.05;letter-spacing:.035em;text-align:justify;">${wechatLayoutText(item.text)}</p>`;
+    const punkChapter = (chapter, index) => `<section style="margin:52px 0 0;padding-top:24px;border-top:2px solid ${theme.primary};"><div style="display:flex;align-items:flex-start;gap:13px;margin-bottom:19px;"><span style="display:inline-grid;width:37px;height:37px;flex:0 0 37px;place-items:center;color:${theme.dark};background:${theme.accent};font-family:Georgia,serif;font-size:16px;font-style:italic;">${String(index + 1).padStart(2, '0')}</span><h2 style="margin:0;color:${theme.dark};font-size:27px;line-height:1.4;">${wechatLayoutText(chapter.title || `章节 ${index + 1}`)}</h2></div><div style="padding-left:50px;">${chapter.items.map(punkParagraph).join('')}</div>${index % 2 === 0 ? media(index === 0 ? 'wide' : 'square', index === 0 ? 'PUNK / COVER STORY' : 'CHAPTER IMAGE') : ''}</section>`;
+    body = `<header style="position:relative;min-height:450px;overflow:hidden;padding:40px 40px 46px;background:linear-gradient(90deg,${theme.paper} 0 63%,${theme.primary} 63%);border-bottom:8px solid ${theme.accent};"><span style="position:relative;display:block;color:${theme.primary};font:800 11px Arial,sans-serif;letter-spacing:.24em;">PIPI</span><span style="position:absolute;top:40px;right:34px;color:#fff;font:700 10px Arial,sans-serif;letter-spacing:.16em;">MADE FOR WECHAT</span><span style="position:relative;display:block;margin-top:24px;color:${theme.muted};font:10px Arial,sans-serif;letter-spacing:.14em;">皮皮公众号&nbsp; · &nbsp;刚刚 · 原创</span><h1 style="position:relative;max-width:72%;margin:34px 0 0;color:${theme.dark};font-size:${titleSize}px;line-height:1.3;letter-spacing:.01em;">${safeTitle}</h1>${subtitle ? `<p style="position:relative;max-width:68%;margin:20px 0 0;color:${theme.muted};font-size:15px;line-height:1.8;">${wechatLayoutText(subtitle)}</p>` : ''}<span style="position:relative;display:block;width:54px;height:6px;margin-top:31px;background:${theme.primary};box-shadow:15px 0 0 ${theme.accent};"></span><strong style="position:absolute;right:34px;bottom:34px;color:#fff;font:italic 12px Georgia,serif;letter-spacing:.16em;">ORIGINAL</strong></header><main style="padding:0 34px 56px;background:${theme.paper};">${leadItems[0] ? `<section style="margin:0 -6px;padding:38px 22px 29px;border-bottom:1px solid ${theme.soft};"><span style="display:block;margin-bottom:12px;color:${theme.primary};font:800 10px Arial,sans-serif;letter-spacing:.18em;">LEAD / 01</span>${punkParagraph(leadItems[0])}</section>` : ''}${chapters.map(punkChapter).join('')}${footer}</main>`;
+  } else if (theme.variant === 'museum') {
     body = `<header class="vl-cover museum-cover"><div class="museum-frame"><span>${theme.label}</span><b>EXHIBITION · 01</b><h1>${safeTitle}</h1>${subtitle ? `<p>${wechatLayoutText(subtitle)}</p>` : ''}</div></header><main class="vl-body museum-body">${lead}<section class="museum-opening"><small>AN INVITATION</small><strong>${safeTitle}</strong><i></i></section>${media('wide', 'EDUCATION & LIFE')}${chapters.map((chapter, index) => `<section class="museum-chapter ${index % 2 ? 'is-offset' : ''}">${chapterHeading(chapter, index)}<div class="museum-copy">${paragraphs(chapter.items)}</div>${index % 2 === 0 ? media(index % 3 ? 'portrait' : 'square', 'EXHIBIT DETAIL') : ''}</section>`).join('')}${footer}</main>`;
   } else if (theme.variant === 'slow') {
     body = `<header class="vl-cover slow-cover"><span>${theme.label}</span><h1>${safeTitle}</h1>${subtitle ? `<p>${wechatLayoutText(subtitle)}</p>` : ''}<b>${new Date().getFullYear()} — ${new Date().getFullYear() + 1}</b><i>READ SLOWLY</i></header><main class="vl-body slow-body">${lead}${media('portrait', 'A MOMENT IN TIME')}${chapters.map((chapter, index) => `<section class="slow-chapter"><aside><b>${String(index + 1).padStart(2, '0')}</b><span>SEQUENCE</span></aside><div>${chapterHeading(chapter, index)}<div class="slow-copy">${paragraphs(chapter.items)}</div></div>${index % 2 === 0 ? media('wide', 'TIME & STORY') : media('square', 'STORY DETAIL')}</section>`).join('')}${footer}</main>`;
@@ -3034,7 +3409,11 @@ function buildWechatVisualLongformHtml(layout, theme, images = []) {
 }
 
 function buildWechatLayoutHtml(layout, themeCode, images = []) {
-  const theme = WECHAT_LAYOUT_THEMES[themeCode] || WECHAT_LAYOUT_THEMES.museum;
+  const theme = WECHAT_LAYOUT_THEMES[themeCode] || WECHAT_LAYOUT_THEMES.punk;
+  if (state.wechatLayout.mode === 'editable') {
+    const article = state.wechatLayout.article || (layout?.segments || []).map((item) => item.text).join('\n\n');
+    return buildWechatEditableHtml(article, theme, images);
+  }
   if (state.wechatLayout.mode === 'visual') return buildWechatVisualLongformHtml(layout, theme, images);
   const segments = Array.isArray(layout?.segments) ? layout.segments : [];
   const byIndex = new Map(segments.map((item) => [Number(item.index), item]));
@@ -3136,14 +3515,51 @@ function refreshWechatLayoutPreview() {
   frame.srcdoc = html;
   frame.classList.remove('hidden');
   $('wechatLayoutEmpty').classList.add('hidden');
-  ['copyWechatLayout', 'exportWechatPng', 'exportWechatMarkdown', 'exportWechatHtml'].forEach((id) => { $(id).disabled = false; });
+  ['copyWechatLayout', 'wechatCopyShortcut', 'exportWechatPng', 'exportWechatMarkdown', 'exportWechatHtml'].forEach((id) => { if ($(id)) $(id).disabled = false; });
+}
+
+function updateWechatArticleStats() {
+  const article = value('wechatLayoutArticle');
+  const count = article.replace(/\s/g, '').length;
+  const minutes = count ? Math.max(1, Math.ceil(count / 450)) : 0;
+  if ($('wechatArticleCount')) $('wechatArticleCount').textContent = `${count.toLocaleString()} 字`;
+  if ($('wechatArticleReadTime')) $('wechatArticleReadTime').textContent = `约 ${minutes} 分钟阅读`;
 }
 
 function renderWechatLayoutWorkspace() {
   document.querySelectorAll('[data-wechat-mode]').forEach((button) => button.classList.toggle('active', button.dataset.wechatMode === state.wechatLayout.mode));
   document.querySelectorAll('[data-wechat-theme]').forEach((button) => button.classList.toggle('active', button.dataset.wechatTheme === state.wechatLayout.theme));
+  const settings = state.wechatLayout.settings || {};
+  if ($('wechatLayoutArticle') && $('wechatLayoutArticle').value !== state.wechatLayout.article) $('wechatLayoutArticle').value = state.wechatLayout.article || '';
+  if ($('wechatFontSize')) $('wechatFontSize').value = settings.fontSize || 16;
+  if ($('wechatLineHeight')) $('wechatLineHeight').value = settings.lineHeight || 1.9;
+  if ($('wechatFontFamily')) $('wechatFontFamily').value = settings.fontFamily || 'system';
+  if ($('wechatAccentColor')) $('wechatAccentColor').value = settings.accent || '#B55E32';
+  if ($('wechatFixedEndingEnabled')) $('wechatFixedEndingEnabled').checked = Boolean(settings.fixedEndingEnabled);
+  if ($('wechatFixedEnding')) $('wechatFixedEnding').value = settings.fixedEnding || '';
+  if ($('wechatFontSizeValue')) $('wechatFontSizeValue').textContent = `${settings.fontSize || 16}px`;
+  if ($('wechatLineHeightValue')) $('wechatLineHeightValue').textContent = Number(settings.lineHeight || 1.9).toFixed(1);
+  if ($('wechatFontSizeRef')) $('wechatFontSizeRef').value = settings.fontSize || 16;
+  if ($('wechatLineHeightRef')) $('wechatLineHeightRef').value = settings.lineHeight || 1.9;
+  if ($('wechatFontFamilyRef')) $('wechatFontFamilyRef').value = settings.fontFamily || 'system';
+  if ($('wechatAccentColorRef')) $('wechatAccentColorRef').value = settings.accent || '#B55E32';
+  if ($('wechatFontSizeRefValue')) $('wechatFontSizeRefValue').textContent = `${settings.fontSize || 16}px`;
+  if ($('wechatLineHeightRefValue')) $('wechatLineHeightRefValue').textContent = Number(settings.lineHeight || 1.9).toFixed(1);
+  document.querySelectorAll('[data-wechat-color]').forEach((button) => button.classList.toggle('active', button.dataset.wechatColor === (settings.bodyColor || 'auto')));
+  document.querySelectorAll('[data-wechat-color-ref]').forEach((button) => button.classList.toggle('active', button.dataset.wechatColorRef === (settings.bodyColor || 'auto')));
+  updateWechatArticleStats();
   renderWechatLayoutImages();
   if (state.wechatLayout.layout || Object.keys(state.wechatLayout.layouts || {}).length) refreshWechatLayoutPreview();
+}
+
+function buildLocalWechatLayout(article) {
+  const parts = String(article || '').replace(/\r\n?/g, '\n').trim().split(/\n\s*\n+/).map((item) => item.trim()).filter(Boolean).slice(0, 180);
+  const segments = parts.map((text, index) => ({ index, text: text.replace(/^#{1,6}\s*/, '').replace(/^标题\s*[：:]\s*/, '').trim().slice(0, 2400) }));
+  const titleIndex = segments.length ? 0 : -1;
+  const headingIndexes = segments.filter((item, index) => index > 0 && (/^#{1,3}\s/.test(parts[index]) || (item.text.length <= 42 && /^(?:[一二三四五六七八九十]+[、.．]|\d+[、.．])/.test(item.text)))).map((item) => item.index).slice(0, 10);
+  const body = segments.filter((item) => item.index !== titleIndex && !headingIndexes.includes(item.index));
+  const highlights = body.filter((item) => item.text.length >= 18 && /不是|而是|重要|教育|成长|家长|孩子/.test(item.text)).slice(0, 3).map((item) => item.index);
+  return { title_index: titleIndex, subtitle_index: -1, heading_indexes: headingIndexes, highlight_indexes: highlights, image_after_indexes: [], closing_index: segments.at(-1)?.index ?? titleIndex, segments };
 }
 
 async function generateWechatLayout() {
@@ -3154,24 +3570,37 @@ async function generateWechatLayout() {
     return;
   }
   state.wechatLayout.article = article;
-  setButtonLoading('generateWechatLayout', true, '正在识别文章结构…');
-  $('wechatLayoutStatus').textContent = '正在识别标题、章节、金句和图片位置；不会改写原文。';
-  $('wechatLayoutModelStatus').textContent = '智能分析中';
-  try {
-    const result = await apiRequest('wechatLayout', { article, theme: state.wechatLayout.theme });
-    state.wechatLayout.layout = result.layout;
-    state.wechatLayout.layouts = {};
-    state.wechatLayout.result = result;
-    refreshWechatLayoutPreview();
-    $('wechatLayoutModelStatus').textContent = result.model_skipped ? '快速结构识别 · 已完成' : result.degraded ? '本地结构识别 · 已完成' : '模型识别 · 已完成';
-    $('wechatLayoutStatus').textContent = `排版完成：识别 ${result.layout?.segments?.length || 0} 个内容段落。现在可切换不同视觉模板。`;
-    addRecord('公众号排版', result.layout?.segments?.find((item) => item.index === result.layout.title_index)?.text || '公众号排版', article);
-  } catch (error) {
-    $('wechatLayoutModelStatus').textContent = '排版失败';
-    $('wechatLayoutStatus').textContent = error.message || '排版失败，请稍后重试。';
-  } finally {
-    setButtonLoading('generateWechatLayout', false);
-  }
+  // 先本地渲染：编辑器和预览立即可用，不再让用户等待模型才看到结果。
+  state.wechatLayout.layout = buildLocalWechatLayout(article);
+  state.wechatLayout.layouts = {};
+  state.wechatLayout.result = { provider: 'local_markdown_renderer', model_skipped: true, degraded: false };
+  refreshWechatLayoutPreview();
+  $('wechatLayoutModelStatus').textContent = 'AI 连接中…';
+  $('wechatLayoutStatus').textContent = '本地排版已完成，正在连接已配置的 AI 做结构优化；不影响继续编辑和复制。';
+  setButtonLoading('generateWechatLayout', false);
+  addRecord('公众号排版', state.wechatLayout.layout.segments?.[0]?.text || '公众号文章排版', article);
+
+  // 后台真实调用：force_model 会跳过服务端本地 fast-path，确认供应商、模型和密钥确实可用。
+  apiRequest('wechatLayout', { article, theme: state.wechatLayout.theme, force_model: true, skip_record: true }, { timeoutMs: 135000, retryCount: 0 })
+    .then((result) => {
+      if (!result?.layout) throw new Error('AI 返回内容为空');
+      state.wechatLayout.result = result;
+      // 可编辑正文保留原稿解析结果，视觉模式使用 AI 识别出的章节结构。
+      if (state.wechatLayout.mode === 'visual') {
+        state.wechatLayout.layout = result.layout;
+        state.wechatLayout.layouts = {};
+        refreshWechatLayoutPreview();
+      }
+      const modelLabel = result.model || result.provider_name || result.provider || '已配置模型';
+      $('wechatLayoutModelStatus').textContent = result.degraded ? `AI 已返回本地降级 · ${modelLabel}` : `AI 已连接 · ${modelLabel}`;
+      $('wechatLayoutStatus').textContent = result.degraded
+        ? '本地排版已完成；AI 返回了降级结构，当前成品仍可直接复制。'
+        : `本地排版已完成，AI 已完成结构优化（${result.layout.segments?.length || 0} 个内容段落）。`;
+    })
+    .catch((error) => {
+      $('wechatLayoutModelStatus').textContent = 'AI 暂不可用 · 本地版可用';
+      $('wechatLayoutStatus').textContent = `本地排版已完成；AI 暂时未返回（${error.message || '网络或模型暂时不可用'}），不影响继续编辑和复制。`;
+    });
 }
 
 async function handleWechatLayoutImages(files) {
@@ -3914,9 +4343,30 @@ function bindEvents() {
   $('loginModal').addEventListener('click', (event) => {
     if (event.target === $('loginModal')) $('loginModal').classList.add('hidden');
   });
+  $('closeRecordDetail').addEventListener('click', closeRecordDetail);
+  $('recordDetailModal').addEventListener('click', (event) => {
+    if (event.target === $('recordDetailModal')) closeRecordDetail();
+  });
+  $('copyRecordDetail').addEventListener('click', () => copyText($('recordDetailContent').textContent || ''));
+  $('goToRecordTool').addEventListener('click', () => {
+    const record = state.records.find((item) => String(item.id) === String(state.selectedRecordId));
+    closeRecordDetail();
+    if (record) setPage(recordPage(record.type || ''));
+  });
   document.body.addEventListener('click', (event) => {
+    const recordOpenButton = event.target.closest('[data-record-open]');
+    if (recordOpenButton) {
+      openRecordDetail(recordOpenButton.dataset.recordOpen);
+      return;
+    }
     const button = event.target.closest('[data-page]');
     if (button && state.user) setPage(button.dataset.page);
+    const wechatHubButton = event.target.closest('[data-wechat-hub-agent]');
+    if (wechatHubButton && state.user) {
+      event.preventDefault();
+      openWechatHubAgent(wechatHubButton.dataset.wechatHubAgent);
+      return;
+    }
     const filterButton = event.target.closest('[data-agent-filter]');
     if (filterButton) {
       state.copyAgentFilter = filterButton.dataset.agentFilter;
@@ -3927,6 +4377,7 @@ function bindEvents() {
     if (agentButton && state.user) {
       $('copyAgent').value = agentButton.dataset.copyAgent;
       state.activeCopySessionId = null;
+      state.copyOriginPage = '';
       renderCopyConversation(null);
       document.querySelectorAll('[data-copy-agent]').forEach((item) => item.classList.toggle('active', item === agentButton));
       setCopyView('compose');
@@ -3981,6 +4432,21 @@ function bindEvents() {
   });
   $('copyTopics').addEventListener('click', () => copyText($('topicResults').innerText));
   $('exportTopics').addEventListener('click', () => downloadText(timestampName('皮皮选题'), $('topicResults').innerText));
+  $('topicResults').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-save-topic]');
+    if (button) {
+      event.preventDefault();
+      event.stopPropagation();
+      saveTopicToGacha(Number(button.dataset.saveTopic));
+    }
+  });
+  $('drawGacha').addEventListener('click', drawGacha);
+  $('drawAgain').addEventListener('click', drawGacha);
+  $('useGachaResult').addEventListener('click', useGachaResult);
+  $('gachaInventory').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-gacha-delete]');
+    if (button) deleteGachaCapsule(button.dataset.gachaDelete);
+  });
   $('generateCoachSop').addEventListener('click', generateCoachSop);
   $('exportCoachSop').addEventListener('click', downloadCoachSopDiagram);
   $('coachSopResult').addEventListener('click', (event) => {
@@ -4028,7 +4494,14 @@ function bindEvents() {
     document.getElementById(button.dataset.coachToolTarget)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }));
   $('generateCopy').addEventListener('click', generateCopy);
-  $('backToCopyAgents').addEventListener('click', () => setCopyView('gallery'));
+  $('backToCopyAgents').addEventListener('click', () => {
+    if (state.copyOriginPage === 'wechat') {
+      state.copyOriginPage = '';
+      setPage('wechat');
+      return;
+    }
+    setCopyView('gallery');
+  });
   $('copyNewSession').addEventListener('click', () => {
     state.activeCopySessionId = null;
     renderCopyConversation(null);
@@ -4053,8 +4526,92 @@ function bindEvents() {
   });
   $('copyCopywriting').addEventListener('click', () => copyText($('copyResult').innerText));
   $('exportCopywriting').addEventListener('click', () => downloadText(timestampName('皮皮文案'), $('copyResult').innerText));
-  $('backFromWechatLayout').addEventListener('click', () => setCopyView('gallery'));
+  $('backFromWechatLayout').addEventListener('click', () => {
+    if (state.copyOriginPage === 'wechat') {
+      state.copyOriginPage = '';
+      setPage('wechat');
+      return;
+    }
+    setCopyView('gallery');
+  });
   $('generateWechatLayout').addEventListener('click', generateWechatLayout);
+  $('wechatLayoutArticle').addEventListener('input', () => {
+    state.wechatLayout.article = value('wechatLayoutArticle');
+    updateWechatArticleStats();
+    if (state.wechatLayout.layout && state.wechatLayout.mode === 'editable') refreshWechatLayoutPreview();
+  });
+  $('importWechatLayoutBundle').addEventListener('click', () => {
+    $('wechatLayoutArticleFile').click();
+    $('wechatLayoutStatus').textContent = '请选择文章包中的 Markdown / TXT 原稿；图片可在下方单独加入。';
+  });
+  $('importWechatLayoutArticle').addEventListener('click', () => $('wechatLayoutArticleFile').click());
+  $('wechatLayoutArticleFile').addEventListener('change', async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const text = await file.text();
+      $('wechatLayoutArticle').value = text.slice(0, 30000);
+      state.wechatLayout.article = $('wechatLayoutArticle').value;
+      updateWechatArticleStats();
+      $('wechatLayoutStatus').textContent = `已导入 ${file.name}，请检查原稿后点击“一键智能排版”。`;
+    } catch (error) {
+      $('wechatLayoutStatus').textContent = `导入失败：${error.message || '文件读取失败'}`;
+    }
+  });
+  $('clearWechatLayoutArticle').addEventListener('click', () => {
+    $('wechatLayoutArticle').value = '';
+    state.wechatLayout.article = '';
+    updateWechatArticleStats();
+    $('wechatLayoutStatus').textContent = '原稿已清空，可以粘贴新的 Markdown / TXT 文章。';
+    if (state.wechatLayout.layout) $('resetWechatLayout').click();
+  });
+  const updateWechatLayoutSetting = () => {
+    const settings = state.wechatLayout.settings;
+    settings.fontSize = Number($('wechatFontSize').value);
+    settings.lineHeight = Number($('wechatLineHeight').value);
+    settings.fontFamily = $('wechatFontFamily').value;
+    settings.fixedEndingEnabled = $('wechatFixedEndingEnabled').checked;
+    settings.fixedEnding = $('wechatFixedEnding').value;
+    $('wechatFontSizeValue').textContent = `${settings.fontSize}px`;
+    $('wechatLineHeightValue').textContent = settings.lineHeight.toFixed(1);
+    if (state.wechatLayout.layout) refreshWechatLayoutPreview();
+  };
+  ['wechatFontSize', 'wechatLineHeight', 'wechatFontFamily', 'wechatFixedEndingEnabled', 'wechatFixedEnding'].forEach((id) => $(id).addEventListener('input', updateWechatLayoutSetting));
+  $('wechatAccentColor').addEventListener('input', () => { state.wechatLayout.settings.accent = $('wechatAccentColor').value; if (state.wechatLayout.layout) refreshWechatLayoutPreview(); });
+  document.querySelector('.wechat-editor-tools .wechat-color-row').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-wechat-color]');
+    if (!button) return;
+    state.wechatLayout.settings.bodyColor = button.dataset.wechatColor;
+    document.querySelectorAll('[data-wechat-color]').forEach((item) => item.classList.toggle('active', item === button));
+    if (state.wechatLayout.layout) refreshWechatLayoutPreview();
+  });
+  const syncReferenceSetting = () => {
+    const settings = state.wechatLayout.settings;
+    settings.fontSize = Number($('wechatFontSizeRef').value);
+    settings.lineHeight = Number($('wechatLineHeightRef').value);
+    settings.fontFamily = $('wechatFontFamilyRef').value;
+    settings.accent = $('wechatAccentColorRef').value;
+    $('wechatFontSize').value = settings.fontSize;
+    $('wechatLineHeight').value = settings.lineHeight;
+    $('wechatFontFamily').value = settings.fontFamily;
+    $('wechatAccentColor').value = settings.accent;
+    $('wechatFontSizeValue').textContent = `${settings.fontSize}px`;
+    $('wechatLineHeightValue').textContent = settings.lineHeight.toFixed(1);
+    $('wechatFontSizeRefValue').textContent = `${settings.fontSize}px`;
+    $('wechatLineHeightRefValue').textContent = settings.lineHeight.toFixed(1);
+    if (state.wechatLayout.layout) refreshWechatLayoutPreview();
+  };
+  ['wechatFontSizeRef', 'wechatLineHeightRef', 'wechatFontFamilyRef', 'wechatAccentColorRef'].forEach((id) => $(id).addEventListener('input', syncReferenceSetting));
+  $('wechatFontFamilyRef').addEventListener('change', syncReferenceSetting);
+  document.querySelector('.wechat-reference-settings').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-wechat-color-ref]');
+    if (!button) return;
+    state.wechatLayout.settings.bodyColor = button.dataset.wechatColorRef;
+    document.querySelectorAll('[data-wechat-color-ref]').forEach((item) => item.classList.toggle('active', item === button));
+    document.querySelectorAll('[data-wechat-color]').forEach((item) => item.classList.toggle('active', item.dataset.wechatColor === button.dataset.wechatColorRef));
+    if (state.wechatLayout.layout) refreshWechatLayoutPreview();
+  });
   $('selectWechatLayoutImages').addEventListener('click', () => $('wechatLayoutImages').click());
   $('wechatLayoutImages').addEventListener('change', (event) => {
     handleWechatLayoutImages(event.target.files).catch((error) => { $('wechatLayoutStatus').textContent = error.message; });
@@ -4097,14 +4654,73 @@ function bindEvents() {
     $('wechatLayoutPreview').classList.add('hidden');
     $('wechatLayoutPreview').srcdoc = '';
     $('wechatLayoutEmpty').classList.remove('hidden');
-    ['copyWechatLayout', 'exportWechatPng', 'exportWechatMarkdown', 'exportWechatHtml'].forEach((id) => { $(id).disabled = true; });
+    ['copyWechatLayout', 'wechatCopyShortcut', 'exportWechatPng', 'exportWechatMarkdown', 'exportWechatHtml'].forEach((id) => { if ($(id)) $(id).disabled = true; });
+    $('wechatLayoutWorkspace').classList.remove('wechat-focus-preview');
+    $('wechatFocusPreview').textContent = '⛶ 专注预览';
     $('wechatLayoutModelStatus').textContent = '等待排版';
     $('wechatLayoutStatus').textContent = '可以修改成稿、风格或图片后重新生成。';
   });
   $('copyWechatLayout').addEventListener('click', copyWechatLayoutRichText);
+  $('wechatCopyShortcut').addEventListener('click', copyWechatLayoutRichText);
+  $('wechatFocusPreview').addEventListener('click', () => {
+    const workspace = $('wechatLayoutWorkspace');
+    workspace.classList.toggle('wechat-focus-preview');
+    $('wechatFocusPreview').textContent = workspace.classList.contains('wechat-focus-preview') ? '↙ 返回编辑' : '⛶ 专注预览';
+  });
   $('exportWechatPng').addEventListener('click', exportWechatLayoutPng);
   $('exportWechatHtml').addEventListener('click', () => downloadWechatLayoutFile(wechatLayoutFilename('html'), state.wechatLayout.html, 'text/html;charset=utf-8'));
   $('exportWechatMarkdown').addEventListener('click', () => downloadWechatLayoutFile(wechatLayoutFilename('md'), state.wechatLayout.article || value('wechatLayoutArticle'), 'text/markdown;charset=utf-8'));
+  const wechatModal = $('wechatReferenceModal');
+  const closeWechatModal = () => wechatModal.classList.add('hidden');
+  $('wechatReferenceModalClose').addEventListener('click', closeWechatModal);
+  wechatModal.addEventListener('click', (event) => { if (event.target === wechatModal) closeWechatModal(); });
+  document.querySelectorAll('[data-wechat-tool]').forEach((button) => button.addEventListener('click', () => {
+    const kind = button.dataset.wechatTool;
+    const kicker = $('wechatReferenceModalKicker');
+    const title = $('wechatReferenceModalTitle');
+    const text = $('wechatReferenceModalText');
+    const body = $('wechatReferenceModalBody');
+    if (kind === 'palette') {
+      kicker.textContent = 'COLOR & IP SYSTEM';
+      title.textContent = '所有配色，都在这里完成';
+      text.textContent = '选择一组主视觉配色，强调色会同步到章节标题、引用和预览工具栏。';
+      body.innerHTML = `<div class="wechat-reference-palette-grid">
+        <button type="button" data-ref-palette="#B55E32"><span style="background:linear-gradient(90deg,#B55E32 0 55%,#F6DFAA 55%)"></span><strong>PIPI 主视觉</strong><small>陶土橙 · 奶油米白</small></button>
+        <button type="button" data-ref-palette="#e45d43"><span style="background:linear-gradient(90deg,#e1b447 0 34%,#438da0 34% 67%,#e45d43 67%)"></span><strong>复古潮流</strong><small>复古黄 · 湖蓝 · 番茄红</small></button>
+        <button type="button" data-ref-palette="#a94845"><span style="background:linear-gradient(90deg,#a94845 0 50%,#6f8ca3 50%)"></span><strong>红蓝 CP</strong><small>复古红 · 雾霾蓝</small></button>
+        <button type="button" data-ref-palette="#f28a39"><span style="background:linear-gradient(90deg,#f28a39 0 50%,#6ea8d4 50%)"></span><strong>活力橙</strong><small>活力橙 · 清透蓝</small></button>
+      </div>`;
+      body.querySelectorAll('[data-ref-palette]').forEach((item) => item.addEventListener('click', () => {
+        const color = item.dataset.refPalette;
+        state.wechatLayout.settings.accent = color;
+        $('wechatAccentColor').value = color;
+        $('wechatAccentColorRef').value = color;
+        if (state.wechatLayout.layout) refreshWechatLayoutPreview();
+        $('wechatLayoutStatus').textContent = '配色已应用到当前公众号预览。';
+        closeWechatModal();
+      }));
+    } else if (kind === 'ending') {
+      kicker.textContent = 'FIXED ENDING';
+      title.textContent = '写一次，每篇文章自动带上';
+      text.textContent = '固定结尾支持 Markdown，会在复制和导出时附加到正文末尾。';
+      body.innerHTML = `<label class="wechat-fixed-toggle"><input type="checkbox" id="wechatModalEndingEnabled" ${state.wechatLayout.settings.fixedEndingEnabled ? 'checked' : ''}/> 启用固定结尾</label><textarea id="wechatModalEnding" placeholder="例如：\n感谢你读到这里，欢迎把这篇文章转给需要的朋友。">${escapeHtml(state.wechatLayout.settings.fixedEnding || '')}</textarea><button class="primary full" type="button" id="wechatModalEndingSave">保存固定结尾</button>`;
+      body.querySelector('#wechatModalEndingSave').addEventListener('click', () => {
+        state.wechatLayout.settings.fixedEndingEnabled = body.querySelector('#wechatModalEndingEnabled').checked;
+        state.wechatLayout.settings.fixedEnding = body.querySelector('#wechatModalEnding').value;
+        $('wechatFixedEndingEnabled').checked = state.wechatLayout.settings.fixedEndingEnabled;
+        $('wechatFixedEnding').value = state.wechatLayout.settings.fixedEnding;
+        if (state.wechatLayout.layout) refreshWechatLayoutPreview();
+        $('wechatLayoutStatus').textContent = state.wechatLayout.settings.fixedEndingEnabled ? '固定结尾已启用。' : '固定结尾已关闭。';
+        closeWechatModal();
+      });
+    } else {
+      kicker.textContent = 'QUICK START';
+      title.textContent = '三步完成公众号排版';
+      text.textContent = '参考站的工作方式是：原稿、工具栏、公众号预览同时可见。';
+      body.innerHTML = '<ol><li>在左侧粘贴 Markdown / TXT 原稿，系统保留原文。</li><li>用顶部工具栏调整字号、行距、字体、配色和固定结尾。</li><li>点击“一键智能排版”，本地立即出预览，AI 在后台完成结构优化，然后复制到公众号。</li></ol>';
+    }
+    wechatModal.classList.remove('hidden');
+  }));
   $('competitorSearchButton').addEventListener('click', () => searchCompetitorFinder());
   $('competitorSearchInput').addEventListener('keydown', (event) => {
     if (event.key === 'Enter') searchCompetitorFinder();

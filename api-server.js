@@ -21,7 +21,9 @@ const ALLOWED_ORIGINS = new Set((process.env.PIPI_ALLOWED_ORIGINS || (IS_PRODUCT
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean));
-const ALLOW_SELF_REGISTRATION = process.env.PIPI_ALLOW_SELF_REGISTRATION === 'true';
+// 面向学员的中台默认开放“账号 + 密码”自助注册；如需暂停，只需在部署环境变量中
+// 显式设置 PIPI_ALLOW_SELF_REGISTRATION=false，无须重新发版。
+const ALLOW_SELF_REGISTRATION = process.env.PIPI_ALLOW_SELF_REGISTRATION !== 'false';
 const INVENTORY_PATH = process.env.PIPI_API_INVENTORY || '/Users/lemon/Documents/API.rtf';
 const SILICONFLOW_BASE_URL = process.env.SILICONFLOW_BASE_URL || 'https://api.siliconflow.cn/v1';
 const ARK_PLAN_BASE_URL = process.env.ARK_PLAN_BASE_URL || 'https://ark.cn-beijing.volces.com/api/plan/v3';
@@ -79,7 +81,8 @@ const MODEL_CALL_BUDGETS = {
   pipi: 60000,
   topics: 75000,
   copywriting: 90000,
-  wechat_layout: 120000,
+  // 排版只需要索引 JSON；模型超过 25 秒时直接返回本地结构，避免页面长时间转圈。
+  wechat_layout: 25000,
   competitor: 60000,
   sales_simulation: 90000,
   coach_sop: 90000,
@@ -89,7 +92,7 @@ const MODEL_ATTEMPT_TIMEOUTS = {
   pipi: 45000,
   topics: 35000,
   copywriting: 60000,
-  wechat_layout: 110000,
+  wechat_layout: 20000,
   competitor: 30000,
   sales_simulation: 60000,
   coach_sop: 60000,
@@ -185,8 +188,8 @@ const defaultCopyAgentConfigs = [
   { code: 'education_marketing', name: '营销智能体', description: '用专业表达承接咨询、公开课和产品了解。', guide: '告诉我你的产品、用户当前的需求，以及这条内容希望承接什么动作。', starters: ['帮我写一条公开课邀约内容', '把产品介绍写得专业但不生硬', '写一条能自然承接咨询的短视频'], tags: ['traffic', 'short'], tag_labels: ['流量', '营销'], default_type: 'short', status: 'published', model_id: 20 },
   { code: 'moments', name: '朋友圈智能体', description: '围绕日常表达、专业判断、案例和信任场生成内容。', guide: '告诉我今天想表达的事情、真实素材和希望建立的信任感。', starters: ['我想写一条今天的教学感悟', '把这个真实案例写成朋友圈', '帮我写一条有专业感但不营销的朋友圈'], tags: ['private', 'moments'], tag_labels: ['私域', '信任场'], default_type: 'moments', status: 'published', model_id: 20 },
   { code: 'xiaohongshu', name: '小绿书智能体', description: '面向小绿书图文场景，生成适合教育表达的内容。', guide: '告诉我图文主题、目标人群和你准备使用的图片或案例。', starters: ['把这个主题拆成小绿书图文', '帮我设计一组家长易读的图文卡片', '写一篇适合微信传播的教育小绿书'], tags: ['private', 'imageText'], tag_labels: ['私域', '图文卡片'], default_type: 'imageText', status: 'published', model_id: 20 },
-  { code: 'wechat_article', name: '公众号文案', description: '围绕长文结构、观点表达和教育内容沉淀生成文案。', guide: '告诉我文章主题、读者对象和你希望沉淀的核心观点。', starters: ['帮我搭一篇教育观点文章的结构', '把这段素材写成公众号长文', '围绕这个家长问题写一篇深度文章'], tags: ['private', 'article'], tag_labels: ['私域', '价值长文'], default_type: 'article', status: 'published', model_id: 20 },
-  { code: 'wechat_layout', name: '公众号排版', description: '把已经写好的长文直接变成可预览、可复制的公众号视觉成品。', guide: '粘贴完整成稿，选择风格和图片，我会保留原文完成结构识别与视觉排版。', starters: ['排版一篇学员案例文章', '把这篇教育观点文章做成公众号成品', '给这篇招生活动文章做视觉排版'], tags: ['private', 'layout'], tag_labels: ['私域', '视觉排版'], default_type: 'article', status: 'published', model_id: 20 }
+  { code: 'wechat_article', name: '公众号文案', description: '围绕长文结构、观点表达和教育内容沉淀生成文案。', guide: '告诉我文章主题、读者对象和你希望沉淀的核心观点。', starters: ['帮我搭一篇教育观点文章的结构', '把这段素材写成公众号长文', '围绕这个家长问题写一篇深度文章'], tags: ['private', 'article'], tag_labels: ['私域', '价值长文'], default_type: 'article', status: 'published', model_id: 1 },
+  { code: 'wechat_layout', name: '公众号排版', description: '把已经写好的长文直接变成可预览、可复制的公众号视觉成品。', guide: '粘贴完整成稿，选择风格和图片，我会保留原文完成结构识别与视觉排版。', starters: ['排版一篇学员案例文章', '把这篇教育观点文章做成公众号成品', '给这篇招生活动文章做视觉排版'], tags: ['private', 'layout'], tag_labels: ['私域', '视觉排版'], default_type: 'article', status: 'published', model_id: 1 }
 ];
 const initialCopyAgentCoverFiles = ['pipi-reading.jpg', 'pipi-cafe.jpg', 'pipi-winter-city.jpg', 'pipi-hanfu.jpg', 'pipi-white-sea.jpg', 'pipi-blue-sea.jpg', 'pipi-pink-sea.jpg', 'pipi-arch-sea.jpg', 'pipi-sunset-yellow.jpg'];
 const copyAgentCoverId = (file) => `image-${String(file || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`;
@@ -321,7 +324,7 @@ const promptTemplates = [
 const featureConfigs = [
   { feature_code: 'pipi_assistant_chat', feature_name: '皮皮分身', primary_model_id: 20, fallback_model_ids: [], prompt_template_id: 1, status: 'active', provider_codes: ['volcengine_ark_plan'], data_provider_codes: [] },
   { feature_code: 'topic_generate', feature_name: '选题生成', primary_model_id: 1, fallback_model_ids: [2, 3, 20, 21], prompt_template_id: 2, status: 'active', provider_codes: ['siliconflow', 'volcengine_ark_plan'], data_provider_codes: [] },
-  { feature_code: 'copywriting_generate', feature_name: '文案智能体', primary_model_id: 20, fallback_model_ids: [], prompt_template_id: 3, status: 'active', provider_codes: ['volcengine_ark_plan'], data_provider_codes: [] },
+  { feature_code: 'copywriting_generate', feature_name: '文案智能体', primary_model_id: 1, fallback_model_ids: [2, 3, 20, 21], prompt_template_id: 3, status: 'active', provider_codes: ['siliconflow', 'volcengine_ark_plan'], data_provider_codes: [] },
   { feature_code: 'competitor_finder', feature_name: '找竞品', primary_model_id: 1, fallback_model_ids: [2, 3, 20, 21], prompt_template_id: 4, status: 'active', provider_codes: ['siliconflow', 'volcengine_ark_plan'], data_provider_codes: ['tikhub'] },
   { feature_code: 'sales_simulation', feature_name: '销售模拟', primary_model_id: 21, fallback_model_ids: [1, 2, 3], prompt_template_id: 30, status: 'active', provider_codes: ['volcengine_ark_plan', 'siliconflow'], data_provider_codes: [] },
   { feature_code: 'coach_toolbox', feature_name: '教练工具箱', primary_model_id: 20, fallback_model_ids: [1, 2, 3, 21], prompt_template_id: 40, status: 'active', provider_codes: ['volcengine_ark_plan', 'siliconflow'], data_provider_codes: [] },
@@ -380,11 +383,6 @@ const salesKnowledgeBase = [{
   built_in: true,
   updated_at: '2026-08-04T00:00:00.000Z'
 }];
-const users = {
-  admin: { id: 1, account: 'admin', password: '123456', name: '管理员', role: 'admin', roleName: '管理员' },
-  coach: { id: 2, account: 'coach', password: '123456', name: '王老师', role: 'coaching', roleName: '陪跑学员' },
-  train: { id: 3, account: 'train', password: '123456', name: '李老师', role: 'training', roleName: '训练营学员' }
-};
 const managedUsers = [
   { id: 1, account: BOOTSTRAP_ADMIN_ACCOUNT, password: BOOTSTRAP_ADMIN_PASSWORD, name: '管理员', phone: '', role: 'admin', roleName: '管理员', status: 'active', paid_product: '内部管理', opened_at: '2026-08-01', expires_at: '', remark: '系统管理员' },
   ...(!IS_PRODUCTION ? [
@@ -445,8 +443,31 @@ function ensurePersonalCenterData(user) {
     user.profile = { bio: '', business_description: '', avatar_url: '' };
     changed = true;
   }
+  if (!Array.isArray(user.inspiration_capsules)) {
+    user.inspiration_capsules = [];
+    changed = true;
+  }
+  if (!Array.isArray(user.inspiration_draw_history)) {
+    user.inspiration_draw_history = [];
+    changed = true;
+  }
   return changed;
 }
+
+// 金句是公共的“皮皮老师表达素材”，不和用户私有选题混在一起保存。
+// 每条只给一个可直接用于标题、结尾或提醒自己的经营判断，避免变成空泛鸡汤。
+const PIPI_GACHA_QUOTES = [
+  '真正能留下人的内容，不是你讲得多，而是对方终于觉得“你说到我心里了”。',
+  '先把一个家长正在经历的具体问题讲清楚，比急着证明自己专业更有力量。',
+  '教育内容不是替家长焦虑，而是让他们看见下一步可以怎么做。',
+  '好选题不是“大家都在看什么”，而是“我的目标客户此刻最想弄明白什么”。',
+  '信任不是一次内容建立的，是每一次表达都没有辜负对方的注意力。',
+  '别急着把方法说完，先让对方愿意承认：这件事确实和我有关。',
+  '招生不是把人说服，而是把适合的人带到一个更容易决定的位置。',
+  '老师最有价值的表达，不是标准答案，而是帮家长把混乱的问题理出顺序。',
+  '内容先有真实观察，才有资格谈技巧和爆款。',
+  '一条值得反复讲的经验，往往就藏在你每天觉得“这很普通”的工作里。'
+];
 
 function publicManagedUser(user) {
   const { password, password_hash, personal_knowledge, point_ledger, points_balance, profile, persona, ...safeUser } = user;
@@ -551,6 +572,63 @@ function ensureCopyAgentDefaults() {
   return changed;
 }
 
+// 公众号文案和排版必须优先走已验证可用的文字模型。
+// 旧状态曾把文案功能锁定到 Ark Plan；当该供应商超时时，前端会长时间等待，
+// 看起来就像没有接入 AI。仅在检测到旧的 Ark-only 配置且 Ark 当前不健康时迁移，
+// 不覆盖管理员后来主动选择的健康模型。
+function ensureCopywritingModelDefaults() {
+  const feature = featureConfigs.find((item) => item.feature_code === 'copywriting_generate');
+  const ark = providerConfigs.find((item) => item.code === 'volcengine_ark_plan');
+  const siliconflow = providerConfigs.find((item) => item.code === 'siliconflow');
+  const siliconflowModel = modelConfigs.find((item) => item.id === 1 && item.provider_code === 'siliconflow' && item.status === 'active');
+  if (!feature || !ark || !siliconflow || !siliconflowModel) return false;
+  const providerCodes = Array.isArray(feature.provider_codes) ? feature.provider_codes : [];
+  const arkOnly = Number(feature.primary_model_id) === 20
+    && providerCodes.length === 1
+    && providerCodes[0] === 'volcengine_ark_plan';
+  if (ark.health_status !== 'unhealthy' && ark.health_status !== 'error') return false;
+
+  let changed = false;
+  if (arkOnly || Number(feature.primary_model_id) === 20) {
+    feature.primary_model_id = siliconflowModel.id;
+    changed = true;
+  }
+  const nextFallbacks = [...new Set([
+    ...(Array.isArray(feature.fallback_model_ids) ? feature.fallback_model_ids : []),
+    2, 3, 20, 21
+  ])].filter((id) => modelConfigs.some((item) => item.id === Number(id) && item.status === 'active'));
+  if (JSON.stringify(feature.fallback_model_ids || []) !== JSON.stringify(nextFallbacks)) {
+    feature.fallback_model_ids = nextFallbacks;
+    changed = true;
+  }
+  const nextProviders = [...new Set([...providerCodes, 'siliconflow', 'volcengine_ark_plan'])];
+  if (JSON.stringify(providerCodes) !== JSON.stringify(nextProviders)) {
+    feature.provider_codes = nextProviders;
+    changed = true;
+  }
+  ['wechat_article', 'wechat_layout'].forEach((agentCode) => {
+    const agent = copyAgentByCode(agentCode);
+    if (agent && Number(agent.model_id) === 20) {
+      agent.model_id = siliconflowModel.id;
+      agent.updated_at = new Date().toISOString();
+      changed = true;
+    }
+  });
+  return changed;
+}
+
+// 首次交付前用于演示注册、权限与有效期的账号不应进入正式学员库。
+// 只按固定的演示账号/手机号清理，绝不影响后续真实学员的自助注册数据。
+function removeLegacySampleUsers() {
+  const sampleAccounts = new Set(['coach', 'train', '616905496']);
+  const samplePhones = new Set(['13800138001', '13800138002', '15059709080']);
+  const before = managedUsers.length;
+  const retained = managedUsers.filter((user) => !sampleAccounts.has(String(user.account)) && !samplePhones.has(String(user.phone)));
+  if (retained.length === before) return false;
+  replaceArray(managedUsers, retained);
+  return true;
+}
+
 function ensureCoachToolboxDefaults() {
   let changed = false;
   if (!promptTemplates.some((item) => item.feature_code === 'coach_toolbox')) {
@@ -595,10 +673,12 @@ function ensureCoachToolboxDefaults() {
 
 loadPersistentState();
 const copyAgentsMigrated = ensureCopyAgentDefaults();
+const copywritingModelMigrated = ensureCopywritingModelDefaults();
 const coachToolboxMigrated = ensureCoachToolboxDefaults();
+const legacySampleUsersRemoved = removeLegacySampleUsers();
 secureManagedUserPasswords();
 const personalCenterMigrated = managedUsers.some(ensurePersonalCenterData);
-if (!fs.existsSync(STATE_PATH) || personalCenterMigrated || coachToolboxMigrated || copyAgentsMigrated) savePersistentState();
+if (!fs.existsSync(STATE_PATH) || personalCenterMigrated || coachToolboxMigrated || copyAgentsMigrated || copywritingModelMigrated || legacySampleUsersRemoved) savePersistentState();
 
 const roleMeta = {
   admin: { name: '管理员', features: ['pipi', 'topics', 'copy', 'competitor', 'sales', 'coach', 'history', 'admin'] },
@@ -608,16 +688,30 @@ const roleMeta = {
 
 function effectiveStatus(user) {
   if (user.status === 'disabled') return 'disabled';
+  // 管理员账号不受学员有效期限制；仍可在后台手动禁用，避免失去安全处置手段。
+  if (user.role === 'admin') return 'active';
   if (user.expires_at && user.expires_at < localDateKey()) return 'expired';
   return 'active';
 }
 
+// 云托管环境变量有时会把库存标签一并粘进值里，例如
+// `gjld-apikey=sk-...`、`hsfz-apikey=...`。供应商只接受真正的密钥，
+// 因此在进入运行时前统一去掉可识别的标签和 Bearer 前缀，兼容纯 Key 写法。
+function normalizeRuntimeKey(value) {
+  let key = String(value || '').trim();
+  if (!key) return '';
+  key = key.replace(/^['"]|['"]$/g, '').trim();
+  key = key.replace(/^Bearer\s+/i, '').trim();
+  key = key.replace(/^(?:[a-z0-9_-]+-apikey|[A-Z0-9_]+_API_KEY)\s*=\s*/i, '').trim();
+  return key.replace(/^['"]|['"]$/g, '').trim();
+}
+
 function readInventory() {
   const envKeys = {
-    'gjld-apikey': process.env.SILICONFLOW_API_KEY,
-    'hsfz-apikey': process.env.ARK_API_KEY,
-    'hsfztx-apikey': process.env.ARK_IMAGE_API_KEY,
-    'tikhub-apikey': process.env.TIKHUB_API_KEY
+    'gjld-apikey': normalizeRuntimeKey(process.env.SILICONFLOW_API_KEY),
+    'hsfz-apikey': normalizeRuntimeKey(process.env.ARK_API_KEY),
+    'hsfztx-apikey': normalizeRuntimeKey(process.env.ARK_IMAGE_API_KEY),
+    'tikhub-apikey': normalizeRuntimeKey(process.env.TIKHUB_API_KEY)
   };
   const configuredEnvKeys = Object.fromEntries(Object.entries(envKeys).filter(([, value]) => value));
   if (Object.keys(configuredEnvKeys).length === Object.keys(envKeys).length) return configuredEnvKeys;
@@ -985,7 +1079,19 @@ function getEnabledModelConfigs(featureCode, input = {}) {
   const ordered = orderedIds
     .map((id) => modelConfigs.find((item) => item.id === id))
     .filter(Boolean);
-  return ordered.filter((item) => item.status === 'active' && activeProviderCodes.has(item.provider_code));
+  const available = ordered.filter((item) => item.status === 'active' && activeProviderCodes.has(item.provider_code));
+  // 供应商刚刚出现超时/认证失败时，先尝试健康的备用供应商，避免把整次请求
+  // 阻塞在一个已经失效的首选模型上。排序稳定，健康状态相同时仍遵循后台配置顺序。
+  return available
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => {
+      const healthRank = (model) => {
+        const provider = providerConfigs.find((candidate) => candidate.code === model.provider_code);
+        return ['unhealthy', 'error'].includes(provider?.health_status) ? 1 : 0;
+      };
+      return healthRank(a.item) - healthRank(b.item) || a.index - b.index;
+    })
+    .map(({ item }) => item);
 }
 
 function buildTopicFallback(input) {
@@ -1542,9 +1648,12 @@ async function callConfiguredModel(feature, input, user) {
         body: JSON.stringify({
           model: modelConfig.model_code,
           messages: buildMessages(feature, input, user),
-          temperature: 0.7,
-          max_tokens: feature === 'topics' ? 1200 : feature === 'wechat_layout' ? 4200 : 1200,
-          stream: false
+          temperature: feature === 'wechat_layout' ? 0.2 : 0.7,
+          // 排版模型只需返回索引 JSON，不需要为整篇文章预留输出空间；
+          // 限制到 800 可显著减少首字节等待，同时仍覆盖较长文章的结构标记。
+          max_tokens: feature === 'topics' ? 1200 : feature === 'wechat_layout' ? 800 : 1200,
+          stream: false,
+          ...(feature === 'wechat_layout' ? { response_format: { type: 'json_object' } } : {})
         }),
         signal: AbortSignal.timeout(attemptTimeoutMs)
       });
@@ -1704,7 +1813,9 @@ async function analyzeWechatArticleLayout(input, user) {
     segments: segments.map((item) => ({ index: item.index, text: item.text.slice(0, 700) }))
   };
   const rulesLayout = fallbackWechatLayoutAnalysis(segments);
-  if (rulesLayout.heading_indexes.length >= 1 && segments.length >= 5) {
+  // 前端会先给出本地即时预览，再以 force_model 请求真实模型做结构优化。
+  // 普通请求仍保留快速路径，避免历史调用因为模型暂不可用而变慢。
+  if (input.force_model !== true && rulesLayout.heading_indexes.length >= 1 && segments.length >= 5) {
     return {
       layout: { ...rulesLayout, segments },
       provider: 'local_rules',
@@ -3016,23 +3127,22 @@ async function route(req, res) {
     if (req.method === 'POST' && url.pathname === '/api/auth/register') {
       if (!ALLOW_SELF_REGISTRATION) return fail(res, 403, '当前未开放自助注册，请联系管理员开通账号', 40302);
       const account = String(body.account || '').trim();
-      const phone = String(body.phone || '').trim();
       const password = String(body.password || '');
       if (!/^[A-Za-z0-9_]{3,24}$/.test(account)) return fail(res, 400, '账号需为 3-24 位字母、数字或下划线', 40001);
-      if (phone && !/^1\d{10}$/.test(phone)) return fail(res, 400, '请输入正确的 11 位手机号', 40001);
       if (password.length < 8) return fail(res, 400, '密码至少需要 8 位', 40001);
-      if (managedUsers.some((item) => item.account === account || (phone && item.phone === phone))) return fail(res, 409, '账号或手机号已被注册', 40901);
+      if (managedUsers.some((item) => item.account === account)) return fail(res, 409, '该账号已被注册', 40901);
       const user = {
         id: Date.now(),
         account,
         password_hash: hashPassword(password),
         name: account,
-        phone,
+        phone: '',
         role: 'training',
         roleName: roleMeta.training.name,
         status: 'active',
         paid_product: '自助注册',
         opened_at: new Date().toISOString().slice(0, 10),
+        // 自助注册后由管理员在“用户权限”中按购买产品设置有效期。
         expires_at: '',
         remark: '',
         enabled_features: roleMeta.training.features
@@ -3221,8 +3331,8 @@ async function route(req, res) {
       if (layoutAgent.status !== 'published' && user.role !== 'admin') return fail(res, 403, '公众号排版智能体已下架', 40303);
       const result = await analyzeWechatArticleLayout(body, user);
       const titleSegment = result.layout.segments.find((item) => item.index === result.layout.title_index);
-      const record = saveRecord('公众号排版', titleSegment?.text || '公众号文章排版', String(body.article || '').slice(0, 30000), { ...result, layout: undefined, user_id: user.id, user_name: user.name, user_role: user.role, theme: body.theme || 'museum' });
-      return ok(res, { ...result, record_id: record.id });
+      const record = body.skip_record === true ? null : saveRecord('公众号排版', titleSegment?.text || '公众号文章排版', String(body.article || '').slice(0, 30000), { ...result, layout: undefined, user_id: user.id, user_name: user.name, user_role: user.role, theme: body.theme || 'museum' });
+      return ok(res, { ...result, record_id: record?.id || null });
     }
     if (req.method === 'POST' && url.pathname === '/api/tools/coach/sop') {
       if (!requireAdmin(req, res)) return;
@@ -3337,6 +3447,77 @@ async function route(req, res) {
         saveRecord('选题生成', `${body.business || '教育业务'}选题`, raw, { ...result, user_id: user.id, user_name: user.name, user_role: user.role });
         return ok(res, { topics, items: topics, raw, ...result });
       }
+    }
+    if (req.method === 'GET' && url.pathname === '/api/inspiration-capsules') {
+      const user = requireUser(req, res, 'topics');
+      if (!user) return;
+      ensurePersonalCenterData(user);
+      const items = [...user.inspiration_capsules]
+        .sort((left, right) => String(right.created_at).localeCompare(String(left.created_at)))
+        .map((item) => ({ ...item }));
+      const draw_history = [...user.inspiration_draw_history]
+        .sort((left, right) => String(right.drawn_at).localeCompare(String(left.drawn_at)))
+        .map((item) => ({ ...item }));
+      return ok(res, { items, draw_history, quotes: PIPI_GACHA_QUOTES });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/inspiration-capsules') {
+      const user = requireUser(req, res, 'topics');
+      if (!user) return;
+      ensurePersonalCenterData(user);
+      const title = String(body.title || '').replace(/\s+/g, ' ').trim().slice(0, 180);
+      if (!title) return fail(res, 400, '请先填写要投喂的选题', 40001);
+      const duplicate = user.inspiration_capsules.some((item) => String(item.title).trim() === title);
+      if (duplicate) return fail(res, 409, '这颗选题已经在扭蛋机里了', 40901);
+      const item = {
+        id: randomUUID(),
+        title,
+        track: String(body.track || '').trim().slice(0, 32),
+        angle: String(body.angle || '').trim().slice(0, 64),
+        business: String(body.business || '').trim().slice(0, 80),
+        source: 'topic_generate',
+        created_at: new Date().toISOString()
+      };
+      user.inspiration_capsules.unshift(item);
+      return ok(res, { item, total: user.inspiration_capsules.length });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/inspiration-capsules/draw') {
+      const user = requireUser(req, res, 'topics');
+      if (!user) return;
+      ensurePersonalCenterData(user);
+      const type = body.type === 'quote' ? 'quote' : 'topic';
+      const text = String(body.text || '').replace(/\s+/g, ' ').trim().slice(0, 220);
+      if (!text) return fail(res, 400, '抽取内容不能为空', 40001);
+      // 同一条再次抽到时提到最前，不反复堆成一长列。
+      user.inspiration_draw_history = user.inspiration_draw_history.filter((item) => !(item.type === type && item.text === text));
+      const item = {
+        id: randomUUID(), type, text,
+        sub: String(body.sub || '').trim().slice(0, 120),
+        source_capsule_id: String(body.source_capsule_id || '').trim().slice(0, 80),
+        drawn_at: new Date().toISOString()
+      };
+      user.inspiration_draw_history.unshift(item);
+      user.inspiration_draw_history.splice(24);
+      return ok(res, { item, items: user.inspiration_draw_history.map((entry) => ({ ...entry })) });
+    }
+    if (req.method === 'DELETE' && url.pathname.startsWith('/api/inspiration-capsules/')) {
+      const user = requireUser(req, res, 'topics');
+      if (!user) return;
+      ensurePersonalCenterData(user);
+      const id = url.pathname.split('/').pop();
+      const index = user.inspiration_capsules.findIndex((item) => item.id === id);
+      if (index < 0) return fail(res, 404, '这颗扭蛋不存在', 40400);
+      user.inspiration_capsules.splice(index, 1);
+      return ok(res, { id, total: user.inspiration_capsules.length });
+    }
+    if (req.method === 'DELETE' && url.pathname.startsWith('/api/inspiration-draws/')) {
+      const user = requireUser(req, res, 'topics');
+      if (!user) return;
+      ensurePersonalCenterData(user);
+      const id = url.pathname.split('/').pop();
+      const index = user.inspiration_draw_history.findIndex((item) => item.id === id);
+      if (index < 0) return fail(res, 404, '这条抽取记录不存在', 40400);
+      user.inspiration_draw_history.splice(index, 1);
+      return ok(res, { id });
     }
     if (req.method === 'POST' && url.pathname === '/api/tools/copywriting/generate') {
       const user = requireUser(req, res, 'copy');
@@ -3794,7 +3975,7 @@ async function route(req, res) {
         status: 'active',
         paid_product: body.paid_product || (role === 'admin' ? '后台管理' : role === 'coaching' ? '陪跑服务' : '训练营'),
         opened_at: new Date().toISOString().slice(0, 10),
-        expires_at: body.expires_at || '',
+        expires_at: role === 'admin' ? '' : (body.expires_at || ''),
         remark: body.remark || '',
         enabled_features: roleMeta[role].features
       };
@@ -3819,6 +4000,8 @@ async function route(req, res) {
         user.roleName = roleMeta[body.role].name;
         user.enabled_features = roleMeta[body.role].features;
       }
+      // 角色切换为管理员或管理员被编辑时，都清空到期日，确保管理员永久有效。
+      if (user.role === 'admin') user.expires_at = '';
       return ok(res, publicManagedUser(user));
     }
     if (req.method === 'GET' && url.pathname === '/api/admin/ai/providers') {

@@ -3129,9 +3129,11 @@ async function route(req, res) {
     if (req.method === 'POST' && url.pathname === '/api/auth/register') {
       if (!ALLOW_SELF_REGISTRATION) return fail(res, 403, '当前未开放自助注册，请联系管理员开通账号', 40302);
       const account = String(body.account || '').trim();
+      const name = String(body.name || '').trim();
       const password = String(body.password || '');
       const phone = String(body.phone || '').trim();
       if (!/^[A-Za-z0-9_]{3,24}$/.test(account)) return fail(res, 400, '账号需为 3-24 位字母、数字或下划线', 40001);
+      if (!name || name.length > 32) return fail(res, 400, '请填写 1-32 个字符的昵称，方便管理员识别你的账号', 40001);
       if (password.length < 8) return fail(res, 400, '密码至少需要 8 位', 40001);
       if (!/^1\d{10}$/.test(phone)) return fail(res, 400, '请填写正确的 11 位手机号，用于忘记密码时核验身份', 40001);
       if (managedUsers.some((item) => item.account === account || item.phone === phone)) return fail(res, 409, '该账号或手机号已被注册', 40901);
@@ -3139,7 +3141,7 @@ async function route(req, res) {
         id: Date.now(),
         account,
         password_hash: hashPassword(password),
-        name: account,
+        name,
         phone,
         role: 'training',
         roleName: roleMeta.training.name,
@@ -4010,12 +4012,24 @@ async function route(req, res) {
       const password = String(body.password || '');
       const count = Math.max(1, Math.min(20, Number(body.count) || 10));
       if (password.length < 8) return fail(res, 400, '测试账号密码至少需要 8 位', 40001);
-      const created = [];
+      const credentials = [];
       const skipped = [];
       for (let index = 1; index <= count; index += 1) {
         const account = `test${String(index).padStart(2, '0')}`;
-        if (managedUsers.some((item) => item.account === account)) {
+        const existing = managedUsers.find((item) => item.account === account);
+        // 只更新系统之前生成的测试号，绝不覆盖碰巧同名的真实学员账号。
+        if (existing && existing.remark !== '系统创建的内部测试账号') {
           skipped.push(account);
+          continue;
+        }
+        if (existing) {
+          Object.assign(existing, {
+            password_hash: hashPassword(password), name: `测试学员 ${String(index).padStart(2, '0')}`,
+            role: 'coaching', roleName: roleMeta.coaching.name, status: 'active',
+            paid_product: '内部测试账号（陪跑权限）', expires_at: '',
+            enabled_features: [...roleMeta.coaching.features]
+          });
+          credentials.push({ account, password });
           continue;
         }
         const item = {
@@ -4024,20 +4038,20 @@ async function route(req, res) {
           password_hash: hashPassword(password),
           name: `测试学员 ${String(index).padStart(2, '0')}`,
           phone: '',
-          role: 'training',
-          roleName: roleMeta.training.name,
+          role: 'coaching',
+          roleName: roleMeta.coaching.name,
           status: 'active',
-          paid_product: '内部测试账号（待开通）',
+          paid_product: '内部测试账号（陪跑权限）',
           opened_at: new Date().toISOString().slice(0, 10),
           expires_at: '',
           remark: '系统创建的内部测试账号',
-          enabled_features: []
+          enabled_features: [...roleMeta.coaching.features]
         };
         ensurePersonalCenterData(item);
         managedUsers.push(item);
-        created.push(account);
+        credentials.push({ account, password });
       }
-      return ok(res, { created, skipped });
+      return ok(res, { credentials, skipped });
     }
     if (req.method === 'PATCH' && url.pathname.startsWith('/api/admin/users/')) {
       if (!requireAdmin(req, res)) return;

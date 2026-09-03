@@ -1387,9 +1387,7 @@ select:required:invalid option { color: var(--ink); }
 .form-note { margin-top: 10px; color: var(--muted); font-size: 11px; }
 .user-list { margin-top: 18px; }
 .user-row { display: grid; grid-template-columns: minmax(150px, 1.5fr) 100px 82px minmax(120px, .9fr) auto; gap: 12px; align-items: center; border-top: 1px solid var(--line); padding: 13px 0; }
-.user-feature-controls { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 7px; }
-.user-feature-controls label { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 999px; padding: 5px 8px; color: var(--muted); font-size: 10px; }
-.user-feature-controls input { margin: 0; }
+.user-access-controls { display: grid; gap: 8px; justify-items: end; }
 .user-reset-control { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
 .user-reset-control input { width: 160px; margin: 0; padding: 6px 8px; font-size: 11px; }
 .test-user-tools { display: flex; align-items: center; gap: 10px; margin-top: 12px; border-radius: 10px; background: #f8f5f1; padding: 10px 12px; }
@@ -1397,6 +1395,10 @@ select:required:invalid option { color: var(--ink); }
 .test-user-tools strong, .test-user-tools small { display: block; }
 .test-user-tools small { margin-top: 3px; color: var(--muted); font-size: 10px; }
 .test-user-tools input { width: 140px; margin: 0; padding: 7px 8px; font-size: 11px; }
+.test-credentials { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; margin-top: 10px; padding: 12px; border: 1px solid #d7e8dd; border-radius: 10px; background: #f5fbf7; }
+.test-credentials strong, .test-credentials small { display: block; }
+.test-credentials small { margin-top: 3px; color: var(--muted); font-size: 10px; }
+.test-credentials code { grid-column: 1 / -1; max-height: 120px; overflow: auto; padding: 9px 10px; border-radius: 7px; background: #fff; color: var(--ink); font-size: 12px; line-height: 1.75; white-space: pre-wrap; }
 .user-main strong, .user-main small, .user-meta small { display: block; }
 .user-main strong { font-size: 13px; }
 .user-main small, .user-meta small { margin-top: 4px; color: var(--muted); font-size: 10px; }

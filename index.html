@@ -53,6 +53,7 @@
         <label>密码<input id="loginPassword" type="password" autocomplete="current-password" placeholder="请输入密码" /></label>
       </div>
       <div id="registerForm" class="login-form hidden">
+        <label>昵称<input id="registerName" autocomplete="nickname" placeholder="例如：李老师 / 星光书法" /></label>
         <label>账号<input id="registerAccount" autocomplete="username" placeholder="3-24 位字母、数字或下划线" /></label>
         <label>绑定手机号<input id="registerPhone" type="tel" autocomplete="tel" placeholder="用于找回密码" /></label>
         <label>密码<input id="registerPassword" type="password" autocomplete="new-password" placeholder="至少 8 位" /></label>
@@ -613,7 +614,8 @@
               <button class="primary" id="addUser">开通账号</button>
             </div>
             <p class="form-note">开通账号时请设置初始密码；请通过安全渠道单独告知学员。</p>
-            <div class="test-user-tools"><div><strong>测试账号</strong><small>一次创建 test01–test10，默认不开放任何 AI 功能。</small></div><input id="testUserPassword" type="password" value="Test@2026" autocomplete="new-password" aria-label="测试账号密码" /><button class="secondary" id="seedTestUsers" type="button">创建 10 个测试账号</button></div>
+            <div class="test-user-tools"><div><strong>测试账号</strong><small>一次生成 test01–test10，自动开通陪跑权限；账号密码仅在创建后显示一次。</small></div><input id="testUserPassword" type="password" value="Pipi1234" autocomplete="new-password" aria-label="测试账号密码" /><button class="secondary" id="seedTestUsers" type="button">创建并显示账号</button></div>
+            <div id="testCredentials" class="test-credentials hidden"></div>
             <div id="userList" class="user-list"></div>
           </section>
         </section>

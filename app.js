@@ -653,6 +653,7 @@ async function loginWithPassword() {
 }
 
 async function registerAccount() {
+  const name = value('registerName').trim();
   const account = value('registerAccount').trim();
   const phone = value('registerPhone').trim();
   const password = value('registerPassword');
@@ -662,7 +663,7 @@ async function registerAccount() {
     return;
   }
   try {
-    const apiUser = await apiRequest('register', { account, phone, password });
+    const apiUser = await apiRequest('register', { name, account, phone, password });
     state.user = normalizeApiUser(apiUser);
     saveAuthSession();
     showApp();
@@ -1734,20 +1735,17 @@ function renderAdminUsers() {
     ['训练营学员', count('training')]
   ].map(([label, number]) => `<div class="user-stat"><span>${label}</span><strong>${number}</strong></div>`).join('');
   const pendingResets = state.adminConfig.passwordResetRequests || [];
-  const featureOptions = [
-    ['pipi', '皮皮分身'], ['topics', '选题生成'], ['copy', '文案智能体'], ['competitor', '竞品调研'],
-    ['sales', '销售模拟'], ['coach', '教练工具箱'], ['history', '生成记录']
-  ];
   $('userList').innerHTML = users.length ? users.map((item) => {
     const features = Array.isArray(item.enabled_features) ? item.enabled_features : [];
     const hasPendingReset = pendingResets.some((request) => String(request.user_id) === String(item.id));
+    const accessLevel = features.length === 0 ? 'pending' : item.role === 'coaching' ? 'coaching' : 'training';
     return `
     <div class="user-row">
-      <div class="user-main"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.phone || item.account)} · ${escapeHtml(item.paid_product || '未填写产品')}</small></div>
-      ${item.role === 'admin' ? `<span class="role-tag admin">管理员</span>` : `<select class="user-role-select" data-user-role="${item.id}"><option value="coaching" ${item.role === 'coaching' ? 'selected' : ''}>陪跑学员</option><option value="training" ${item.role === 'training' ? 'selected' : ''}>训练营学员</option></select>`}
+      <div class="user-main"><strong>${escapeHtml(item.name)}</strong><small>账号：${escapeHtml(item.account)}${item.phone ? ` · 手机：${escapeHtml(item.phone)}` : ''}</small><small>${escapeHtml(item.paid_product || '未填写服务')}</small></div>
+      ${item.role === 'admin' ? `<span class="role-tag admin">管理员</span>` : `<select class="user-role-select" data-user-access="${item.id}"><option value="pending" ${accessLevel === 'pending' ? 'selected' : ''}>待开通</option><option value="training" ${accessLevel === 'training' ? 'selected' : ''}>训练营服务</option><option value="coaching" ${accessLevel === 'coaching' ? 'selected' : ''}>陪跑服务</option></select>`}
       <span class="status-tag ${item.status}">${statusLabel(item.status)}</span>
       <div class="user-meta"><small>开通 ${escapeHtml(item.opened_at || '-')}</small>${item.role === 'admin' ? '<strong>永久有效</strong>' : `<label>到期 <input type="date" value="${escapeHtml(item.expires_at || '')}" data-user-expires="${item.id}" /></label>`}</div>
-      ${item.role === 'admin' ? '<span class="user-lock">系统账号</span>' : `<div class="user-access-controls"><div class="user-feature-controls">${featureOptions.map(([code, label]) => `<label><input type="checkbox" data-user-feature="${item.id}" value="${code}" ${features.includes(code) ? 'checked' : ''} /> ${label}</label>`).join('')}</div><div class="user-reset-control"><input type="password" data-user-new-password="${item.id}" autocomplete="new-password" placeholder="设置临时密码（至少 8 位）" />${hasPendingReset ? '<small>该学员已提交密码重置申请</small>' : ''}<button class="secondary mini" data-user-reset="${item.id}">设置临时密码</button></div><div class="row-actions"><button class="secondary mini" data-user-save="${item.id}">保存权限</button><button class="pill-button ${item.status === 'active' ? 'on' : ''}" data-user-toggle="${item.id}" data-next-status="${item.status === 'active' ? 'disabled' : 'active'}">${item.status === 'active' ? '禁用账号' : '启用账号'}</button></div></div>`}
+      ${item.role === 'admin' ? '<span class="user-lock">系统账号</span>' : `<div class="user-access-controls"><div class="user-reset-control"><input type="password" data-user-new-password="${item.id}" autocomplete="new-password" placeholder="设置临时密码（至少 8 位）" />${hasPendingReset ? '<small>该学员已提交密码重置申请</small>' : ''}<button class="secondary mini" data-user-reset="${item.id}">重置密码</button></div><div class="row-actions"><button class="secondary mini" data-user-save="${item.id}">保存服务状态</button><button class="pill-button ${item.status === 'active' ? 'on' : ''}" data-user-toggle="${item.id}" data-next-status="${item.status === 'active' ? 'disabled' : 'active'}">${item.status === 'active' ? '禁用账号' : '启用账号'}</button></div></div>`}
     </div>`;
   }).join('') : '<div class="empty-box">暂无已开通账号</div>';
 }
@@ -4461,6 +4459,8 @@ function bindEvents() {
     if (extractButton && state.user) extractCompetitorTranscript(extractButton.dataset.competitorExtract);
     const copyButton = event.target.closest('[data-competitor-copy]');
     if (copyButton) copyText(state.competitorFinder.transcripts[copyButton.dataset.competitorCopy]?.content || '');
+    const testCredentialsButton = event.target.closest('[data-copy-test-credentials]');
+    if (testCredentialsButton) copyText(decodeURIComponent(testCredentialsButton.dataset.copyTestCredentials || ''));
     const toAgentButton = event.target.closest('[data-competitor-to-agent]');
     if (toAgentButton && state.user) openCompetitorCopyInAgent(toAgentButton.dataset.competitorToAgent);
   });
@@ -5003,10 +5003,15 @@ function bindEvents() {
     if (password.length < 8) return alert('测试账号密码至少需要 8 位');
     try {
       const result = await apiRequest('adminUsers', { password, count: 10 }, { path: '/api/admin/users/seed-test' });
-      const created = result?.created || [];
+      const credentials = result?.credentials || [];
       const skipped = result?.skipped || [];
       await loadAdminConfig();
-      alert(`已创建 ${created.length} 个测试账号：${created.join('、') || '无'}。${skipped.length ? ` 已存在未覆盖：${skipped.join('、')}。` : ''}`);
+      const text = credentials.map((item) => `${item.account} / ${item.password}`).join('\n');
+      const panel = $('testCredentials');
+      panel.classList.remove('hidden');
+      panel.innerHTML = credentials.length
+        ? `<div><strong>本次测试账号（请立即复制保存）</strong><small>为安全起见，刷新页面后不会再次显示明文密码。</small></div><code>${escapeHtml(text)}</code><button class="secondary mini" data-copy-test-credentials="${encodeURIComponent(text)}">复制全部账号密码</button>${skipped.length ? `<small>未覆盖同名真实账号：${escapeHtml(skipped.join('、'))}</small>` : ''}`
+        : `<strong>没有创建新测试账号</strong><small>${skipped.length ? `同名账号未被覆盖：${escapeHtml(skipped.join('、'))}` : '请稍后重试。'}</small>`;
     } catch (error) {
       alert(error.message);
     }
@@ -5091,16 +5096,15 @@ function bindEvents() {
     }
     if (userSaveButton) {
       const userId = userSaveButton.dataset.userSave;
-      const roleInput = document.querySelector(`[data-user-role="${userId}"]`);
+      const accessInput = document.querySelector(`[data-user-access="${userId}"]`);
       const expiresInput = document.querySelector(`[data-user-expires="${userId}"]`);
-      const features = [...document.querySelectorAll(`[data-user-feature="${userId}"]:checked`)].map((input) => input.value);
+      const access = accessInput?.value || 'pending';
       try {
         await patchAdmin(`/api/admin/users/${userId}`, {
-          ...(roleInput ? { role: roleInput.value } : {}),
-          expires_at: expiresInput?.value || '',
-          enabled_features: features
+          ...(access === 'pending' ? { enabled_features: [], paid_product: '自助注册（待开通）' } : { role: access }),
+          expires_at: expiresInput?.value || ''
         });
-        showToast('账号权限已保存');
+        showToast('账号服务状态已保存');
       } catch (error) {
         alert(error.message);
       }

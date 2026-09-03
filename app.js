@@ -11,7 +11,7 @@ const DEFAULT_API_CONFIG = {
   fallbackBaseUrls: [],
   useMockWhenEmpty: false,
   allowDemoLogin: false,
-  selfRegistrationEnabled: true,
+  selfRegistrationEnabled: false,
   endpoints: DEFAULT_API_ENDPOINTS
 };
 const API_CONFIG = {
@@ -2396,7 +2396,7 @@ function appendMessage(role, html, cites = []) {
   wrapper.className = `message ${role}`;
   const citeHtml = cites.length ? `<div class="cites">${cites.map((item) => `<span class="cite">${item.title}</span>`).join('')}</div>` : '';
   wrapper.innerHTML = role === 'assistant'
-    ? `<img src="assets/pipi-avatar.png" alt="" /><div class="bubble">${html}${citeHtml}</div>`
+    ? `<img src="assets/pipi-avatar.webp" alt="" /><div class="bubble">${html}${citeHtml}</div>`
     : `<div class="bubble">${escapeHtml(html)}</div>`;
   $('pipiMessages').appendChild(wrapper);
   wrapper.scrollIntoView({ behavior: 'smooth', block: 'nearest' });

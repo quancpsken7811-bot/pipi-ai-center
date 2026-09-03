@@ -21,9 +21,8 @@ const ALLOWED_ORIGINS = new Set((process.env.PIPI_ALLOWED_ORIGINS || (IS_PRODUCT
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean));
-// 面向学员的中台默认开放“账号 + 密码”自助注册；如需暂停，只需在部署环境变量中
-// 显式设置 PIPI_ALLOW_SELF_REGISTRATION=false，无须重新发版。
-const ALLOW_SELF_REGISTRATION = process.env.PIPI_ALLOW_SELF_REGISTRATION !== 'false';
+// 线上账号由管理员开通。只有显式设置为 true 时才开放自助注册，避免公网入口被滥用。
+const ALLOW_SELF_REGISTRATION = process.env.PIPI_ALLOW_SELF_REGISTRATION === 'true';
 const INVENTORY_PATH = process.env.PIPI_API_INVENTORY || '/Users/lemon/Documents/API.rtf';
 const SILICONFLOW_BASE_URL = process.env.SILICONFLOW_BASE_URL || 'https://api.siliconflow.cn/v1';
 const ARK_PLAN_BASE_URL = process.env.ARK_PLAN_BASE_URL || 'https://ark.cn-beijing.volces.com/api/plan/v3';
@@ -4188,6 +4187,7 @@ const STATIC_CONTENT_TYPES = {
   '.json': 'application/json; charset=utf-8',
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
+  '.txt': 'text/plain; charset=utf-8',
   '.webp': 'image/webp'
 };
 
@@ -4199,7 +4199,7 @@ function serveStatic(req, res, url) {
   } catch {
     return fail(res, 400, '请求路径不合法', 40000);
   }
-  const publicRootFiles = new Set(['/index.html', '/app.js', '/config.js', '/styles.css']);
+  const publicRootFiles = new Set(['/index.html', '/app.js', '/config.js', '/styles.css', '/robots.txt']);
   const publicAsset = pathname.startsWith('/assets/') && ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg'].includes(path.extname(pathname).toLowerCase());
   const publicVendor = pathname === '/vendor/lucide.min.js';
   if (!publicRootFiles.has(pathname) && !publicAsset && !publicVendor) return fail(res, 404, '资源不存在', 40400);
@@ -4212,7 +4212,8 @@ function serveStatic(req, res, url) {
     res.writeHead(200, {
       'Content-Type': STATIC_CONTENT_TYPES[extension] || 'application/octet-stream',
       'Content-Length': stats.size,
-      'Cache-Control': ['.html', '.js', '.css'].includes(extension) ? 'no-cache' : 'public, max-age=86400',
+      // HTML/JS/CSS 保持可及时更新；带版本号的图片、字体等静态资源可在浏览器缓存 7 天。
+      'Cache-Control': ['.html', '.js', '.css'].includes(extension) ? 'no-cache' : 'public, max-age=604800, immutable',
       'X-Content-Type-Options': 'nosniff'
     });
     if (req.method === 'HEAD') return res.end();

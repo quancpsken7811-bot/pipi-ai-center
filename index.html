@@ -3,9 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>皮皮 AI 中台 MVP</title>
-  <link rel="preload" as="image" href="assets/pipi-teacher-profile-web.png" />
-  <link rel="stylesheet" href="styles.css?v=20260822-02" />
+  <meta name="description" content="皮皮 AI 中台，为教育老师提供选题、文案、竞品调研与业务陪跑工具。" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta property="og:title" content="皮皮 AI 中台" />
+  <meta property="og:description" content="让教育表达，更快落地。" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://ai.pyshanxingtianxia.com/assets/pipi-teacher-profile-web.webp" />
+  <title>皮皮 AI 中台</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="preload" as="image" href="assets/pipi-teacher-profile-web.webp" type="image/webp" fetchpriority="high" />
+  <link rel="stylesheet" href="styles.css?v=20260903-01" />
 </head>
 <body>
   <section id="loginPage" class="login-page">
@@ -21,16 +28,16 @@
       </div>
       <div class="login-visual-art" aria-hidden="true">
         <div class="art-ring"></div>
-        <img src="assets/pipi-teacher-profile-web.png" alt="" loading="eager" fetchpriority="high" decoding="async" />
+        <img src="assets/pipi-teacher-profile-web.webp" alt="" loading="eager" fetchpriority="high" decoding="async" />
       </div>
-      <div class="login-poster"><img src="assets/brand-typography.png" alt="橙色品牌文字海报" /></div>
+      <div class="login-poster"><img src="assets/brand-typography.webp" alt="橙色品牌文字海报" /></div>
       <div class="login-visual-foot"><span>为教育老师打造的内容效率工具</span></div>
     </div>
     <div id="loginModal" class="login-modal hidden">
     <div class="login-card">
       <button class="modal-close" id="closeLoginModal" type="button" aria-label="关闭登录窗口">×</button>
       <div class="login-brand">
-        <img src="assets/pipi-avatar.png" alt="皮皮 IP 头像" />
+        <img src="assets/pipi-avatar.webp" alt="皮皮 IP 头像" />
         <div>
           <span class="eyebrow">PIPI AI CENTER</span>
           <h1 id="loginTitle">登录皮皮 AI 中台</h1>
@@ -60,7 +67,7 @@
   <div id="appShell" class="app hidden">
     <aside class="sidebar">
       <div class="brand">
-        <img src="assets/pipi-avatar.png" alt="皮皮 IP 头像" />
+        <img src="assets/pipi-avatar.webp" alt="皮皮 IP 头像" />
         <div>
           <strong>皮皮 AI 中台</strong>
           <span id="workspaceLabel">陪跑学员工作台</span>
@@ -104,7 +111,7 @@
         <div class="home-banner" aria-label="善行天下教育品牌主视觉">
           <div class="home-banner-art" aria-hidden="true">
             <div class="home-art-ring"></div>
-            <img class="home-teacher-figure" src="assets/pipi-teacher-heart.png" alt="皮皮老师比心形象" />
+            <img class="home-teacher-figure" src="assets/pipi-teacher-heart.webp" alt="皮皮老师比心形象" loading="lazy" decoding="async" />
           </div>
           <div class="home-banner-copy">
             <span>善行天下｜皮皮 AI CENTER</span>
@@ -138,7 +145,7 @@
       <section id="pipiPage" class="page pipi-page hidden">
         <div class="chat-layout">
           <aside class="knowledge-panel compact">
-            <img id="pipiAvatar" src="assets/pipi-avatar.png" alt="皮皮分身" />
+            <img id="pipiAvatar" src="assets/pipi-avatar.webp" alt="皮皮分身" />
             <h3 id="pipiDisplayName">皮皮分身</h3>
             <p id="pipiModeHint">只接入学员可见、已脱敏的知识库。不会用中台时，也可以直接问我。</p>
             <div class="chips"><span>直接问问题</span><span>获取步骤</span><span>排查报错</span></div>
@@ -276,7 +283,7 @@
           <header class="wechat-layout-header">
             <div class="wechat-brandbar">
               <button class="wechat-back-button" type="button" id="backFromWechatLayout" aria-label="返回智能体广场">←</button>
-              <img src="assets/pipi-avatar.png" alt="皮皮头像" />
+              <img src="assets/pipi-avatar.webp" alt="皮皮头像" />
               <div><strong>Punk微排</strong><small>MARKDOWN → WECHAT</small></div>
               <p>让每一份好内容，都有一身好排版。</p>
             </div>
@@ -674,11 +681,11 @@
     </section>
   </div>
 
-  <button class="floating" data-page="pipi"><img src="assets/pipi-avatar.png" alt="" /><span>问皮皮</span></button>
+  <button class="floating" data-page="pipi"><img src="assets/pipi-avatar.webp" alt="" /><span>问皮皮</span></button>
   <div id="appToast" class="app-toast" role="status" aria-live="polite"></div>
   <script src="vendor/lucide.min.js?v=20260804-01"></script>
   <script>window.lucide?.createIcons({ attrs: { 'aria-hidden': 'true', 'stroke-width': 1.8 } });</script>
-  <script src="config.js?v=20260822-05"></script>
-  <script src="app.js?v=20260822-05"></script>
+  <script src="config.js?v=20260903-01"></script>
+  <script src="app.js?v=20260903-01"></script>
 </body>
 </html>

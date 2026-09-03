@@ -72,6 +72,7 @@ const state = {
   activeCopySessionId: null,
   copyView: 'gallery',
   copyGeneration: null,
+  copyGenerationTimer: null,
   wechatLayout: { theme: 'punk', mode: 'editable', layout: null, layouts: {}, images: [], html: '', article: '', result: null, settings: { fontSize: 16, lineHeight: 1.9, fontFamily: 'system', bodyColor: 'auto', accent: '#B55E32', fixedEndingEnabled: false, fixedEnding: '' } },
   competitorFinder: { keyword: '教育', channel: 'douyin', channelLabel: '抖音', loading: false, items: [], transcripts: {} },
   gacha: { loaded: false, loading: false, items: [], drawHistory: [], quotes: [], lastResult: null },
@@ -1024,12 +1025,37 @@ function renderCopyConversation(session, pendingPrompt = '', pendingContent = ''
   `).join('');
   const pending = pendingPrompt ? `
     <div class="copy-chat-message user"><div class="copy-message-bubble">${escapeHtml(pendingPrompt)}</div></div>
-    <div class="copy-chat-message assistant pending"><div class="copy-message-label">皮皮文案智能体</div>${pendingContent || '<div class="copy-thinking"><span></span><span></span><span></span></div>'}</div>
+    <div class="copy-chat-message assistant pending"><div class="copy-message-label">皮皮文案智能体</div>${pendingContent || '<div class="copy-thinking"><span></span><span></span><span></span></div>'}<div class="copy-generation-status" id="copyGenerationStatus" role="status" aria-live="polite"></div></div>
   ` : '';
   $('copyResult').innerHTML = completed + pending;
+  updateCopyGenerationStatus();
   requestAnimationFrame(() => {
     $('copyChatBody').scrollTop = $('copyChatBody').scrollHeight;
   });
+}
+
+function updateCopyGenerationStatus() {
+  const target = $('copyGenerationStatus');
+  const startedAt = Number(state.copyGeneration?.startedAt || 0);
+  if (!target || !startedAt) return;
+  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+  const message = elapsedSeconds < 10
+    ? '已收到你的素材，正在组织初稿…'
+    : elapsedSeconds < 60
+      ? `正在生成完整内容，已等待 ${elapsedSeconds} 秒；通常需要 10–60 秒。`
+      : `模型仍在生成，已等待 ${elapsedSeconds} 秒；请勿重复提交，完成后会自动显示。`;
+  target.textContent = message;
+}
+
+function startCopyGenerationStatus() {
+  if (state.copyGenerationTimer) window.clearInterval(state.copyGenerationTimer);
+  updateCopyGenerationStatus();
+  state.copyGenerationTimer = window.setInterval(updateCopyGenerationStatus, 1000);
+}
+
+function stopCopyGenerationStatus() {
+  if (state.copyGenerationTimer) window.clearInterval(state.copyGenerationTimer);
+  state.copyGenerationTimer = null;
 }
 
 function restoreCopySession(sessionId) {
@@ -3715,6 +3741,10 @@ function mockCopy(payload) {
 }
 
 async function generateCopy() {
+  if (state.copyGeneration) {
+    showToast('上一条文案仍在生成中，请等待结果返回。');
+    return;
+  }
   const material = value('copyMaterial').trim();
   if (!material) {
     $('copyMaterial').focus();
@@ -3736,8 +3766,9 @@ async function generateCopy() {
   }
   const typeName = payload.type === 'moments' ? '朋友圈文案' : payload.type === 'imageText' ? '小绿书文案' : payload.type === 'article' ? '公众号文案' : '短视频文案';
   const generationId = `copy-generation-${Date.now()}`;
-  state.copyGeneration = { id: generationId, payload, typeName };
+  state.copyGeneration = { id: generationId, payload, typeName, startedAt: Date.now() };
   renderCopyConversation(activeSession, payload.material);
+  startCopyGenerationStatus();
   $('copyMaterial').value = '';
   setButtonLoading('generateCopy', true, '…');
   try {
@@ -3760,6 +3791,7 @@ async function generateCopy() {
     }
   } finally {
     if (state.copyGeneration?.id === generationId) state.copyGeneration = null;
+    stopCopyGenerationStatus();
     setButtonLoading('generateCopy', false);
   }
 }

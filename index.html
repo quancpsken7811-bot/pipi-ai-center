@@ -54,11 +54,18 @@
       </div>
       <div id="registerForm" class="login-form hidden">
         <label>账号<input id="registerAccount" autocomplete="username" placeholder="3-24 位字母、数字或下划线" /></label>
+        <label>绑定手机号<input id="registerPhone" type="tel" autocomplete="tel" placeholder="用于找回密码" /></label>
         <label>密码<input id="registerPassword" type="password" autocomplete="new-password" placeholder="至少 8 位" /></label>
         <label>确认密码<input id="registerPasswordConfirm" type="password" autocomplete="new-password" placeholder="再次输入密码" /></label>
       </div>
+      <div id="forgotPasswordForm" class="login-form hidden">
+        <label>注册账号<input id="resetAccount" autocomplete="username" placeholder="请输入注册时设置的账号" /></label>
+        <label>绑定手机号<input id="resetPhone" type="tel" autocomplete="tel" placeholder="请输入注册时绑定的手机号" /></label>
+      </div>
       <button class="primary full" id="loginButton">登录</button>
       <button class="primary full hidden" id="registerButton">注册并进入</button>
+      <button class="primary full hidden" id="requestPasswordReset">提交重置申请</button>
+      <div class="login-helper"><button class="text-button" id="showForgotPassword" type="button">忘记密码？</button><button class="text-button hidden" id="backToLogin" type="button">返回登录</button></div>
       <p class="login-note" id="loginNote">没有账号？点击上方“注册”即可创建。</p>
     </div>
     </div>
@@ -594,7 +601,7 @@
 
         <section class="admin-module hidden" id="adminModule-users">
           <section class="panel">
-            <div class="panel-head"><div><h3>用户与权限</h3><p>后台可手动开通管理员、陪跑学员和训练营学员账号。管理员拥有后台配置权限。</p></div><span class="admin-count" id="adminUserTotal">0 个账号</span></div>
+            <div class="panel-head"><div><h3>用户与权限</h3><p>自助注册账号默认没有 AI 权限；你在这里按学员购买的服务勾选功能、设置到期日或重置密码。</p></div><span class="admin-count" id="adminUserTotal">0 个账号</span></div>
             <div class="user-stats" id="userStats"></div>
             <div class="admin-form user-form">
               <input id="newUserName" placeholder="学员姓名" />
@@ -606,6 +613,7 @@
               <button class="primary" id="addUser">开通账号</button>
             </div>
             <p class="form-note">开通账号时请设置初始密码；请通过安全渠道单独告知学员。</p>
+            <div class="test-user-tools"><div><strong>测试账号</strong><small>一次创建 test01–test10，默认不开放任何 AI 功能。</small></div><input id="testUserPassword" type="password" value="Test@2026" autocomplete="new-password" aria-label="测试账号密码" /><button class="secondary" id="seedTestUsers" type="button">创建 10 个测试账号</button></div>
             <div id="userList" class="user-list"></div>
           </section>
         </section>
@@ -685,7 +693,7 @@
   <div id="appToast" class="app-toast" role="status" aria-live="polite"></div>
   <script src="vendor/lucide.min.js?v=20260804-01"></script>
   <script>window.lucide?.createIcons({ attrs: { 'aria-hidden': 'true', 'stroke-width': 1.8 } });</script>
-  <script src="config.js?v=20260903-01"></script>
-  <script src="app.js?v=20260903-02"></script>
+  <script src="config.js?v=20260903-02"></script>
+  <script src="app.js?v=20260903-03"></script>
 </body>
 </html>

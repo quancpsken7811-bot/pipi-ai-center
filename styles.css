@@ -172,6 +172,9 @@ button { cursor: pointer; }
   font-weight: 800;
 }
 .login-note { margin-top: 14px; color: #9a8178; font-size: 12px; line-height: 1.6; }
+.login-helper { display: flex; justify-content: flex-end; margin-top: 10px; }
+.text-button { border: 0; color: var(--green); background: transparent; padding: 0; font-size: 12px; font-weight: 800; }
+.text-button:hover { text-decoration: underline; }
 
 .app {
   display: grid;
@@ -1384,6 +1387,16 @@ select:required:invalid option { color: var(--ink); }
 .form-note { margin-top: 10px; color: var(--muted); font-size: 11px; }
 .user-list { margin-top: 18px; }
 .user-row { display: grid; grid-template-columns: minmax(150px, 1.5fr) 100px 82px minmax(120px, .9fr) auto; gap: 12px; align-items: center; border-top: 1px solid var(--line); padding: 13px 0; }
+.user-feature-controls { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 7px; }
+.user-feature-controls label { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 999px; padding: 5px 8px; color: var(--muted); font-size: 10px; }
+.user-feature-controls input { margin: 0; }
+.user-reset-control { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.user-reset-control input { width: 160px; margin: 0; padding: 6px 8px; font-size: 11px; }
+.test-user-tools { display: flex; align-items: center; gap: 10px; margin-top: 12px; border-radius: 10px; background: #f8f5f1; padding: 10px 12px; }
+.test-user-tools div { flex: 1; }
+.test-user-tools strong, .test-user-tools small { display: block; }
+.test-user-tools small { margin-top: 3px; color: var(--muted); font-size: 10px; }
+.test-user-tools input { width: 140px; margin: 0; padding: 7px 8px; font-size: 11px; }
 .user-main strong, .user-main small, .user-meta small { display: block; }
 .user-main strong { font-size: 13px; }
 .user-main small, .user-meta small { margin-top: 4px; color: var(--muted); font-size: 10px; }

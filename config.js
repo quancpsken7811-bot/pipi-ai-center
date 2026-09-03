@@ -9,8 +9,8 @@ window.PIPI_API_CONFIG = {
   ],
   useMockWhenEmpty: false,
   allowDemoLogin: false,
-  // 线上账号由管理员在后台开通，避免公开注册入口被滥用。
-  selfRegistrationEnabled: false,
+  // 自助注册只创建待开通账号；管理员需在后台勾选功能权限后才能使用 AI。
+  selfRegistrationEnabled: true,
   endpoints: {
     loginPassword: '/api/auth/login/password',
     register: '/api/auth/register',

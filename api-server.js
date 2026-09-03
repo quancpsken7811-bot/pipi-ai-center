@@ -284,6 +284,7 @@ function extractPromptSection(master, heading) {
 
 const records = [];
 const callLogs = [];
+const passwordResetRequests = [];
 const competitorSearchDailyUsage = {};
 const competitorSearchReservations = new Map();
 let tikhubAccountUsageCache = { expires_at: 0, value: null };
@@ -482,6 +483,7 @@ function loadPersistentState() {
     const saved = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8'));
     replaceArray(records, saved.records);
     replaceArray(callLogs, saved.callLogs);
+    replaceArray(passwordResetRequests, saved.passwordResetRequests);
     if (saved.competitorSearchDailyUsage && typeof saved.competitorSearchDailyUsage === 'object') Object.assign(competitorSearchDailyUsage, saved.competitorSearchDailyUsage);
     replaceArray(providerConfigs, saved.providerConfigs);
     replaceArray(modelConfigs, saved.modelConfigs);
@@ -505,6 +507,7 @@ function savePersistentState() {
     version: 1,
     records,
     callLogs,
+    passwordResetRequests,
     competitorSearchDailyUsage,
     providerConfigs,
     modelConfigs,
@@ -3127,28 +3130,48 @@ async function route(req, res) {
       if (!ALLOW_SELF_REGISTRATION) return fail(res, 403, '当前未开放自助注册，请联系管理员开通账号', 40302);
       const account = String(body.account || '').trim();
       const password = String(body.password || '');
+      const phone = String(body.phone || '').trim();
       if (!/^[A-Za-z0-9_]{3,24}$/.test(account)) return fail(res, 400, '账号需为 3-24 位字母、数字或下划线', 40001);
       if (password.length < 8) return fail(res, 400, '密码至少需要 8 位', 40001);
-      if (managedUsers.some((item) => item.account === account)) return fail(res, 409, '该账号已被注册', 40901);
+      if (!/^1\d{10}$/.test(phone)) return fail(res, 400, '请填写正确的 11 位手机号，用于忘记密码时核验身份', 40001);
+      if (managedUsers.some((item) => item.account === account || item.phone === phone)) return fail(res, 409, '该账号或手机号已被注册', 40901);
       const user = {
         id: Date.now(),
         account,
         password_hash: hashPassword(password),
         name: account,
-        phone: '',
+        phone,
         role: 'training',
         roleName: roleMeta.training.name,
         status: 'active',
-        paid_product: '自助注册',
+        paid_product: '自助注册（待开通）',
         opened_at: new Date().toISOString().slice(0, 10),
-        // 自助注册后由管理员在“用户权限”中按购买产品设置有效期。
+        // 自助注册只创建账号；管理员在“用户权限”中勾选功能后才能实际使用 AI。
         expires_at: '',
         remark: '',
-        enabled_features: roleMeta.training.features
+        enabled_features: []
       };
       ensurePersonalCenterData(user);
       managedUsers.push(user);
       return ok(res, publicUser(user));
+    }
+    if (req.method === 'POST' && url.pathname === '/api/auth/password-reset-request') {
+      const account = String(body.account || '').trim();
+      const phone = String(body.phone || '').trim();
+      // 对外始终返回相同提示，避免被用于探测平台注册账号。
+      const user = managedUsers.find((item) => item.account === account && item.phone === phone && item.role !== 'admin');
+      if (user) {
+        const existing = passwordResetRequests.find((item) => item.user_id === user.id && item.status === 'pending');
+        if (!existing) passwordResetRequests.unshift({
+          id: `reset-${Date.now()}-${user.id}`,
+          user_id: user.id,
+          account: user.account,
+          phone: user.phone,
+          requested_at: new Date().toISOString(),
+          status: 'pending'
+        });
+      }
+      return ok(res, { message: '如账号和手机号核验一致，重置申请已提交给管理员。' });
     }
     if (req.method === 'GET' && url.pathname === '/api/me') {
       const user = requireUser(req, res);
@@ -3950,7 +3973,7 @@ async function route(req, res) {
     }
     if (req.method === 'GET' && url.pathname === '/api/admin/users') {
       if (!requireAdmin(req, res)) return;
-      return ok(res, { items: managedUsers.map(publicManagedUser), total: managedUsers.length });
+      return ok(res, { items: managedUsers.map(publicManagedUser), total: managedUsers.length, password_reset_requests: passwordResetRequests.filter((item) => item.status === 'pending') });
     }
     if (req.method === 'POST' && url.pathname === '/api/admin/users') {
       if (!requireAdmin(req, res)) return;
@@ -3982,6 +4005,40 @@ async function route(req, res) {
       managedUsers.push(item);
       return ok(res, publicManagedUser(item));
     }
+    if (req.method === 'POST' && url.pathname === '/api/admin/users/seed-test') {
+      if (!requireAdmin(req, res)) return;
+      const password = String(body.password || '');
+      const count = Math.max(1, Math.min(20, Number(body.count) || 10));
+      if (password.length < 8) return fail(res, 400, '测试账号密码至少需要 8 位', 40001);
+      const created = [];
+      const skipped = [];
+      for (let index = 1; index <= count; index += 1) {
+        const account = `test${String(index).padStart(2, '0')}`;
+        if (managedUsers.some((item) => item.account === account)) {
+          skipped.push(account);
+          continue;
+        }
+        const item = {
+          id: Date.now() + index,
+          account,
+          password_hash: hashPassword(password),
+          name: `测试学员 ${String(index).padStart(2, '0')}`,
+          phone: '',
+          role: 'training',
+          roleName: roleMeta.training.name,
+          status: 'active',
+          paid_product: '内部测试账号（待开通）',
+          opened_at: new Date().toISOString().slice(0, 10),
+          expires_at: '',
+          remark: '系统创建的内部测试账号',
+          enabled_features: []
+        };
+        ensurePersonalCenterData(item);
+        managedUsers.push(item);
+        created.push(account);
+      }
+      return ok(res, { created, skipped });
+    }
     if (req.method === 'PATCH' && url.pathname.startsWith('/api/admin/users/')) {
       if (!requireAdmin(req, res)) return;
       const user = managedUsers.find((item) => String(item.id) === url.pathname.split('/').pop());
@@ -3991,6 +4048,8 @@ async function route(req, res) {
       if (body.phone !== undefined && (!/^1\d{10}$/.test(nextPhone) || managedUsers.some((item) => item.id !== user.id && (item.phone === nextPhone || item.account === nextPhone)))) return fail(res, 400, '手机号格式错误或已被使用', 40001);
       if (body.status !== undefined && !['active', 'disabled'].includes(body.status)) return fail(res, 400, '账号状态不合法', 40001);
       if (body.expires_at !== undefined && body.expires_at && !/^\d{4}-\d{2}-\d{2}$/.test(String(body.expires_at))) return fail(res, 400, '到期日期格式不合法', 40001);
+      if (body.enabled_features !== undefined && (!Array.isArray(body.enabled_features) || body.enabled_features.some((item) => !['pipi', 'topics', 'copy', 'competitor', 'sales', 'coach', 'history'].includes(item)))) return fail(res, 400, '功能权限不合法', 40001);
+      if (body.new_password !== undefined && String(body.new_password).length < 8) return fail(res, 400, '新密码至少需要 8 位', 40001);
       const allowed = ['name', 'phone', 'role', 'status', 'paid_product', 'expires_at', 'remark'];
       allowed.forEach((key) => { if (body[key] !== undefined) user[key] = body[key]; });
       if (body.phone !== undefined && /^1\d{10}$/.test(String(user.account || ''))) user.account = nextPhone;
@@ -3998,6 +4057,17 @@ async function route(req, res) {
       if (body.role) {
         user.roleName = roleMeta[body.role].name;
         user.enabled_features = roleMeta[body.role].features;
+      }
+      if (body.enabled_features !== undefined && user.role !== 'admin') user.enabled_features = [...new Set(body.enabled_features)];
+      if (body.new_password !== undefined) {
+        user.password_hash = hashPassword(String(body.new_password));
+        user.password_changed_at = new Date().toISOString();
+        passwordResetRequests.forEach((item) => {
+          if (item.user_id === user.id && item.status === 'pending') {
+            item.status = 'completed';
+            item.completed_at = new Date().toISOString();
+          }
+        });
       }
       // 角色切换为管理员或管理员被编辑时，都清空到期日，确保管理员永久有效。
       if (user.role === 'admin') user.expires_at = '';

@@ -1,7 +1,7 @@
 // config.js 由静态托管单独加载；如果云托管缓存了旧入口或暂时漏发该文件，
 // 不能因此静默切到 Mock 模式。内置同源 API 兜底，保证线上仍会真实请求后端。
 const DEFAULT_API_ENDPOINTS = {
-  loginPassword: '/api/auth/login/password', register: '/api/auth/register', loginSms: '/api/auth/login/sms', sendSms: '/api/auth/sms/send', me: '/api/me',
+  loginPassword: '/api/auth/login/password', register: '/api/auth/register', passwordResetRequest: '/api/auth/password-reset-request', loginSms: '/api/auth/login/sms', sendSms: '/api/auth/sms/send', me: '/api/me',
   personalProfile: '/api/user/profile', personalAvatar: '/api/user/avatar', personalPersona: '/api/user/persona', personalKnowledge: '/api/user/knowledge', personalKnowledgeUpload: '/api/user/knowledge/upload', personalPoints: '/api/user/points',
   toolAvailability: '/api/tools/availability', pipiChat: '/api/tools/pipi-assistant/chat', salesSimulation: '/api/tools/sales-simulation/chat', salesMethodConfig: '/api/tools/sales-simulation/config', pipiConfig: '/api/tools/pipi-assistant/config', topics: '/api/tools/topics/generate', inspirationCapsules: '/api/inspiration-capsules', inspirationDraws: '/api/inspiration-capsules/draw', copywriting: '/api/tools/copywriting/generate', copywritingConfig: '/api/tools/copywriting/config', wechatLayout: '/api/tools/wechat-layout/analyze', competitor: '/api/tools/competitors/generate', competitorTrends: '/api/tools/competitors/trends', competitorQuota: '/api/tools/competitors/quota', competitorSearch: '/api/tools/competitors/search', competitorTranscript: '/api/tools/competitors/transcript', coachSop: '/api/tools/coach/sop', coachMoments: '/api/tools/coach/moments', coachMomentsTemplate: '/api/tools/coach/moments/template', coachMomentsImage: '/api/tools/coach/moments/image', records: '/api/generation-records',
   adminUsers: '/api/admin/users', adminStats: '/api/admin/stats', adminPipiConfig: '/api/admin/pipi-assistant/config', adminPipiKnowledge: '/api/admin/pipi-assistant/knowledge', adminSalesConfig: '/api/admin/sales-simulation/config', adminSalesKnowledge: '/api/admin/sales-simulation/knowledge', adminSalesReports: '/api/admin/sales-simulation/reports', adminCoachToolbox: '/api/admin/coach-toolbox/config', adminCopywritingConfig: '/api/admin/copywriting/config', adminCopywritingAgents: '/api/admin/copywriting/agents', adminCopywritingCovers: '/api/admin/copywriting/covers', adminProviders: '/api/admin/ai/providers', adminModels: '/api/admin/ai/models', adminRefreshModels: '/api/admin/ai/models/refresh', adminPrompts: '/api/admin/prompts', adminFeatures: '/api/admin/ai/features', adminUsage: '/api/admin/ai/usage', adminProviderUsage: '/api/admin/ai/provider-usage', adminCallLogs: '/api/admin/ai/call-logs'
@@ -11,7 +11,7 @@ const DEFAULT_API_CONFIG = {
   fallbackBaseUrls: [],
   useMockWhenEmpty: false,
   allowDemoLogin: false,
-  selfRegistrationEnabled: false,
+  selfRegistrationEnabled: true,
   endpoints: DEFAULT_API_ENDPOINTS
 };
 const API_CONFIG = {
@@ -111,6 +111,7 @@ const state = {
   pipiConversation: null,
   adminConfig: {
     users: [],
+    passwordResetRequests: [],
     stats: {},
     pipiAssistant: {},
     pipiKnowledge: [],
@@ -523,7 +524,7 @@ function canUsePage(page) {
   // 扭蛋机复用选题权限：它只保存用户主动投喂的选题，不新增一套账号授权成本。
   const availabilityPage = page === 'wechat' ? 'copy' : page;
   if (state.toolAvailability[availabilityPage] === false) return false;
-  if (Array.isArray(state.user.enabledFeatures) && state.user.enabledFeatures.length) {
+  if (Array.isArray(state.user.enabledFeatures)) {
     return page === 'home' || page === 'personal' || state.user.enabledFeatures.includes(page) || (page === 'wechat' && state.user.enabledFeatures.includes('copy'));
   }
   const tool = tools.find((item) => item.page === page);
@@ -600,7 +601,8 @@ function applyUser() {
   const avatarUrl = state.personal.profile?.avatar_url || '';
   $('profileShortcutInitial').classList.toggle('has-avatar', Boolean(avatarUrl));
   $('profileShortcutInitial').style.backgroundImage = avatarUrl ? `url("${avatarUrl}")` : '';
-  $('workspaceLabel').textContent = state.user.role === 'admin' ? '管理员后台' : `${state.user.roleName}工作台`;
+  const waitingForAccess = state.user.role !== 'admin' && Array.isArray(state.user.enabledFeatures) && state.user.enabledFeatures.length === 0;
+  $('workspaceLabel').textContent = state.user.role === 'admin' ? '管理员后台' : waitingForAccess ? '等待管理员开通权限' : `${state.user.roleName}工作台`;
   const pipiMode = $('pipiModeHint');
   if (pipiMode) {
     pipiMode.textContent = state.user.role === 'training'
@@ -652,6 +654,7 @@ async function loginWithPassword() {
 
 async function registerAccount() {
   const account = value('registerAccount').trim();
+  const phone = value('registerPhone').trim();
   const password = value('registerPassword');
   const passwordConfirm = value('registerPasswordConfirm');
   if (password !== passwordConfirm) {
@@ -659,7 +662,7 @@ async function registerAccount() {
     return;
   }
   try {
-    const apiUser = await apiRequest('register', { account, password });
+    const apiUser = await apiRequest('register', { account, phone, password });
     state.user = normalizeApiUser(apiUser);
     saveAuthSession();
     showApp();
@@ -668,22 +671,43 @@ async function registerAccount() {
   }
 }
 
+async function requestPasswordReset() {
+  const account = value('resetAccount').trim();
+  const phone = value('resetPhone').trim();
+  if (!account || !phone) {
+    $('loginNote').textContent = '请填写注册账号和绑定手机号。';
+    return;
+  }
+  try {
+    const result = await apiRequest('passwordResetRequest', { account, phone });
+    setLoginMode('login');
+    $('loginNote').textContent = result?.message || '重置申请已提交，请等待管理员设置临时密码。';
+  } catch (error) {
+    $('loginNote').textContent = error.message;
+  }
+}
+
 function setLoginMode(mode) {
   const registrationEnabled = API_CONFIG.selfRegistrationEnabled === true;
+  const isForgot = mode === 'forgot';
   const isRegister = mode === 'register' && registrationEnabled;
-  state.loginMode = isRegister ? 'register' : 'password';
-  $('passwordLogin').classList.toggle('hidden', isRegister);
+  state.loginMode = isRegister ? 'register' : isForgot ? 'forgot' : 'password';
+  $('passwordLogin').classList.toggle('hidden', isRegister || isForgot);
   $('registerForm').classList.toggle('hidden', !isRegister);
-  $('loginButton').classList.toggle('hidden', isRegister);
+  $('forgotPasswordForm').classList.toggle('hidden', !isForgot);
+  $('loginButton').classList.toggle('hidden', isRegister || isForgot);
   $('registerButton').classList.toggle('hidden', !isRegister);
+  $('requestPasswordReset').classList.toggle('hidden', !isForgot);
   $('showLoginMode').classList.toggle('active', !isRegister);
   $('showRegisterMode').classList.toggle('active', isRegister);
   $('showRegisterMode').classList.toggle('hidden', !registrationEnabled);
+  $('showForgotPassword').classList.toggle('hidden', isRegister || isForgot);
+  $('backToLogin').classList.toggle('hidden', !isForgot);
   $('showLoginMode').setAttribute('aria-selected', String(!isRegister));
   $('showRegisterMode').setAttribute('aria-selected', String(isRegister));
-  $('loginTitle').textContent = isRegister ? '注册皮皮 AI 中台' : '登录皮皮 AI 中台';
-  $('loginDescription').textContent = isRegister ? '创建账号后即可进入你的教育内容工作台。' : '登录后进入你的专属教育内容工作台。';
-  $('loginNote').textContent = isRegister ? '注册后默认开通训练营基础功能；有效期由管理员按购买产品设置。' : registrationEnabled ? '没有账号？点击上方“注册”即可创建。' : '账号由管理员统一开通；没有账号请联系交付老师。';
+  $('loginTitle').textContent = isRegister ? '注册皮皮 AI 中台' : isForgot ? '申请重置密码' : '登录皮皮 AI 中台';
+  $('loginDescription').textContent = isRegister ? '注册后可进入工作台；AI 功能需管理员审核开通。' : isForgot ? '核验账号和绑定手机号后，管理员会为你设置临时密码。' : '登录后进入你的专属教育内容工作台。';
+  $('loginNote').textContent = isRegister ? '注册后默认不开放 AI 功能；请等待管理员在后台开通。' : isForgot ? '提交后请联系老师获取临时密码。' : registrationEnabled ? '没有账号？点击上方“注册”即可创建。' : '账号由管理员统一开通；没有账号请联系交付老师。';
 }
 
 async function loginWithSms() {
@@ -849,6 +873,11 @@ function renderSalesMethodGuide() {
 function renderTools() {
   const container = $('toolGrid');
   if (!container) return;
+  const waitingForAccess = state.user?.role !== 'admin' && Array.isArray(state.user?.enabledFeatures) && state.user.enabledFeatures.length === 0;
+  if (waitingForAccess) {
+    container.innerHTML = '<div class="empty-box"><strong>账号已注册，等待管理员开通功能</strong><span>你的登录账号已经创建成功。请联系老师确认购买服务；管理员开通权限后，工具会自动显示在这里。</span></div>';
+    return;
+  }
   container.innerHTML = tools.filter((tool) => canUsePage(tool.page)).map((tool) => `<button class="tool-card" data-page="${tool.page}">
       <span>${tool.icon}</span><strong>${tool.title}</strong><small>${tool.desc}</small><em>进入</em>
     </button>`).join('');
@@ -1189,6 +1218,7 @@ async function loadAdminConfig() {
   const providerUsage = data.providerUsage || state.adminConfig.providerUsage;
   const callLogs = data.callLogs || { items: state.adminConfig.callLogs };
   state.adminConfig.users = users.items || [];
+  state.adminConfig.passwordResetRequests = users.password_reset_requests || [];
   state.adminConfig.stats = stats || {};
   state.adminConfig.pipiAssistant = pipiAssistant || {};
   state.adminConfig.pipiKnowledge = pipiKnowledge.items || [];
@@ -1703,14 +1733,23 @@ function renderAdminUsers() {
     ['陪跑学员', count('coaching')],
     ['训练营学员', count('training')]
   ].map(([label, number]) => `<div class="user-stat"><span>${label}</span><strong>${number}</strong></div>`).join('');
-  $('userList').innerHTML = users.length ? users.map((item) => `
+  const pendingResets = state.adminConfig.passwordResetRequests || [];
+  const featureOptions = [
+    ['pipi', '皮皮分身'], ['topics', '选题生成'], ['copy', '文案智能体'], ['competitor', '竞品调研'],
+    ['sales', '销售模拟'], ['coach', '教练工具箱'], ['history', '生成记录']
+  ];
+  $('userList').innerHTML = users.length ? users.map((item) => {
+    const features = Array.isArray(item.enabled_features) ? item.enabled_features : [];
+    const hasPendingReset = pendingResets.some((request) => String(request.user_id) === String(item.id));
+    return `
     <div class="user-row">
       <div class="user-main"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.phone || item.account)} · ${escapeHtml(item.paid_product || '未填写产品')}</small></div>
       ${item.role === 'admin' ? `<span class="role-tag admin">管理员</span>` : `<select class="user-role-select" data-user-role="${item.id}"><option value="coaching" ${item.role === 'coaching' ? 'selected' : ''}>陪跑学员</option><option value="training" ${item.role === 'training' ? 'selected' : ''}>训练营学员</option></select>`}
       <span class="status-tag ${item.status}">${statusLabel(item.status)}</span>
       <div class="user-meta"><small>开通 ${escapeHtml(item.opened_at || '-')}</small>${item.role === 'admin' ? '<strong>永久有效</strong>' : `<label>到期 <input type="date" value="${escapeHtml(item.expires_at || '')}" data-user-expires="${item.id}" /></label>`}</div>
-      ${item.role === 'admin' ? '<span class="user-lock">系统账号</span>' : `<div class="row-actions"><button class="secondary mini" data-user-save="${item.id}">保存</button><button class="pill-button ${item.status === 'active' ? 'on' : ''}" data-user-toggle="${item.id}" data-next-status="${item.status === 'active' ? 'disabled' : 'active'}">${item.status === 'active' ? '禁用账号' : '启用账号'}</button></div>`}
-    </div>`).join('') : '<div class="empty-box">暂无已开通账号</div>';
+      ${item.role === 'admin' ? '<span class="user-lock">系统账号</span>' : `<div class="user-access-controls"><div class="user-feature-controls">${featureOptions.map(([code, label]) => `<label><input type="checkbox" data-user-feature="${item.id}" value="${code}" ${features.includes(code) ? 'checked' : ''} /> ${label}</label>`).join('')}</div><div class="user-reset-control"><input type="password" data-user-new-password="${item.id}" autocomplete="new-password" placeholder="设置临时密码（至少 8 位）" />${hasPendingReset ? '<small>该学员已提交密码重置申请</small>' : ''}<button class="secondary mini" data-user-reset="${item.id}">设置临时密码</button></div><div class="row-actions"><button class="secondary mini" data-user-save="${item.id}">保存权限</button><button class="pill-button ${item.status === 'active' ? 'on' : ''}" data-user-toggle="${item.id}" data-next-status="${item.status === 'active' ? 'disabled' : 'active'}">${item.status === 'active' ? '禁用账号' : '启用账号'}</button></div></div>`}
+    </div>`;
+  }).join('') : '<div class="empty-box">暂无已开通账号</div>';
 }
 
 function renderPipiAssistantConfig() {
@@ -4427,13 +4466,19 @@ function bindEvents() {
   });
   $('loginButton').addEventListener('click', loginWithPassword);
   $('registerButton').addEventListener('click', registerAccount);
+  $('requestPasswordReset').addEventListener('click', requestPasswordReset);
   $('showLoginMode').addEventListener('click', () => setLoginMode('login'));
   $('showRegisterMode').addEventListener('click', () => setLoginMode('register'));
+  $('showForgotPassword').addEventListener('click', () => setLoginMode('forgot'));
+  $('backToLogin').addEventListener('click', () => setLoginMode('login'));
   $('loginPassword').addEventListener('keydown', (event) => {
     if (event.key === 'Enter') loginWithPassword();
   });
   $('registerPasswordConfirm').addEventListener('keydown', (event) => {
     if (event.key === 'Enter') registerAccount();
+  });
+  $('resetPhone').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') requestPasswordReset();
   });
   $('logoutButton').addEventListener('click', logout);
   $('toggleRole').addEventListener('click', () => {
@@ -4953,6 +4998,19 @@ function bindEvents() {
       alert(error.message);
     }
   });
+  $('seedTestUsers').addEventListener('click', async () => {
+    const password = value('testUserPassword');
+    if (password.length < 8) return alert('测试账号密码至少需要 8 位');
+    try {
+      const result = await apiRequest('adminUsers', { password, count: 10 }, { path: '/api/admin/users/seed-test' });
+      const created = result?.created || [];
+      const skipped = result?.skipped || [];
+      await loadAdminConfig();
+      alert(`已创建 ${created.length} 个测试账号：${created.join('、') || '无'}。${skipped.length ? ` 已存在未覆盖：${skipped.join('、')}。` : ''}`);
+    } catch (error) {
+      alert(error.message);
+    }
+  });
   $('refreshSiliconModels').addEventListener('click', () => refreshProviderModels('siliconflow'));
   $('refreshArkModels').addEventListener('click', () => alert('Ark Plan 已接入 OpenAI-compatible Plan 接口。文案智能体当前展示为 Doubao Seed 2.1，实际调用 Plan 可用入口 ark-code-latest；Ark Plan 不使用 /models 自动探测。'));
   $('addPrompt').addEventListener('click', async () => {
@@ -4979,6 +5037,7 @@ function bindEvents() {
     const salesReportOpenButton = event.target.closest('[data-sales-report-open]');
     const userToggleButton = event.target.closest('[data-user-toggle]');
     const userSaveButton = event.target.closest('[data-user-save]');
+    const userResetButton = event.target.closest('[data-user-reset]');
     if (moduleButton) {
       state.adminModule = moduleButton.dataset.adminModule;
       renderAdminConfig();
@@ -5034,11 +5093,26 @@ function bindEvents() {
       const userId = userSaveButton.dataset.userSave;
       const roleInput = document.querySelector(`[data-user-role="${userId}"]`);
       const expiresInput = document.querySelector(`[data-user-expires="${userId}"]`);
+      const features = [...document.querySelectorAll(`[data-user-feature="${userId}"]:checked`)].map((input) => input.value);
       try {
         await patchAdmin(`/api/admin/users/${userId}`, {
           ...(roleInput ? { role: roleInput.value } : {}),
-          expires_at: expiresInput?.value || ''
+          expires_at: expiresInput?.value || '',
+          enabled_features: features
         });
+        showToast('账号权限已保存');
+      } catch (error) {
+        alert(error.message);
+      }
+    }
+    if (userResetButton) {
+      const userId = userResetButton.dataset.userReset;
+      const passwordInput = document.querySelector(`[data-user-new-password="${userId}"]`);
+      const newPassword = passwordInput?.value || '';
+      if (newPassword.length < 8) return alert('临时密码至少需要 8 位');
+      try {
+        await patchAdmin(`/api/admin/users/${userId}`, { new_password: newPassword });
+        showToast('临时密码已设置，请通过安全渠道告知学员');
       } catch (error) {
         alert(error.message);
       }

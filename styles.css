@@ -357,6 +357,36 @@ h1 { margin-top: 4px; font-size: 24px; }
 .quick-start-card strong { display: block; margin-top: 12px; font-size: 14px; }
 .quick-start-card small { display: block; max-width: 190px; margin-top: 6px; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .quick-start-card em { position: absolute; right: 14px; bottom: 14px; color: var(--green); font-size: 11px; font-style: normal; font-weight: 800; }
+
+/* 板块首页：保留左侧导航，让学员既可沿工作流完成任务，也可直接进入某个工具。 */
+.module-page { max-width: 1180px; margin: 0 auto; padding-bottom: 42px; }
+.module-hero { padding: 30px 32px; border: 1px solid #eadfce; border-radius: 18px; background: linear-gradient(130deg, #fff8ef, #fff 68%); }
+.module-hero h2 { margin-top: 10px; color: #413127; font-size: 32px; letter-spacing: .03em; }
+.module-hero p { max-width: 620px; margin-top: 10px; color: #73675e; font-size: 14px; line-height: 1.75; }
+.workflow-strip { display: flex; align-items: stretch; gap: 9px; margin: 20px 0; overflow-x: auto; padding-bottom: 4px; }
+.workflow-strip button { min-width: 190px; flex: 1; border: 1px solid #e5ded5; border-radius: 14px; background: #fff; padding: 16px; text-align: left; box-shadow: 0 7px 18px rgba(72, 48, 30, .035); }
+.workflow-strip button:hover { border-color: #c48357; transform: translateY(-2px); }
+.workflow-strip button b { display: block; color: #b45e32; font-size: 11px; letter-spacing: .1em; }
+.workflow-strip button strong { display: block; margin-top: 8px; color: #3c3029; font-size: 16px; }
+.workflow-strip button small { display: block; min-height: 28px; margin-top: 6px; color: #82766d; font-size: 11px; line-height: 1.5; }
+.workflow-strip > i { display: grid; place-items: center; flex: 0 0 14px; color: #bd9b84; font-style: normal; }
+.module-grid { display: grid; gap: 14px; }
+.module-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.module-card, .module-section { border: 1px solid #e7e0d8; border-radius: 16px; background: #fff; box-shadow: 0 8px 24px rgba(53, 41, 28, .035); }
+.module-card { display: flex; min-height: 222px; flex-direction: column; align-items: flex-start; padding: 22px; }
+.module-card > span { color: #b56137; font-size: 11px; font-weight: 800; letter-spacing: .08em; }
+.module-card h3 { margin-top: 9px; color: #3e3029; font-size: 19px; }
+.module-card p { flex: 1; margin: 9px 0 18px; color: #756960; font-size: 12px; line-height: 1.7; }
+.module-card .secondary, .material-note .secondary { border-color: #ddc8b6; background: #fffaf6; color: #8c4c2d; }
+.module-section { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-top: 16px; padding: 24px; }
+.module-section h3 { margin-top: 6px; color: #3e3029; font-size: 20px; }
+.module-section p { margin-top: 7px; color: #766960; font-size: 12px; line-height: 1.65; }
+.module-agent-grid { display: grid; grid-template-columns: repeat(5, minmax(100px, 1fr)); gap: 8px; width: min(610px, 60%); }
+.module-agent-grid button { min-height: 68px; border: 1px solid #e9ded1; border-radius: 11px; background: #fffaf6; color: #6f4330; font-size: 12px; font-weight: 750; line-height: 1.45; }
+.module-agent-grid button:hover { border-color: #c78156; background: #fff3e8; }
+.material-note { background: #f9faf6; }
+@media (max-width: 960px) { .module-grid.three { grid-template-columns: 1fr; } .module-agent-grid { grid-template-columns: repeat(2, 1fr); width: 100%; } .module-section { display: block; } .module-section .secondary { margin-top: 16px; } }
+@media (max-width: 640px) { .module-hero { padding: 22px 18px; } .module-hero h2 { font-size: 26px; } .workflow-strip { gap: 6px; } .workflow-strip button { min-width: 162px; } .workflow-strip > i { display: none; } }
 .primary, .secondary {
   border-radius: 8px;
   padding: 10px 14px;

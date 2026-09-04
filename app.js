@@ -135,6 +135,9 @@ const pages = {
   home: '工作台',
   personal: '个人中心',
   pipi: '皮皮分身',
+  traffic: '流量板块',
+  private: '私域板块',
+  product: '产品板块',
   topics: '选题生成',
   copy: '文案智能体',
   wechat: '公众号',
@@ -521,6 +524,10 @@ async function apiRequest(endpointKey, payload = {}, options = {}) {
 function canUsePage(page) {
   if (!state.user) return false;
   if (page === 'admin' || page === 'coach') return state.user.role === 'admin';
+  // 三个板块是已有工具的工作流入口，不增加新的账号权限；只要该账号至少开通其中一个工具即可进入。
+  if (page === 'traffic') return ['topics', 'copy', 'competitor'].some((item) => canUsePage(item));
+  if (page === 'private') return ['copy', 'sales'].some((item) => canUsePage(item));
+  if (page === 'product') return ['copy', 'pipi', 'coach'].some((item) => canUsePage(item));
   if (page === 'wechat' && state.user.role === 'training') return false;
   // 扭蛋机复用选题权限：它只保存用户主动投喂的选题，不新增一套账号授权成本。
   const availabilityPage = page === 'wechat' ? 'copy' : page;
@@ -4512,7 +4519,17 @@ function bindEvents() {
       return;
     }
     const button = event.target.closest('[data-page]');
-    if (button && state.user) setPage(button.dataset.page);
+    if (button && state.user) {
+      setPage(button.dataset.page);
+      // 工作流卡片可以一步进入指定的文案智能体，而不是让学员再找一次入口。
+      if (button.dataset.copyAgent && button.dataset.page === 'copy') {
+        $('copyAgent').value = button.dataset.copyAgent;
+        state.activeCopySessionId = null;
+        state.copyOriginPage = '';
+        renderCopyConversation(null);
+        setCopyView('compose');
+      }
+    }
     const wechatHubButton = event.target.closest('[data-wechat-hub-agent]');
     if (wechatHubButton && state.user) {
       event.preventDefault();

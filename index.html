@@ -12,7 +12,7 @@
   <title>皮皮 AI 中台</title>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
   <link rel="preload" as="image" href="assets/pipi-teacher-profile-web.webp" type="image/webp" fetchpriority="high" />
-  <link rel="stylesheet" href="styles.css?v=20260903-02" />
+  <link rel="stylesheet" href="styles.css?v=20260904-modules-01" />
 </head>
 <body>
   <section id="loginPage" class="login-page">
@@ -85,10 +85,9 @@
       <nav>
         <button class="nav-item active" data-page="home"><i data-lucide="layout-dashboard"></i><span>工作台</span></button>
         <button class="nav-item" data-page="pipi"><i data-lucide="bot-message-square"></i><span>皮皮分身</span></button>
-        <button class="nav-item" data-page="topics"><i data-lucide="lightbulb"></i><span>选题生成</span></button>
-        <button class="nav-item" data-page="copy"><i data-lucide="pen-line"></i><span>文案智能体</span></button>
-        <button class="nav-item" data-page="wechat"><i data-lucide="newspaper"></i><span>公众号</span></button>
-        <button class="nav-item" data-page="competitor"><i data-lucide="search"></i><span>找竞品</span></button>
+        <button class="nav-item" data-page="traffic"><i data-lucide="chart-no-axes-column-increasing"></i><span>流量板块</span></button>
+        <button class="nav-item" data-page="private"><i data-lucide="heart-handshake"></i><span>私域板块</span></button>
+        <button class="nav-item" data-page="product"><i data-lucide="package-open"></i><span>产品板块</span></button>
         <button class="nav-item" data-page="sales"><i data-lucide="messages-square"></i><span>销售模拟</span></button>
         <button class="nav-item admin-only" data-page="coach"><i data-lucide="briefcase-business"></i><span>教练工具箱</span></button>
         <button class="nav-item admin-only" data-page="admin"><i data-lucide="settings-2"></i><span>后台配置</span></button>
@@ -132,12 +131,10 @@
         <section class="quick-start">
           <div class="section-heading"><div><span class="eyebrow">QUICK START</span><h3>快速开始</h3></div><span>从一个动作开始</span></div>
           <div class="quick-start-grid">
-            <button class="quick-start-card" data-page="topics"><span>题</span><strong>我想找选题</strong><small>按赛道和业务快速生成一组方向</small><em>开始 →</em></button>
-            <button class="quick-start-card" data-page="copy"><span>文</span><strong>我想写文案</strong><small>选择一个文案智能体直接开始</small><em>开始 →</em></button>
-            <button class="quick-start-card" data-page="wechat"><span>刊</span><strong>我想做公众号</strong><small>从公众号文案到视觉排版一站完成</small><em>开始 →</em></button>
-            <button class="quick-start-card" data-page="competitor"><span>竞</span><strong>我想做竞品调研</strong><small>整理平台、账号和内容参考</small><em>开始 →</em></button>
+            <button class="quick-start-card" data-page="traffic"><span>流</span><strong>我想做流量</strong><small>从竞品、选题到短视频文案，一步步完成</small><em>进入 →</em></button>
+            <button class="quick-start-card" data-page="private"><span>私</span><strong>我想做私域</strong><small>表达、沉淀信任，再进入销售模拟</small><em>进入 →</em></button>
+            <button class="quick-start-card" data-page="product"><span>品</span><strong>我想打磨产品</strong><small>梳理人设故事、公开课和交付 SOP</small><em>进入 →</em></button>
             <button class="quick-start-card" data-page="pipi"><span>皮</span><strong>我想问皮皮</strong><small>不会使用中台时，先问一步</small><em>开始 →</em></button>
-            <button class="quick-start-card" data-page="sales"><span>销</span><strong>我想练销售对话</strong><small>选择一种家长类型，开始模拟沟通</small><em>开始 →</em></button>
           </div>
         </section>
 
@@ -148,6 +145,30 @@
           </div>
           <div id="recentList" class="record-list"></div>
         </section>
+      </section>
+
+      <section id="trafficPage" class="page hidden module-page">
+        <header class="module-hero"><span class="eyebrow">TRAFFIC WORKFLOW</span><h2>流量板块</h2><p>先看同行正在做什么，再选出值得表达的题，最后用对应的智能体做成内容。</p></header>
+        <section class="workflow-strip" aria-label="流量工作流"><button data-page="competitor"><b>01</b><strong>找竞品</strong><small>找账号、提文案、做对标</small></button><i>→</i><button data-page="topics"><b>02</b><strong>选题生成</strong><small>赛道、业务、方向与选题扭蛋机</small></button><i>→</i><button data-page="copy"><b>03</b><strong>文案智能体</strong><small>按内容类型完成口播文案</small></button><i>→</i><button data-page="traffic"><b>04</b><strong>查计划</strong><small>发布前核对内容与节奏</small></button></section>
+        <div class="module-grid three">
+          <article class="module-card"><span>竞品洞察</span><h3>找竞品 + 分析</h3><p>搜索抖音、视频号或小红书竞品；提取内容后可继续带入文案智能体。</p><button class="secondary" data-page="competitor">去找竞品 →</button></article>
+          <article class="module-card"><span>内容方向</span><h3>选题生成</h3><p>选择 C 端或 B 端，填写细分业务；好的选题可以保存，后续随时继续写。</p><button class="secondary" data-page="topics">去选题 →</button></article>
+          <article class="module-card"><span>发布检查</span><h3>敏感词与查计划</h3><p>在发布前检查风险表达、行动引导和本周内容节奏。此功能将在流量工作流内继续完善。</p><button class="secondary" data-page="pipi">让皮皮协助检查 →</button></article>
+        </div>
+        <section class="module-section"><div><span class="eyebrow">SHORT VIDEO AGENTS</span><h3>按内容类型选一个智能体</h3><p>不必每次从工作流开始，也可以直接挑你要做的内容。</p></div><div class="module-agent-grid"><button data-page="copy" data-copy-agent="local_city">同城智能体</button><button data-page="copy" data-copy-agent="persona_story">人设智能体</button><button data-page="copy" data-copy-agent="education_vertical">垂类爆款智能体</button><button data-page="copy" data-copy-agent="education_dry_goods">垂类干货智能体</button><button data-page="copy" data-copy-agent="education_marketing">营销智能体</button></div></section>
+        <section class="module-section material-note"><div><span class="eyebrow">PIPI MATERIAL LIBRARY</span><h3>皮皮素材库</h3><p>后续用于沉淀同城、人设、垂类爆款、干货及学员交付视频；当前可先在智能体对话中拖入图片或文档，让 AI 提取内容。</p></div><button class="secondary" data-page="copy">去上传素材 →</button></section>
+      </section>
+
+      <section id="privatePage" class="page hidden module-page">
+        <header class="module-hero"><span class="eyebrow">PRIVATE DOMAIN WORKFLOW</span><h2>私域板块</h2><p>把日常表达做成信任资产，再在真实咨询前练好成交对话。</p></header>
+        <section class="workflow-strip"><button data-page="copy" data-copy-agent="moments"><b>01</b><strong>朋友圈表达</strong><small>日常、专业判断与案例</small></button><i>→</i><button data-page="copy" data-copy-agent="xiaohongshu"><b>02</b><strong>小绿书沉淀</strong><small>图文卡片与价值内容</small></button><i>→</i><button data-page="wechat"><b>03</b><strong>公众号长文</strong><small>观点内容与视觉排版</small></button><i>→</i><button data-page="sales"><b>04</b><strong>销售模拟</strong><small>六步法实战训练</small></button></section>
+        <div class="module-grid three"><article class="module-card"><span>信任表达</span><h3>朋友圈智能体</h3><p>围绕真实教学、案例和专业判断，持续建立被看见的信任感。</p><button class="secondary" data-page="copy" data-copy-agent="moments">开始写朋友圈 →</button></article><article class="module-card"><span>图文沉淀</span><h3>小绿书 + 公众号</h3><p>将一个主题扩展为图文内容或长文，沉淀成可持续复用的表达。</p><button class="secondary" data-page="wechat">去做公众号 →</button></article><article class="module-card"><span>成交训练</span><h3>销售模拟</h3><p>选择家长类型，按成交六步法进行对话与复盘。</p><button class="secondary" data-page="sales">开始模拟 →</button></article></div>
+      </section>
+
+      <section id="productPage" class="page hidden module-page">
+        <header class="module-hero"><span class="eyebrow">PRODUCT WORKFLOW</span><h2>产品板块</h2><p>先说清你是谁、为什么做这件事，再把公开课和交付流程整理成学员能理解、团队能执行的产品。</p></header>
+        <section class="workflow-strip"><button data-page="copy" data-copy-agent="persona_story"><b>01</b><strong>人设故事</strong><small>形成真实、可信的产品表达</small></button><i>→</i><button data-page="pipi"><b>02</b><strong>公开课大纲</strong><small>梳理主题、结构与讲解路径</small></button><i>→</i><button data-page="coach"><b>03</b><strong>制作 SOP</strong><small>拆成团队能执行的交付步骤</small></button></section>
+        <div class="module-grid three"><article class="module-card"><span>产品表达</span><h3>人设故事智能体</h3><p>用你的经历、教育理念和真实转折，讲清产品背后的信任基础。</p><button class="secondary" data-page="copy" data-copy-agent="persona_story">开始梳理 →</button></article><article class="module-card"><span>课程设计</span><h3>公开课大纲</h3><p>先与皮皮梳理课程目标、听众卡点和课后承接，再生成可调整的大纲。</p><button class="secondary" data-page="pipi">开始梳理 →</button></article><article class="module-card"><span>交付落地</span><h3>制作 SOP</h3><p>把反复发生的交付工作拆成连续步骤，沉淀为可复用的流程。</p><button class="secondary" data-page="coach">去搭建 SOP →</button></article></div>
       </section>
 
       <section id="pipiPage" class="page pipi-page hidden">
@@ -698,6 +719,6 @@
   <script src="vendor/lucide.min.js?v=20260804-01"></script>
   <script>window.lucide?.createIcons({ attrs: { 'aria-hidden': 'true', 'stroke-width': 1.8 } });</script>
   <script src="config.js?v=20260903-02"></script>
-  <script src="app.js?v=20260903-03"></script>
+  <script src="app.js?v=20260904-modules-01"></script>
 </body>
 </html>

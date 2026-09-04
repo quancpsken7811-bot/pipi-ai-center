@@ -73,6 +73,7 @@ const state = {
   copyView: 'gallery',
   copyGeneration: null,
   copyGenerationTimer: null,
+  copyAttachments: [],
   wechatLayout: { theme: 'punk', mode: 'editable', layout: null, layouts: {}, images: [], html: '', article: '', result: null, settings: { fontSize: 16, lineHeight: 1.9, fontFamily: 'system', bodyColor: 'auto', accent: '#B55E32', fixedEndingEnabled: false, fixedEnding: '' } },
   competitorFinder: { keyword: '教育', channel: 'douyin', channelLabel: '抖音', loading: false, items: [], transcripts: {} },
   gacha: { loaded: false, loading: false, items: [], drawHistory: [], quotes: [], lastResult: null },
@@ -1525,6 +1526,83 @@ function readImageFile(file) {
     reader.onerror = () => reject(new Error(`无法读取 ${file.name}`));
     reader.readAsDataURL(file);
   });
+}
+
+const COPY_ATTACHMENT_MAX_FILES = 5;
+const COPY_ATTACHMENT_MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+const COPY_ATTACHMENT_MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
+const copyImageMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const copyDocumentExtensions = new Set(['txt', 'md', 'csv', 'rtf', 'docx']);
+
+function copyAttachmentKind(file) {
+  if (copyImageMimeTypes.has(file.type)) return 'image';
+  const extension = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
+  return copyDocumentExtensions.has(extension) ? 'document' : '';
+}
+
+function renderCopyAttachments() {
+  const container = $('copyAttachmentList');
+  if (!container) return;
+  container.innerHTML = state.copyAttachments.map((item, index) => {
+    const visual = item.kind === 'image'
+      ? `<img src="${item.dataUrl}" alt="${escapeHtml(item.name)}" />`
+      : `<span class="copy-attachment-icon">${escapeHtml(item.name.split('.').pop().toUpperCase() || '文件')}</span>`;
+    return `<span class="copy-attachment">${visual}<span class="copy-attachment-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span><button type="button" data-remove-copy-attachment="${index}" aria-label="移除 ${escapeHtml(item.name)}">×</button></span>`;
+  }).join('');
+}
+
+async function addCopyAttachments(files) {
+  const selected = [...files];
+  if (!selected.length) return;
+  const available = COPY_ATTACHMENT_MAX_FILES - state.copyAttachments.length;
+  if (available <= 0) {
+    showToast(`本轮最多添加 ${COPY_ATTACHMENT_MAX_FILES} 份素材。`);
+    return;
+  }
+  const accepted = [];
+  for (const file of selected.slice(0, available)) {
+    const kind = copyAttachmentKind(file);
+    const limit = kind === 'image' ? COPY_ATTACHMENT_MAX_IMAGE_BYTES : COPY_ATTACHMENT_MAX_DOCUMENT_BYTES;
+    if (!kind || !file.size || file.size > limit) {
+      showToast('仅支持 JPG、PNG、WebP、TXT、MD、CSV、RTF、DOCX；图片不超过 4MB、文档不超过 5MB。');
+      continue;
+    }
+    if (state.copyAttachments.some((item) => item.name === file.name && item.size === file.size)) continue;
+    accepted.push({ name: file.name, size: file.size, kind, dataUrl: await readImageFile(file) });
+  }
+  if (!accepted.length) return;
+  state.copyAttachments.push(...accepted);
+  renderCopyAttachments();
+  showToast(`已添加 ${accepted.length} 份素材，本轮发送时会一并交给智能体。`);
+}
+
+function bindCopyAttachmentInput() {
+  const input = $('copyMaterialFiles');
+  const trigger = $('copyAddMaterial');
+  const promptBox = $('copyPromptBox');
+  if (!input || !trigger || !promptBox || input.dataset.bound) return;
+  input.dataset.bound = 'true';
+  trigger.addEventListener('click', () => input.click());
+  input.addEventListener('change', async () => {
+    await addCopyAttachments(input.files);
+    input.value = '';
+  });
+  ['dragenter', 'dragover'].forEach((eventName) => promptBox.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    promptBox.classList.add('is-dragging');
+  }));
+  ['dragleave', 'drop'].forEach((eventName) => promptBox.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    promptBox.classList.remove('is-dragging');
+  }));
+  promptBox.addEventListener('drop', async (event) => addCopyAttachments(event.dataTransfer?.files || []));
+  document.body.addEventListener('click', (event) => {
+    const remove = event.target.closest('[data-remove-copy-attachment]');
+    if (!remove) return;
+    state.copyAttachments.splice(Number(remove.dataset.removeCopyAttachment), 1);
+    renderCopyAttachments();
+  });
+  renderCopyAttachments();
 }
 
 function bindCopywritingCoverUpload() {
@@ -3782,11 +3860,13 @@ async function generateCopy() {
     showToast('上一条文案仍在生成中，请等待结果返回。');
     return;
   }
-  const material = value('copyMaterial').trim();
-  if (!material) {
+  const typedMaterial = value('copyMaterial').trim();
+  if (!typedMaterial && !state.copyAttachments.length) {
     $('copyMaterial').focus();
     return;
   }
+  const attachmentNames = state.copyAttachments.map((item) => item.name);
+  const material = typedMaterial || `请根据我附上的素材，先帮我提炼关键信息，再生成一版可直接使用的内容。\n\n【本轮素材】${attachmentNames.join('、')}`;
   const activeSession = state.copySessions.find((item) => item.id === state.activeCopySessionId);
   const payload = {
     agent: value('copyAgent') || 'local_city',
@@ -3794,6 +3874,7 @@ async function generateCopy() {
     business: value('copyBusiness') || '教育业务',
     audience: value('copyAudience') || '目标客户',
     material,
+    attachments: state.copyAttachments.map((item) => ({ file_name: item.name, data_url: item.dataUrl })),
     history: (activeSession?.messages || []).slice(-6).map((message) => ({ user: message.prompt, assistant: message.content }))
   };
   if (state.user.role === 'training' && payload.type !== 'short') {
@@ -3812,6 +3893,8 @@ async function generateCopy() {
     const apiResult = await apiRequest('copywriting', payload);
     const content = apiResult?.content || apiResult?.message || mockCopy(payload);
     const session = saveCopySession(payload, typeName, content);
+    state.copyAttachments = [];
+    renderCopyAttachments();
     if (state.copyGeneration?.id === generationId) state.copyGeneration = null;
     if (state.page === 'copy' && state.copyView === 'compose') renderCopyConversation(session);
     addRecord(typeName, `${payload.business}${typeName}`, content, { conversationKey: session.id, conversationTitle: session.title });
@@ -4571,6 +4654,7 @@ function bindEvents() {
     document.getElementById(button.dataset.coachToolTarget)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }));
   $('generateCopy').addEventListener('click', generateCopy);
+  bindCopyAttachmentInput();
   $('backToCopyAgents').addEventListener('click', () => {
     if (state.copyOriginPage === 'wechat') {
       state.copyOriginPage = '';
@@ -4583,6 +4667,8 @@ function bindEvents() {
     state.activeCopySessionId = null;
     renderCopyConversation(null);
     $('copyMaterial').value = '';
+    state.copyAttachments = [];
+    renderCopyAttachments();
     renderCopySessions();
   });
   document.body.addEventListener('click', (event) => {

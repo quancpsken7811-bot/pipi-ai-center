@@ -2,6 +2,7 @@ const http = require('http');
 const { createHash, createHmac, randomBytes, randomUUID, scryptSync, timingSafeEqual } = require('crypto');
 const { execFileSync } = require('child_process');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { decryptWechatVideoBuffer } = require('./wechat-video-decrypt');
 
@@ -27,6 +28,9 @@ const INVENTORY_PATH = process.env.PIPI_API_INVENTORY || '/Users/lemon/Documents
 const SILICONFLOW_BASE_URL = process.env.SILICONFLOW_BASE_URL || 'https://api.siliconflow.cn/v1';
 const ARK_PLAN_BASE_URL = process.env.ARK_PLAN_BASE_URL || 'https://ark.cn-beijing.volces.com/api/plan/v3';
 const ARK_IMAGE_BASE_URL = process.env.ARK_IMAGE_BASE_URL || 'https://ark.cn-beijing.volces.com/api/v3';
+// 图片理解与图片生成是两种独立能力。只有明确配置视觉理解模型后，才允许把图片素材交给 AI，避免文字模型“看不到图却假装看过”。
+const ARK_VISION_BASE_URL = process.env.ARK_VISION_BASE_URL || 'https://ark.cn-beijing.volces.com/api/v3';
+const PIPI_VISION_MODEL = String(process.env.PIPI_VISION_MODEL || '').trim();
 const COACH_MOMENTS_IMAGE_MODEL = process.env.COACH_MOMENTS_IMAGE_MODEL || 'doubao-seedream-5-0-pro-260628';
 const COACH_MOMENTS_IMAGE_FALLBACK_MODEL = process.env.COACH_MOMENTS_IMAGE_FALLBACK_MODEL || 'Qwen/Qwen-Image-Edit-2509';
 const VOLC_BILLING_ENDPOINT = process.env.VOLC_BILLING_ENDPOINT || 'https://open.volcengineapi.com';
@@ -850,14 +854,108 @@ function personalKnowledgeUploadPath(user, fileName) {
   return { userDirectory, filePath: path.join(userDirectory, `${Date.now()}-${randomUUID()}-${safeFileName}`) };
 }
 
+function decodeDocumentEntities(text) {
+  return String(text || '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+function extractDocumentText(buffer, extension) {
+  const normalizedExtension = String(extension || '').toLowerCase();
+  if (['.txt', '.md', '.csv'].includes(normalizedExtension)) return buffer.toString('utf8');
+  if (normalizedExtension === '.rtf') {
+    return decodeDocumentEntities(buffer.toString('utf8')
+      .replace(/\\par[d]?/g, '\n')
+      .replace(/\\'[0-9a-fA-F]{2}/g, ' ')
+      .replace(/\\[a-z]+-?\d* ?/g, '')
+      .replace(/[{}]/g, ''));
+  }
+  if (normalizedExtension !== '.docx') return '';
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'pipi-document-'));
+  const sourcePath = path.join(directory, 'attachment.docx');
+  try {
+    fs.writeFileSync(sourcePath, buffer, { mode: 0o600 });
+    const xml = execFileSync('unzip', ['-p', sourcePath, 'word/document.xml'], { encoding: 'utf8', maxBuffer: 2 * 1024 * 1024 });
+    return decodeDocumentEntities(xml
+      .replace(/<w:tab\s*\/>/g, '\t')
+      .replace(/<\/w:p>/g, '\n')
+      .replace(/<\/w:tr>/g, '\n')
+      .replace(/<[^>]+>/g, ''));
+  } catch {
+    return '';
+  } finally {
+    try { fs.unlinkSync(sourcePath); } catch {}
+    try { fs.rmdirSync(directory); } catch {}
+  }
+}
+
 function extractPersonalKnowledgeDocument(filePath, extension) {
   try {
-    if (['.txt', '.md', '.csv'].includes(extension)) return fs.readFileSync(filePath, 'utf8');
-    if (['.rtf', '.docx'].includes(extension)) return execFileSync('textutil', ['-convert', 'txt', '-stdout', filePath], { encoding: 'utf8', maxBuffer: 2 * 1024 * 1024 });
+    return extractDocumentText(fs.readFileSync(filePath), extension);
   } catch {
     return '';
   }
-  return '';
+}
+
+function normalizeCopywritingAttachments(rawAttachments) {
+  const attachments = Array.isArray(rawAttachments) ? rawAttachments.slice(0, 5) : [];
+  const images = [];
+  const documentParts = [];
+  const names = [];
+  for (const item of attachments) {
+    const fileName = String(item?.file_name || '').trim().slice(0, 120);
+    const extension = path.extname(fileName).toLowerCase();
+    const match = String(item?.data_url || '').match(/^data:([^;,]+);base64,([A-Za-z0-9+/=]+)$/);
+    if (!fileName || !match) throw new Error('素材格式不正确，请重新选择文件');
+    const buffer = Buffer.from(match[2], 'base64');
+    if (!buffer.length) throw new Error(`《${fileName}》内容为空`);
+    if (['image/jpeg', 'image/png', 'image/webp'].includes(match[1])) {
+      if (buffer.length > 4 * 1024 * 1024) throw new Error(`图片《${fileName}》不能超过 4MB`);
+      if (images.length >= 3) throw new Error('本轮最多识别 3 张图片');
+      images.push({ name: fileName, dataUrl: String(item.data_url) });
+      names.push(fileName);
+      continue;
+    }
+    if (!['.txt', '.md', '.csv', '.rtf', '.docx'].includes(extension)) throw new Error(`《${fileName}》格式暂不支持`);
+    if (buffer.length > PERSONAL_KNOWLEDGE_MAX_UPLOAD_BYTES) throw new Error(`文档《${fileName}》不能超过 5MB`);
+    const content = extractDocumentText(buffer, extension).replace(/\u0000/g, '').trim().slice(0, 16000);
+    if (!content) throw new Error(`未能读取《${fileName}》的文字，请改为可复制文本或 DOCX 文档`);
+    documentParts.push(`【附件文档：${fileName}】\n${content}`);
+    names.push(fileName);
+  }
+  return { images, documentText: documentParts.join('\n\n'), names };
+}
+
+async function understandCopywritingImages(images, user) {
+  if (!images.length) return '';
+  if (!PIPI_VISION_MODEL) throw new Error('图片识别模型尚未配置。请先在本地 .env 配置 PIPI_VISION_MODEL，再上传图片素材。');
+  const key = arkImageKey();
+  if (!key) throw new Error('图片识别模型缺少火山方舟 API Key');
+  const response = await fetch(`${ARK_VISION_BASE_URL}/chat/completions`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: PIPI_VISION_MODEL,
+      temperature: 0.2,
+      max_tokens: 1800,
+      messages: [
+        { role: 'system', content: '你是教育 IP 内容素材分析助手。只基于图片中可见的信息提取文字、人物/场景、内容结构、观点、案例事实与可用于文案的线索；看不清的地方明确标注“无法确认”，绝不补造。输出简洁的中文素材笔记。' },
+        { role: 'user', content: [{ type: 'text', text: `请分析这 ${images.length} 张素材图片，后续会被用于生成教育内容文案。图片文件：${images.map((item) => item.name).join('、')}` }, ...images.map((item) => ({ type: 'image_url', image_url: { url: item.dataUrl } }))] }
+      ]
+    }),
+    signal: AbortSignal.timeout(60000)
+  });
+  const text = await response.text();
+  let payload;
+  try { payload = JSON.parse(text); } catch { throw new Error(`图片识别模型返回异常：${text.slice(0, 120)}`); }
+  if (!response.ok) throw new Error(`图片识别失败：${payload.error?.message || payload.message || `HTTP ${response.status}`}`);
+  const content = String(payload.choices?.[0]?.message?.content || '').trim();
+  if (!content) throw new Error('图片识别未返回可用内容，请更换清晰图片后重试');
+  logCall({ feature_code: 'vision_understanding', user_id: user?.id, user_name: user?.name, provider_code: 'volcengine_ark_plan', model_code: PIPI_VISION_MODEL, status: 'success', latency_ms: 0, usage: payload.usage || null });
+  return `【图片素材识别结果】\n${content}`;
 }
 
 function removePersonalKnowledgeUpload(item) {
@@ -3549,7 +3647,26 @@ async function route(req, res) {
       const requestedAgent = copyAgentByCode(body.agent) || copyAgentConfigs.find((item) => item.status === 'published');
       if (!requestedAgent) return fail(res, 503, '当前没有已上架的文案智能体', 50303);
       if (requestedAgent.status !== 'published' && user.role !== 'admin') return fail(res, 403, '该文案智能体已下架，请选择其他智能体', 40303);
-      const input = { ...body, agent: requestedAgent.code, type: body.type || requestedAgent.default_type || 'short' };
+      let attachmentContext;
+      try {
+        attachmentContext = normalizeCopywritingAttachments(body.attachments);
+      } catch (error) {
+        return fail(res, 400, error.message || '素材读取失败', 40001);
+      }
+      let imageUnderstanding = '';
+      try {
+        imageUnderstanding = await understandCopywritingImages(attachmentContext.images, user);
+      } catch (error) {
+        return fail(res, 422, error.message || '图片识别失败', 42201);
+      }
+      const attachmentText = [attachmentContext.documentText, imageUnderstanding].filter(Boolean).join('\n\n');
+      const input = {
+        ...body,
+        agent: requestedAgent.code,
+        type: body.type || requestedAgent.default_type || 'short',
+        material: [String(body.material || '').trim(), attachmentText].filter(Boolean).join('\n\n'),
+        attachment_names: attachmentContext.names
+      };
       if (user.role === 'training' && (input.type !== 'short' || !requestedAgent.tags?.includes('traffic'))) return fail(res, 403, '训练营学员暂时只开放流量类短视频文案', 40302);
       const result = await callConfiguredModel('copywriting', input, user);
       saveRecord('文案智能体', `${body.business || '教育业务'}文案`, result.content, { ...result, user_id: user.id, user_name: user.name, user_role: user.role });

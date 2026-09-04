@@ -277,10 +277,12 @@
               <select id="copyType" hidden><option value="short">短视频文案</option><option value="moments">朋友圈文案</option><option value="imageText">小绿书文案</option><option value="article">公众号文案</option></select>
               <input id="copyBusiness" type="hidden" value="" />
               <input id="copyAudience" type="hidden" value="" />
-              <div class="agent-prompt-box">
+              <div class="agent-prompt-box" id="copyPromptBox">
+                <input id="copyMaterialFiles" type="file" accept="image/jpeg,image/png,image/webp,.txt,.md,.csv,.rtf,.docx,text/plain,text/markdown,text/csv,application/rtf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple hidden />
                 <textarea id="copyMaterial" rows="3" placeholder="告诉我你想写什么，或直接发来真实素材"></textarea>
+                <div id="copyAttachmentList" class="copy-attachment-list" aria-live="polite"></div>
                 <div class="agent-composer-footer">
-                  <div class="agent-composer-tools"><button class="icon-action" type="button" title="添加素材">＋</button></div>
+                  <div class="agent-composer-tools"><button class="icon-action" id="copyAddMaterial" type="button" title="添加图片或文档" aria-label="添加图片或文档">＋</button><span>可拖入图片或文档</span></div>
                   <div><button class="icon-action" id="copyCopywriting" type="button" title="复制对话">⧉</button><button class="icon-action" id="exportCopywriting" type="button" title="导出对话">⇩</button><button class="agent-send-button" id="generateCopy" type="button" title="发送">↑</button></div>
                 </div>
               </div>

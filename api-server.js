@@ -330,7 +330,9 @@ const featureConfigs = [
   { feature_code: 'pipi_assistant_chat', feature_name: '皮皮分身', primary_model_id: 20, fallback_model_ids: [3, 1, 2, 21], prompt_template_id: 1, status: 'active', provider_codes: ['volcengine_ark_plan', 'siliconflow'], data_provider_codes: [] },
   { feature_code: 'topic_generate', feature_name: '选题生成', primary_model_id: 1, fallback_model_ids: [2, 3, 20, 21], prompt_template_id: 2, status: 'active', provider_codes: ['siliconflow', 'volcengine_ark_plan'], data_provider_codes: [] },
   { feature_code: 'copywriting_generate', feature_name: '文案智能体', primary_model_id: 1, fallback_model_ids: [2, 3, 20, 21], prompt_template_id: 3, status: 'active', provider_codes: ['siliconflow', 'volcengine_ark_plan'], data_provider_codes: [] },
-  { feature_code: 'competitor_finder', feature_name: '找竞品', primary_model_id: 1, fallback_model_ids: [2, 3, 20, 21], prompt_template_id: 4, status: 'active', provider_codes: ['siliconflow', 'volcengine_ark_plan'], data_provider_codes: ['tikhub'] },
+  // 找竞品的原始数据由 TikHub 提供；文本分析优先走已验证响应更稳定的 DeepSeek，避免
+  // Qwen / GLM 短暂超时后让用户一直等待。其余模型仍保留为故障兜底。
+  { feature_code: 'competitor_finder', feature_name: '找竞品', primary_model_id: 3, fallback_model_ids: [1, 2, 20, 21], prompt_template_id: 4, status: 'active', provider_codes: ['siliconflow', 'volcengine_ark_plan'], data_provider_codes: ['tikhub'] },
   { feature_code: 'sales_simulation', feature_name: '销售模拟', primary_model_id: 21, fallback_model_ids: [1, 2, 3], prompt_template_id: 30, status: 'active', provider_codes: ['volcengine_ark_plan', 'siliconflow'], data_provider_codes: [] },
   { feature_code: 'coach_toolbox', feature_name: '教练工具箱', primary_model_id: 20, fallback_model_ids: [1, 2, 3, 21], prompt_template_id: 40, status: 'active', provider_codes: ['volcengine_ark_plan', 'siliconflow'], data_provider_codes: [] },
   { feature_code: 'coach_moments', feature_name: '交付朋友圈', primary_model_id: 20, fallback_model_ids: [1, 2, 3, 21], prompt_template_id: 41, status: 'active', provider_codes: ['volcengine_ark_plan', 'siliconflow'], data_provider_codes: [] }
@@ -639,6 +641,21 @@ function ensurePipiModelFallback() {
   return true;
 }
 
+// 仅修正旧版的默认顺序。管理员在后台手工调整过模型时，绝不覆盖其选择。
+function ensureCompetitorModelPriority() {
+  const feature = featureConfigs.find((item) => item.feature_code === 'competitor_finder');
+  if (!feature) return false;
+  const isLegacyDefault = Number(feature.primary_model_id) === 1
+    && JSON.stringify(feature.fallback_model_ids || []) === JSON.stringify([2, 3, 20, 21]);
+  if (!isLegacyDefault) return false;
+  const primary = modelConfigs.find((model) => model.id === 3 && model.status === 'active');
+  if (!primary) return false;
+  feature.primary_model_id = 3;
+  feature.fallback_model_ids = [1, 2, 20, 21]
+    .filter((id) => modelConfigs.some((model) => model.id === id && model.status === 'active'));
+  return true;
+}
+
 // 首次交付前用于演示注册、权限与有效期的账号不应进入正式学员库。
 // 只按固定的演示账号/手机号清理，绝不影响后续真实学员的自助注册数据。
 function removeLegacySampleUsers() {
@@ -697,11 +714,12 @@ loadPersistentState();
 const copyAgentsMigrated = ensureCopyAgentDefaults();
 const copywritingModelMigrated = ensureCopywritingModelDefaults();
 const pipiModelFallbackMigrated = ensurePipiModelFallback();
+const competitorModelPriorityMigrated = ensureCompetitorModelPriority();
 const coachToolboxMigrated = ensureCoachToolboxDefaults();
 const legacySampleUsersRemoved = removeLegacySampleUsers();
 secureManagedUserPasswords();
 const personalCenterMigrated = managedUsers.some(ensurePersonalCenterData);
-if (!fs.existsSync(STATE_PATH) || personalCenterMigrated || coachToolboxMigrated || copyAgentsMigrated || copywritingModelMigrated || pipiModelFallbackMigrated || legacySampleUsersRemoved) savePersistentState();
+if (!fs.existsSync(STATE_PATH) || personalCenterMigrated || coachToolboxMigrated || copyAgentsMigrated || copywritingModelMigrated || pipiModelFallbackMigrated || competitorModelPriorityMigrated || legacySampleUsersRemoved) savePersistentState();
 
 const roleMeta = {
   admin: { name: '管理员', features: ['pipi', 'topics', 'copy', 'competitor', 'sales', 'coach', 'history', 'admin'] },

@@ -326,7 +326,8 @@ const promptTemplates = [
   { id: 41, feature_code: 'coach_moments', name: '交付朋友圈 Prompt', version: 'v2', status: 'active', content: loadPromptFile(DELIVERY_MOMENTS_SKILL_PATH, '根据真实交付过程写克制、具体、保护隐私的可直接发布朋友圈。') }
 ];
 const featureConfigs = [
-  { feature_code: 'pipi_assistant_chat', feature_name: '皮皮分身', primary_model_id: 20, fallback_model_ids: [], prompt_template_id: 1, status: 'active', provider_codes: ['volcengine_ark_plan'], data_provider_codes: [] },
+  // 皮皮分身保留 Ark Plan 作为首选；但绝不能因单一模型临时鉴权或续费状态异常而完全不可用。
+  { feature_code: 'pipi_assistant_chat', feature_name: '皮皮分身', primary_model_id: 20, fallback_model_ids: [3, 1, 2, 21], prompt_template_id: 1, status: 'active', provider_codes: ['volcengine_ark_plan', 'siliconflow'], data_provider_codes: [] },
   { feature_code: 'topic_generate', feature_name: '选题生成', primary_model_id: 1, fallback_model_ids: [2, 3, 20, 21], prompt_template_id: 2, status: 'active', provider_codes: ['siliconflow', 'volcengine_ark_plan'], data_provider_codes: [] },
   { feature_code: 'copywriting_generate', feature_name: '文案智能体', primary_model_id: 1, fallback_model_ids: [2, 3, 20, 21], prompt_template_id: 3, status: 'active', provider_codes: ['siliconflow', 'volcengine_ark_plan'], data_provider_codes: [] },
   { feature_code: 'competitor_finder', feature_name: '找竞品', primary_model_id: 1, fallback_model_ids: [2, 3, 20, 21], prompt_template_id: 4, status: 'active', provider_codes: ['siliconflow', 'volcengine_ark_plan'], data_provider_codes: ['tikhub'] },
@@ -623,6 +624,21 @@ function ensureCopywritingModelDefaults() {
   return changed;
 }
 
+// 早期版本把皮皮分身锁死在 Ark Plan。实际运行中，API Key、订阅或区域接口短暂异常
+// 都会让学员完全无法提问；仅对“旧默认配置”补上已接入的文字模型兜底，不覆盖管理员
+// 后续在后台主动配置的模型顺序。
+function ensurePipiModelFallback() {
+  const feature = featureConfigs.find((item) => item.feature_code === 'pipi_assistant_chat');
+  if (!feature) return false;
+  const isLegacyDefault = Number(feature.primary_model_id) === 20
+    && (!Array.isArray(feature.fallback_model_ids) || feature.fallback_model_ids.length === 0);
+  if (!isLegacyDefault) return false;
+  const fallbackIds = [3, 1, 2, 21].filter((id) => modelConfigs.some((model) => model.id === id && model.status === 'active'));
+  feature.fallback_model_ids = fallbackIds;
+  feature.provider_codes = [...new Set([...(Array.isArray(feature.provider_codes) ? feature.provider_codes : []), 'volcengine_ark_plan', 'siliconflow'])];
+  return true;
+}
+
 // 首次交付前用于演示注册、权限与有效期的账号不应进入正式学员库。
 // 只按固定的演示账号/手机号清理，绝不影响后续真实学员的自助注册数据。
 function removeLegacySampleUsers() {
@@ -680,11 +696,12 @@ function ensureCoachToolboxDefaults() {
 loadPersistentState();
 const copyAgentsMigrated = ensureCopyAgentDefaults();
 const copywritingModelMigrated = ensureCopywritingModelDefaults();
+const pipiModelFallbackMigrated = ensurePipiModelFallback();
 const coachToolboxMigrated = ensureCoachToolboxDefaults();
 const legacySampleUsersRemoved = removeLegacySampleUsers();
 secureManagedUserPasswords();
 const personalCenterMigrated = managedUsers.some(ensurePersonalCenterData);
-if (!fs.existsSync(STATE_PATH) || personalCenterMigrated || coachToolboxMigrated || copyAgentsMigrated || copywritingModelMigrated || legacySampleUsersRemoved) savePersistentState();
+if (!fs.existsSync(STATE_PATH) || personalCenterMigrated || coachToolboxMigrated || copyAgentsMigrated || copywritingModelMigrated || pipiModelFallbackMigrated || legacySampleUsersRemoved) savePersistentState();
 
 const roleMeta = {
   admin: { name: '管理员', features: ['pipi', 'topics', 'copy', 'competitor', 'sales', 'coach', 'history', 'admin'] },

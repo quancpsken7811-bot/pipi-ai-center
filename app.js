@@ -4439,7 +4439,7 @@ function renderCompetitorAccountDiagnosis() {
   const diagnosis = state.competitorAccountDiagnosis;
   if (!host) return;
   if (diagnosis.loading) {
-    host.innerHTML = '<strong>正在读取账号最热作品，并交给豆包按 PP 方法论诊断…</strong>';
+    host.innerHTML = '<strong>正在读取账号最热作品，按 PP 方法论诊断…</strong>';
     return;
   }
   if (diagnosis.error) {
@@ -4448,7 +4448,7 @@ function renderCompetitorAccountDiagnosis() {
   }
   if (!diagnosis.report) return;
   const reportHtml = escapeHtml(diagnosis.report).replace(/^##\s+(.+)$/gm, '<h4>$1</h4>').replace(/\n/g, '<br>');
-  host.innerHTML = `<header><span>豆包 · ${escapeHtml(diagnosis.model || '账号诊断')}</span><strong>${escapeHtml(diagnosis.accountName || '精品账号')}诊断结果</strong></header><div>${reportHtml}</div>`;
+  host.innerHTML = `<header><span>账号诊断报告</span><strong>${escapeHtml(diagnosis.accountName || '精品账号')}诊断结果</strong></header><div>${reportHtml}</div>`;
 }
 
 async function diagnoseCompetitorAccount() {

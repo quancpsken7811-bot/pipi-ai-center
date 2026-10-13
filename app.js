@@ -4478,11 +4478,12 @@ async function searchCompetitorFinder(keyword = value('competitorSearchInput'), 
     $('competitorSearchInput')?.focus();
     return;
   }
-  const audience = value('competitorAudience') || 'parents';
-  const intent = value('competitorIntent') || 'professional';
-  const contentForm = value('competitorContentForm') || 'talking_or_vlog';
+  // 面向学员只保留关键词搜索；教育 IP 的筛选偏好统一由系统默认执行。
+  const audience = 'parents';
+  const intent = 'professional';
+  const contentForm = 'talking_or_vlog';
   const contentFormLabels = { talking_or_vlog: '老师口播 / 真实 Vlog', talking_head: '老师口播', vlog: '真实 Vlog', all: '教育视频' };
-  const teacherUsableOnly = $('competitorTeacherUsableOnly')?.checked !== false;
+  const teacherUsableOnly = true;
   state.competitorFinder = { keyword: normalizedKeyword, requestedCount, channel, channelLabel, audience, intent, contentForm, contentFormLabel: contentFormLabels[contentForm], teacherUsableOnly, source: searchSource, loading: true, items: [], transcripts: {} };
   $('competitorRadar')?.classList.add('searching');
   if ($('competitorRadarStatus')) $('competitorRadarStatus').textContent = '● 正在扫描';

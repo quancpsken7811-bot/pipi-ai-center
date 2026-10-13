@@ -3572,7 +3572,7 @@ async function diagnoseDouyinAccount(input, user) {
   const account = { sec_user_id: secUserId, account_name: extractDouyinCompetitorItems(payload, '该账号')[0]?.author || '待确认', analyzed_video_count: videos.length, sort: '最热作品' };
   const result = await callConfiguredModel('competitor', { mode: 'account_diagnosis', account, videos }, user);
   logCall({ feature_code: 'competitor_account_diagnosis', user_id: user.id, user_name: user.name, provider_code: 'tikhub', model_code: TIKHUB_DOUYIN_ACCOUNT_VIDEOS_ENDPOINT, status: 'success', latency_ms: Date.now() - started, usage: { videos: videos.length, requests: 1 } });
-  saveRecord('精品账号诊断', `${account.account_name}账号诊断`, result.content, { ...result, account, video_count: videos.length, user_id: user.id, user_name: user.name, user_role: user.role });
+  saveRecord('账号诊断', `${account.account_name}账号诊断`, result.content, { ...result, account, video_count: videos.length, user_id: user.id, user_name: user.name, user_role: user.role });
   return { account, videos, report: result.content, ...result };
 }
 

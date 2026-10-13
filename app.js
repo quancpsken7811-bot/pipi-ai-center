@@ -4448,7 +4448,7 @@ function renderCompetitorAccountDiagnosis() {
   }
   if (!diagnosis.report) return;
   const reportHtml = escapeHtml(diagnosis.report).replace(/^##\s+(.+)$/gm, '<h4>$1</h4>').replace(/\n/g, '<br>');
-  host.innerHTML = `<header><span>账号诊断报告</span><strong>${escapeHtml(diagnosis.accountName || '精品账号')}诊断结果</strong></header><div>${reportHtml}</div>`;
+  host.innerHTML = `<header><span>账号诊断报告</span><strong>${escapeHtml(diagnosis.accountName || '该账号')}诊断结果</strong></header><div>${reportHtml}</div>`;
 }
 
 async function diagnoseCompetitorAccount() {

@@ -2,7 +2,7 @@
 // 不能因此静默切到 Mock 模式。内置同源 API 兜底，保证线上仍会真实请求后端。
 const DEFAULT_API_ENDPOINTS = {
   loginPassword: '/api/auth/login/password', register: '/api/auth/register', passwordResetRequest: '/api/auth/password-reset-request', loginSms: '/api/auth/login/sms', sendSms: '/api/auth/sms/send', me: '/api/me',
-  personalProfile: '/api/user/profile', personalAvatar: '/api/user/avatar', personalPersona: '/api/user/persona', personalKnowledge: '/api/user/knowledge', personalKnowledgeUpload: '/api/user/knowledge/upload', personalPoints: '/api/user/points',
+  personalProfile: '/api/user/profile', personalAvatar: '/api/user/avatar', personalPersona: '/api/user/persona', personalPersonaUpload: '/api/user/persona/upload', personalKnowledge: '/api/user/knowledge', personalKnowledgeUpload: '/api/user/knowledge/upload',
   toolAvailability: '/api/tools/availability', pipiChat: '/api/tools/pipi-assistant/chat', salesSimulation: '/api/tools/sales-simulation/chat', salesMethodConfig: '/api/tools/sales-simulation/config', pipiConfig: '/api/tools/pipi-assistant/config', topics: '/api/tools/topics/generate', inspirationCapsules: '/api/inspiration-capsules', inspirationDraws: '/api/inspiration-capsules/draw', copywriting: '/api/tools/copywriting/generate', copywritingConfig: '/api/tools/copywriting/config', wechatLayout: '/api/tools/wechat-layout/analyze', competitor: '/api/tools/competitors/generate', competitorTrends: '/api/tools/competitors/trends', competitorQuota: '/api/tools/competitors/quota', competitorSearch: '/api/tools/competitors/search', competitorAccountDiagnosis: '/api/tools/competitors/account-diagnosis', competitorTranscript: '/api/tools/competitors/transcript', coachSop: '/api/tools/coach/sop', coachMoments: '/api/tools/coach/moments', coachMomentsTemplate: '/api/tools/coach/moments/template', records: '/api/generation-records',
   adminUsers: '/api/admin/users', adminStats: '/api/admin/stats', adminPipiConfig: '/api/admin/pipi-assistant/config', adminPipiKnowledge: '/api/admin/pipi-assistant/knowledge', adminSalesConfig: '/api/admin/sales-simulation/config', adminSalesKnowledge: '/api/admin/sales-simulation/knowledge', adminSalesReports: '/api/admin/sales-simulation/reports', adminCoachToolbox: '/api/admin/coach-toolbox/config', adminCopywritingConfig: '/api/admin/copywriting/config', adminCopywritingAgents: '/api/admin/copywriting/agents', adminCopywritingCovers: '/api/admin/copywriting/covers', adminProviders: '/api/admin/ai/providers', adminImageProxyTest: '/api/admin/image-proxy/test', adminModels: '/api/admin/ai/models', adminRefreshModels: '/api/admin/ai/models/refresh', adminPrompts: '/api/admin/prompts', adminFeatures: '/api/admin/ai/features', adminUsage: '/api/admin/ai/usage', adminProviderUsage: '/api/admin/ai/provider-usage', adminCallLogs: '/api/admin/ai/call-logs', materialLibrary: '/api/material-library'
 };
@@ -31,9 +31,9 @@ const API_REQUEST_TIMEOUTS = {
   personalProfile: 15000,
   personalAvatar: 30000,
   personalPersona: 15000,
+  personalPersonaUpload: 45000,
   personalKnowledge: 15000,
   personalKnowledgeUpload: 45000,
-  personalPoints: 15000,
   pipiChat: 150000,
   salesSimulation: 105000,
   salesMethodConfig: 15000,
@@ -67,7 +67,7 @@ const state = {
   toolAvailability: {},
   page: 'home',
   personalTab: 'profile',
-  personal: { profile: null, persona: null, knowledge: [], points: { balance: 0, items: [] } },
+  personal: { profile: null, persona: null, knowledge: [] },
   records: [],
   copySessions: [],
   activeCopySessionId: null,
@@ -1020,11 +1020,10 @@ function renderContinue() {
 }
 
 async function loadPersonalCenter() {
-  const [profile, personaData, knowledgeData, pointsData] = await Promise.all([
+  const [profile, personaData, knowledgeData] = await Promise.all([
     apiRequest('personalProfile', {}, { method: 'GET' }).catch(() => null),
     apiRequest('personalPersona', {}, { method: 'GET' }).catch(() => null),
-    apiRequest('personalKnowledge', {}, { method: 'GET' }).catch(() => null),
-    apiRequest('personalPoints', {}, { method: 'GET' }).catch(() => null)
+    apiRequest('personalKnowledge', {}, { method: 'GET' }).catch(() => null)
   ]);
   if (profile) {
     state.personal.profile = profile;
@@ -1036,7 +1035,6 @@ async function loadPersonalCenter() {
   }
   if (personaData) state.personal.persona = personaData.persona || null;
   if (knowledgeData) state.personal.knowledge = knowledgeData.items || [];
-  if (pointsData) state.personal.points = pointsData;
   renderPersonalCenter();
 }
 
@@ -1046,24 +1044,19 @@ function renderPersonalCenter() {
   const profile = state.personal.profile || {};
   const persona = state.personal.persona;
   const knowledge = state.personal.knowledge || [];
-  const points = state.personal.points || { balance: 0, items: [] };
-  $('personalPointsBalance').textContent = `${points.balance || 0} 积分`;
+  if (state.personalTab === 'points') state.personalTab = 'profile';
   document.querySelectorAll('[data-personal-tab]').forEach((button) => button.classList.toggle('active', button.dataset.personalTab === state.personalTab));
   if (state.personalTab === 'profile') {
     container.innerHTML = `<section class="personal-panel"><div class="personal-panel-head"><div><h3>编辑资料</h3><p>这份资料用于识别你的账号与业务背景。</p></div></div><div class="personal-avatar-editor"><div class="personal-avatar-preview">${profile.avatar_url ? `<img src="${escapeHtml(profile.avatar_url)}" alt="个人头像" />` : `<span>${escapeHtml((profile.name || state.user.name).slice(0, 1))}</span>`}</div><div><strong>个人头像</strong><small>支持 JPG、PNG、WebP，图片不超过 2MB。</small><input id="personalAvatarFile" type="file" accept="image/jpeg,image/png,image/webp" hidden /><button class="secondary mini" id="selectPersonalAvatar" type="button">上传头像</button></div></div><div class="personal-form"><label>姓名<input id="personalName" value="${escapeHtml(profile.name || state.user.name)}" maxlength="32" /></label><label>账号<input value="${escapeHtml(profile.account || state.user.account || '')}" disabled /></label><label>手机号<input value="${escapeHtml(profile.phone || '')}" disabled /></label><label>一句话介绍<textarea id="personalBio" rows="3" placeholder="例如：专注 3-12 岁少儿书法教育">${escapeHtml(profile.bio || '')}</textarea></label><label>业务描述<textarea id="personalBusiness" rows="4" placeholder="写下你的赛道、产品、服务对象和当下目标">${escapeHtml(profile.business_description || '')}</textarea></label><button class="primary" id="savePersonalProfile">保存资料</button></div></section>`;
     return;
   }
   if (state.personalTab === 'persona') {
-    container.innerHTML = persona ? `<section class="personal-panel"><div class="personal-panel-head"><div><h3>个人人设</h3><p>“我是谁 / 我服务谁 / 我的故事”，所有 AI 创作都会自动使用。</p></div><button class="secondary" id="deletePersona">删除人设</button></div><div class="personal-form persona-form"><label>人设名称<input id="personaName" value="${escapeHtml(persona.name || '')}" /></label><label>我是做什么的<textarea id="personaIdentity" rows="3" placeholder="例如：同城少儿书法机构主理人">${escapeHtml(persona.identity || '')}</textarea></label><label>我服务谁<textarea id="personaAudience" rows="3" placeholder="例如：3-12 岁孩子及关注书写能力的家长">${escapeHtml(persona.audience || '')}</textarea></label><label>我提供什么<textarea id="personaService" rows="3" placeholder="例如：少儿硬笔、软笔课程与书写习惯培养">${escapeHtml(persona.service || '')}</textarea></label><label>我的故事<textarea id="personaStory" rows="6" placeholder="写下你的经历、理念和想坚持的事">${escapeHtml(persona.story || '')}</textarea></label><button class="primary" id="savePersona">保存人设</button></div></section>` : `<section class="persona-empty"><i data-lucide="circle-user-round"></i><h3>还没有个人人设</h3><p>创建一个人设，让所有 AI 创作出的内容都带上你的印记。</p><button class="primary" id="createPersona"><i data-lucide="plus"></i>创建第一个人设</button></section>`;
-    window.lucide?.createIcons({ attrs: { 'aria-hidden': 'true', 'stroke-width': 1.8 } });
+    const draft = persona || {};
+    container.innerHTML = `<section class="personal-panel"><div class="personal-panel-head"><div><h3>个人人设</h3><p>“我是谁 / 我服务谁 / 我的故事”，所有 AI 创作都会自动使用。也可以上传资料，提炼后再核对保存。</p></div>${persona ? '<button class="secondary" id="deletePersona">删除人设</button>' : ''}</div><div class="personal-form persona-form"><div class="personal-persona-upload"><input id="personaDocumentFile" type="file" accept=".txt,.md,.csv,.rtf,.docx,text/plain,text/markdown,text/csv,application/rtf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden /><button class="secondary" id="selectPersonaDocument" type="button">上传人设资料</button><span id="personaDocumentUploadStatus">支持 TXT、MD、CSV、RTF、DOCX，单份不超过 5MB；内容会填入“我的故事”，请核对后保存。</span></div><label>人设名称<input id="personaName" value="${escapeHtml(draft.name || '')}" /></label><label>我是做什么的<textarea id="personaIdentity" rows="3" placeholder="例如：同城少儿书法机构主理人">${escapeHtml(draft.identity || '')}</textarea></label><label>我服务谁<textarea id="personaAudience" rows="3" placeholder="例如：3-12 岁孩子及关注书写能力的家长">${escapeHtml(draft.audience || '')}</textarea></label><label>我提供什么<textarea id="personaService" rows="3" placeholder="例如：少儿硬笔、软笔课程与书写习惯培养">${escapeHtml(draft.service || '')}</textarea></label><label>我的故事<textarea id="personaStory" rows="6" maxlength="3000" placeholder="写下你的经历、理念和想坚持的事">${escapeHtml(draft.story || '')}</textarea></label><button class="primary" id="savePersona">保存人设</button></div></section>`;
     return;
   }
   if (state.personalTab === 'knowledge') {
     container.innerHTML = `<section class="personal-panel"><div class="personal-panel-head"><div><h3>个人知识库</h3><p>把皮皮团队给你产出的文档放进来吧～已启用的人设和知识会被所有智能体自动参考。</p></div><span class="personal-count">${knowledge.length} 条</span></div><div class="personal-knowledge-upload"><input id="personalKnowledgeFile" type="file" accept=".txt,.md,.csv,.rtf,.docx,text/plain,text/markdown,text/csv,application/rtf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden /><button class="secondary" id="selectPersonalKnowledgeFile" type="button">上传文档</button><span id="personalKnowledgeUploadStatus">支持 TXT、MD、CSV、RTF、DOCX，单份不超过 5MB。</span></div><div class="personal-knowledge-form"><input id="personalKnowledgeTitle" placeholder="文档标题，例如：我的业务定位方案" /><input id="personalKnowledgeCategory" placeholder="分类，例如：定位 / 产品 / 案例" /><textarea id="personalKnowledgeContent" rows="7" placeholder="也可以直接粘贴文档内容。已启用的内容会作为你的专属创作参考。"></textarea><button class="primary" id="addPersonalKnowledge">加入个人知识库</button></div><div class="personal-knowledge-list">${knowledge.length ? knowledge.map((item) => `<article><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.category || '未分类')} · ${item.source_type ? `${escapeHtml(item.source_type)} 文档 · ` : ''}${item.status === 'active' ? '创作中已启用' : '已暂停使用'}</small><p>${escapeHtml(item.content || '').slice(0, 180)}</p></div><div class="row-actions"><button class="secondary mini" data-personal-knowledge-toggle="${escapeHtml(item.id)}" data-next-status="${item.status === 'active' ? 'disabled' : 'active'}">${item.status === 'active' ? '暂停' : '启用'}</button><button class="secondary mini" data-personal-knowledge-delete="${escapeHtml(item.id)}">删除</button></div></article>`).join('') : '<div class="personal-empty-note">还没有个人文档。从皮皮团队给你的定位、方案或案例里挑一份开始吧。</div>'}</div></section>`;
-    return;
-  }
-  if (state.personalTab === 'points') {
-    container.innerHTML = `<section class="personal-panel student-points-panel"><div class="points-hero"><span>当前可用积分</span><strong>${points.balance || 0}</strong><small>积分可用于后续开放的增值服务和专属权益，具体规则以平台通知为准。</small></div></section>`;
     return;
   }
   container.innerHTML = `<section class="personal-panel"><div class="personal-panel-head"><div><h3>最近生成</h3><p>这里保留你在选题、文案、竞品、皮皮和销售模拟中的生成记录。</p></div><button class="secondary" id="clearPersonalHistory">清空记录</button></div><div id="personalRecentList" class="record-list"></div></section>`;
@@ -5554,9 +5547,9 @@ function bindEvents() {
     const tab = event.target.closest('[data-personal-tab]');
     const saveProfile = event.target.closest('#savePersonalProfile');
     const selectAvatar = event.target.closest('#selectPersonalAvatar');
-    const createPersona = event.target.closest('#createPersona');
     const savePersona = event.target.closest('#savePersona');
     const deletePersona = event.target.closest('#deletePersona');
+    const selectPersonaDocument = event.target.closest('#selectPersonaDocument');
     const addKnowledge = event.target.closest('#addPersonalKnowledge');
     const selectKnowledgeFile = event.target.closest('#selectPersonalKnowledgeFile');
     const toggleKnowledge = event.target.closest('[data-personal-knowledge-toggle]');
@@ -5579,10 +5572,6 @@ function bindEvents() {
         showToast('资料已保存');
       }
       if (selectAvatar) $('personalAvatarFile').click();
-      if (createPersona) {
-        state.personal.persona = {};
-        renderPersonalCenter();
-      }
       if (savePersona) {
         const result = await apiRequest('personalPersona', {
           name: value('personaName'), identity: value('personaIdentity'), audience: value('personaAudience'), service: value('personaService'), story: value('personaStory')
@@ -5598,6 +5587,7 @@ function bindEvents() {
         renderPersonalCenter();
         showToast('个人人设已删除');
       }
+      if (selectPersonaDocument) $('personaDocumentFile').click();
       if (addKnowledge) {
         const title = value('personalKnowledgeTitle');
         const content = value('personalKnowledgeContent');
@@ -5636,6 +5626,31 @@ function bindEvents() {
     }
   });
   $('personalPage').addEventListener('change', async (event) => {
+    if (event.target.id === 'personaDocumentFile') {
+      const [file] = event.target.files;
+      if (!file) return;
+      const extension = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
+      if (!['txt', 'md', 'csv', 'rtf', 'docx'].includes(extension) || file.size > 5 * 1024 * 1024) {
+        alert('人设资料仅支持 TXT、MD、CSV、RTF、DOCX，且单份不超过 5MB');
+        event.target.value = '';
+        return;
+      }
+      const status = $('personaDocumentUploadStatus');
+      try {
+        if (status) status.textContent = `正在读取《${file.name}》...`;
+        const result = await apiRequest('personalPersonaUpload', { file_name: file.name, data_url: await readImageFile(file) });
+        const story = $('personaStory');
+        if (story) story.value = [story.value.trim(), result.content].filter(Boolean).join(story.value.trim() ? '\n\n' : '').slice(0, 3000);
+        if (status) status.textContent = `已读取《${result.source_name}》，内容已填入“我的故事”，请核对后保存。`;
+        showToast('人设资料已读取，请核对后保存');
+      } catch (error) {
+        if (status) status.textContent = error.message || '人设资料上传失败，请重试。';
+        else alert(error.message);
+      } finally {
+        event.target.value = '';
+      }
+      return;
+    }
     if (event.target.id === 'personalKnowledgeFile') {
       const [file] = event.target.files;
       if (!file) return;

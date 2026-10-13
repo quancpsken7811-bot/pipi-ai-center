@@ -4028,6 +4028,20 @@ async function route(req, res) {
       delete user.persona;
       return ok(res, { deleted: true });
     }
+    if (req.method === 'POST' && url.pathname === '/api/user/persona/upload') {
+      const user = requireUser(req, res);
+      if (!user) return;
+      const sourceName = String(body.file_name || '').trim();
+      const extension = path.extname(sourceName).toLowerCase();
+      if (!['.txt', '.md', '.csv', '.rtf', '.docx'].includes(extension)) return fail(res, 400, '仅支持 TXT、MD、CSV、RTF、DOCX 文档', 40001);
+      const match = String(body.data_url || '').match(/^data:([^;,]+);base64,([A-Za-z0-9+/=]+)$/);
+      if (!match) return fail(res, 400, '文档内容格式不正确', 40001);
+      const buffer = Buffer.from(match[2], 'base64');
+      if (!buffer.length || buffer.length > PERSONAL_KNOWLEDGE_MAX_UPLOAD_BYTES) return fail(res, 400, '单份文档不得超过 5MB', 40001);
+      const content = extractDocumentText(buffer, extension).replace(/\u0000/g, '').trim();
+      if (!content) return fail(res, 400, '未能读取文档文字，请上传可复制文本的文档', 40001);
+      return ok(res, { source_name: sourceName.slice(0, 120), content: content.slice(0, 3000), truncated: content.length > 3000 });
+    }
     if (req.method === 'GET' && url.pathname === '/api/user/knowledge') {
       const user = requireUser(req, res);
       if (!user) return;
@@ -4055,7 +4069,7 @@ async function route(req, res) {
       const match = String(body.data_url || '').match(/^data:([^;,]+);base64,([A-Za-z0-9+/=]+)$/);
       if (!match) return fail(res, 400, '文档内容格式不正确', 40001);
       const buffer = Buffer.from(match[2], 'base64');
-      if (!buffer.length || buffer.length > PERSONAL_KNOWLEDGE_MAX_UPLOAD_BYTES) return fail(res, 400, '单份文档需小于 5MB', 40001);
+      if (!buffer.length || buffer.length > PERSONAL_KNOWLEDGE_MAX_UPLOAD_BYTES) return fail(res, 400, '单份文档不得超过 5MB', 40001);
       const { userDirectory, filePath } = personalKnowledgeUploadPath(user, sourceName);
       fs.mkdirSync(userDirectory, { recursive: true, mode: 0o700 });
       fs.writeFileSync(filePath, buffer, { mode: 0o600 });

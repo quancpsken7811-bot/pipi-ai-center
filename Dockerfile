@@ -5,6 +5,8 @@ WORKDIR /app
 COPY package.json ./
 RUN npm install --omit=dev
 
+# 该解密模块由服务端启动时直接 require；显式复制以避免构建上下文规则变动时遗漏。
+COPY wechat-video-decrypt.js ./
 COPY . ./
 
 ENV NODE_ENV=production \

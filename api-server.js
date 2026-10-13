@@ -123,6 +123,13 @@ function localDateKey(date = new Date()) {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
+function addDaysToDateKey(dateKey, days) {
+  const [year, month, day] = String(dateKey).split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + Number(days));
+  return date.toISOString().slice(0, 10);
+}
+
 if (IS_PRODUCTION && !AUTH_SECRET) {
   throw new Error('生产环境必须设置 PIPI_AUTH_SECRET。');
 }
@@ -4843,6 +4850,7 @@ async function route(req, res) {
       if (!/^1\d{10}$/.test(phone)) return fail(res, 400, '请输入正确的 11 位手机号', 40001);
       if (password.length < 8) return fail(res, 400, '初始密码至少需要 8 位', 40001);
       if (!roleMeta[role]) return fail(res, 400, '角色不合法', 40001);
+      if (body.expires_at && !/^\d{4}-\d{2}-\d{2}$/.test(String(body.expires_at))) return fail(res, 400, '到期日期格式不合法', 40001);
       if (managedUsers.some((item) => item.phone === phone || item.account === phone)) return fail(res, 409, '该手机号已经开通过账号或正在作为登录账号使用', 40901);
       const item = {
         id: Date.now(),
@@ -4887,12 +4895,16 @@ async function route(req, res) {
       if (body.phone !== undefined && (!/^1\d{10}$/.test(nextPhone) || managedUsers.some((item) => item.id !== user.id && (item.phone === nextPhone || item.account === nextPhone)))) return fail(res, 400, '手机号格式错误或已被使用', 40001);
       if (body.status !== undefined && !['active', 'disabled'].includes(body.status)) return fail(res, 400, '账号状态不合法', 40001);
       if (body.expires_at !== undefined && body.expires_at && !/^\d{4}-\d{2}-\d{2}$/.test(String(body.expires_at))) return fail(res, 400, '到期日期格式不合法', 40001);
+      if (body.extend_days !== undefined && (!Number.isInteger(Number(body.extend_days)) || Number(body.extend_days) < 1 || Number(body.extend_days) > 3650)) return fail(res, 400, '续期天数需为 1 到 3650 天之间的整数', 40001);
       if (body.enabled_features !== undefined && (!Array.isArray(body.enabled_features) || body.enabled_features.some((item) => !['pipi', 'topics', 'copy', 'competitor', 'sales', 'coach', 'history'].includes(item)))) return fail(res, 400, '功能权限不合法', 40001);
       if (body.new_password !== undefined && String(body.new_password).length < 8) return fail(res, 400, '新密码至少需要 8 位', 40001);
       const allowed = ['name', 'phone', 'role', 'status', 'paid_product', 'expires_at', 'remark'];
       allowed.forEach((key) => { if (body[key] !== undefined) user[key] = body[key]; });
+      if (body.extend_days !== undefined && user.role !== 'admin') {
+        const baseDate = user.expires_at && user.expires_at >= localDateKey() ? user.expires_at : localDateKey();
+        user.expires_at = addDaysToDateKey(baseDate, Number(body.extend_days));
+      }
       if (body.phone !== undefined && /^1\d{10}$/.test(String(user.account || ''))) user.account = nextPhone;
-      if (body.status === 'active' && user.expires_at && user.expires_at < localDateKey() && body.expires_at === undefined) user.expires_at = '';
       if (body.role) {
         user.roleName = roleMeta[body.role].name;
         user.enabled_features = roleMeta[body.role].features;

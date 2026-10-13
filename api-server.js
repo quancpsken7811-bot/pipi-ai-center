@@ -83,7 +83,8 @@ const COACH_MOMENT_FIXED_TEMPLATE_PATH = path.join(APP_ROOT, 'assets', 'coach-mo
 const COACH_MOMENT_LAYOUT_REFERENCE_PATH = path.join(APP_ROOT, 'assets', 'coach-moment-layout-reference.png');
 const USER_AVATAR_DIR = path.join(__dirname, 'assets', 'user-avatars');
 const PERSONAL_KNOWLEDGE_UPLOAD_DIR = path.join(DATA_DIR, 'personal-knowledge');
-const PERSONAL_KNOWLEDGE_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+const PERSONAL_KNOWLEDGE_MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+const DOCUMENT_ATTACHMENT_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 const PIPI_STUDENT_SKILL_ZIP = process.env.PIPI_STUDENT_SKILL_ZIP || path.join(__dirname, '..', 'outputs', 'pipi-student-qa.zip');
 const BOOTSTRAP_ADMIN_ACCOUNT = process.env.PIPI_BOOTSTRAP_ADMIN_ACCOUNT || 'admin';
 const BOOTSTRAP_ADMIN_PASSWORD = process.env.PIPI_BOOTSTRAP_ADMIN_PASSWORD || (IS_PRODUCTION ? '' : '123456');
@@ -1279,7 +1280,7 @@ function normalizeCopywritingAttachments(rawAttachments) {
       continue;
     }
     if (!['.txt', '.md', '.csv', '.rtf', '.docx'].includes(extension)) throw new Error(`《${fileName}》格式暂不支持`);
-    if (buffer.length > PERSONAL_KNOWLEDGE_MAX_UPLOAD_BYTES) throw new Error(`文档《${fileName}》不能超过 5MB`);
+    if (buffer.length > DOCUMENT_ATTACHMENT_MAX_UPLOAD_BYTES) throw new Error(`文档《${fileName}》不能超过 5MB`);
     const content = extractDocumentText(buffer, extension).replace(/\u0000/g, '').trim().slice(0, 16000);
     if (!content) throw new Error(`未能读取《${fileName}》的文字，请改为可复制文本或 DOCX 文档`);
     documentParts.push(`【附件文档：${fileName}】\n${content}`);
@@ -4037,7 +4038,7 @@ async function route(req, res) {
       const match = String(body.data_url || '').match(/^data:([^;,]+);base64,([A-Za-z0-9+/=]+)$/);
       if (!match) return fail(res, 400, '文档内容格式不正确', 40001);
       const buffer = Buffer.from(match[2], 'base64');
-      if (!buffer.length || buffer.length > PERSONAL_KNOWLEDGE_MAX_UPLOAD_BYTES) return fail(res, 400, '单份文档不得超过 5MB', 40001);
+      if (!buffer.length || buffer.length > PERSONAL_KNOWLEDGE_MAX_UPLOAD_BYTES) return fail(res, 400, '单份文档不得超过 20MB', 40001);
       const content = extractDocumentText(buffer, extension).replace(/\u0000/g, '').trim();
       if (!content) return fail(res, 400, '未能读取文档文字，请上传可复制文本的文档', 40001);
       return ok(res, { source_name: sourceName.slice(0, 120), content: content.slice(0, 3000), truncated: content.length > 3000 });
@@ -4069,7 +4070,7 @@ async function route(req, res) {
       const match = String(body.data_url || '').match(/^data:([^;,]+);base64,([A-Za-z0-9+/=]+)$/);
       if (!match) return fail(res, 400, '文档内容格式不正确', 40001);
       const buffer = Buffer.from(match[2], 'base64');
-      if (!buffer.length || buffer.length > PERSONAL_KNOWLEDGE_MAX_UPLOAD_BYTES) return fail(res, 400, '单份文档不得超过 5MB', 40001);
+      if (!buffer.length || buffer.length > PERSONAL_KNOWLEDGE_MAX_UPLOAD_BYTES) return fail(res, 400, '单份文档不得超过 20MB', 40001);
       const { userDirectory, filePath } = personalKnowledgeUploadPath(user, sourceName);
       fs.mkdirSync(userDirectory, { recursive: true, mode: 0o700 });
       fs.writeFileSync(filePath, buffer, { mode: 0o600 });

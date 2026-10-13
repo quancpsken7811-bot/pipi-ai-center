@@ -12,7 +12,7 @@
   <title>皮皮 AI 中台</title>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
   <link rel="preload" as="image" href="assets/pipi-teacher-profile-web.webp" type="image/webp" fetchpriority="high" />
-  <link rel="stylesheet" href="styles.css?v=20260904-modules-01" />
+  <link rel="stylesheet" href="styles.css?v=20260907-accumulation-01" />
 </head>
 <body>
   <section id="loginPage" class="login-page">
@@ -86,7 +86,7 @@
         <button class="nav-item active" data-page="home"><i data-lucide="layout-dashboard"></i><span>工作台</span></button>
         <button class="nav-item" data-page="pipi"><i data-lucide="bot-message-square"></i><span>皮皮分身</span></button>
         <button class="nav-item" data-page="traffic"><i data-lucide="chart-no-axes-column-increasing"></i><span>流量板块</span></button>
-        <button class="nav-item" data-page="private"><i data-lucide="heart-handshake"></i><span>私域板块</span></button>
+        <button class="nav-item" data-page="accumulation"><i data-lucide="heart-handshake"></i><span>沉淀板块</span></button>
         <button class="nav-item" data-page="product"><i data-lucide="package-open"></i><span>产品板块</span></button>
         <button class="nav-item" data-page="copy"><i data-lucide="sparkles"></i><span>智能体广场</span></button>
         <button class="nav-item" data-page="sales"><i data-lucide="messages-square"></i><span>销售模拟</span></button>
@@ -105,7 +105,7 @@
       <header class="topbar">
         <div>
           <span class="eyebrow">MVP 0.1</span>
-          <h1 id="pageTitle">工作台</h1>
+          <div class="page-title-row"><button id="pageBack" class="page-back hidden" type="button" aria-label="返回上一页">← 返回</button><h1 id="pageTitle">工作台</h1></div>
         </div>
         <div class="account">
           <span class="status-dot"></span>
@@ -133,7 +133,7 @@
           <div class="section-heading"><div><span class="eyebrow">QUICK START</span><h3>快速开始</h3></div><span>从一个动作开始</span></div>
           <div class="quick-start-grid">
             <button class="quick-start-card" data-page="traffic"><span>流</span><strong>我想做流量</strong><small>从竞品、选题到短视频文案，一步步完成</small><em>进入 →</em></button>
-            <button class="quick-start-card" data-page="private"><span>私</span><strong>我想做私域</strong><small>表达、沉淀信任，再进入销售模拟</small><em>进入 →</em></button>
+            <button class="quick-start-card" data-page="accumulation"><span>沉</span><strong>我想沉淀内容</strong><small>把朋友圈、公众号、小绿书和案例留下来</small><em>进入 →</em></button>
             <button class="quick-start-card" data-page="product"><span>品</span><strong>我想打磨产品</strong><small>梳理人设故事、公开课和交付 SOP</small><em>进入 →</em></button>
             <button class="quick-start-card" data-page="pipi"><span>皮</span><strong>我想问皮皮</strong><small>不会使用中台时，先问一步</small><em>开始 →</em></button>
           </div>
@@ -150,26 +150,35 @@
 
       <section id="trafficPage" class="page hidden module-page">
         <header class="module-hero"><span class="eyebrow">TRAFFIC WORKFLOW</span><h2>流量板块</h2><p>先看同行正在做什么，再选出值得表达的题，最后用对应的智能体做成内容。</p></header>
-        <section class="workflow-strip" aria-label="流量工作流"><button data-page="competitor"><b>01</b><strong>找竞品</strong><small>找账号、提文案、做对标</small></button><i>→</i><button data-page="topics"><b>02</b><strong>选题生成</strong><small>赛道、业务、方向与选题扭蛋机</small></button><i>→</i><button data-page="copy"><b>03</b><strong>文案智能体</strong><small>按内容类型完成口播文案</small></button><i>→</i><button data-page="traffic"><b>04</b><strong>查计划</strong><small>发布前核对内容与节奏</small></button></section>
+        <section class="traffic-flow-guide" aria-label="流量工作流引导">
+          <div class="traffic-flow-intro"><span class="eyebrow">START HERE · 4 STEPS</span><h3>从一个问题，到一条可以发布的内容</h3><p>按顺序走一遍，结果会自然带到下一步；也可以随时点任意一步单独使用。</p><div class="traffic-flow-note"><span>小提示</span><strong>先做“找竞品”，不知道从哪里开始时最省力。</strong></div></div>
+          <div class="traffic-flow-steps">
+            <button class="traffic-flow-step" data-page="competitor"><b>01</b><span class="traffic-flow-step-icon">⌕</span><strong>找竞品 / 对标</strong><small>先看同行在讲什么</small><em>搜索、提取、对标 →</em></button>
+            <i class="traffic-flow-arrow" aria-hidden="true">→</i>
+            <button class="traffic-flow-step" data-page="topics"><b>02</b><span class="traffic-flow-step-icon">✦</span><strong>选题生成</strong><small>把问题变成可拍的题</small><em>生成、保存、摇灵感 →</em></button>
+            <i class="traffic-flow-arrow" aria-hidden="true">→</i>
+            <button class="traffic-flow-step" data-page="copy"><b>03</b><span class="traffic-flow-step-icon">✎</span><strong>文案智能体</strong><small>选最适合你的表达方式</small><em>带素材、选智能体 →</em></button>
+            <i class="traffic-flow-arrow" aria-hidden="true">→</i>
+            <button class="traffic-flow-step is-final" data-page="copy" data-copy-agent="content_compliance"><b>04</b><span class="traffic-flow-step-icon">✓</span><strong>查敏感词智能体</strong><small>发布前再检查一次</small><em>标原句、给替换、做自检 →</em></button>
+          </div>
+        </section>
         <div class="module-grid three">
           <article class="module-card"><span>竞品洞察</span><h3>找竞品 + 分析</h3><p>搜索抖音、视频号或小红书竞品；提取内容后可继续带入文案智能体。</p><button class="secondary" data-page="competitor">去找竞品 →</button></article>
           <article class="module-card"><span>内容方向</span><h3>选题生成</h3><p>选择 C 端或 B 端，填写细分业务；好的选题可以保存，后续随时继续写。</p><button class="secondary" data-page="topics">去选题 →</button></article>
-          <article class="module-card"><span>发布检查</span><h3>敏感词与查计划</h3><p>在发布前检查风险表达、行动引导和本周内容节奏。此功能将在流量工作流内继续完善。</p><button class="secondary" data-page="pipi">让皮皮协助检查 →</button></article>
+          <article class="module-card"><span>发布检查</span><h3>查敏感词智能体</h3><p>把准备发布的文案交给独立检查智能体，标出风险原句、原因和更稳妥的替换说法。</p><button class="secondary" data-page="copy" data-copy-agent="content_compliance">打开检查智能体 →</button></article>
         </div>
-        <section class="module-section"><div><span class="eyebrow">SHORT VIDEO AGENTS</span><h3>按内容类型选一个智能体</h3><p>不必每次从工作流开始，也可以直接挑你要做的内容。</p></div><div class="module-agent-grid"><button data-page="copy" data-copy-agent="local_city">同城智能体</button><button data-page="copy" data-copy-agent="persona_story">人设智能体</button><button data-page="copy" data-copy-agent="education_vertical">垂类爆款智能体</button><button data-page="copy" data-copy-agent="education_dry_goods">垂类干货智能体</button><button data-page="copy" data-copy-agent="education_marketing">营销智能体</button></div></section>
-        <section class="module-section material-note"><div><span class="eyebrow">PIPI MATERIAL LIBRARY</span><h3>皮皮素材库</h3><p>后续用于沉淀同城、人设、垂类爆款、干货及学员交付视频；当前可先在智能体对话中拖入图片或文档，让 AI 提取内容。</p></div><button class="secondary" data-page="copy">去上传素材 →</button></section>
+        <section class="module-section"><div><span class="eyebrow">SHORT VIDEO AGENTS</span><h3>按内容类型选一个智能体</h3><p>不必每次从工作流开始，也可以直接挑你要做的内容。</p></div><div class="module-agent-grid"><button data-page="copy" data-copy-agent="local_city">同城文案智能体</button><button data-page="copy" data-copy-agent="persona_story">人设文案智能体</button><button data-page="copy" data-copy-agent="education_vertical">垂类爆款智能体</button><button data-page="copy" data-copy-agent="education_dry_goods">垂类干货智能体</button><button data-page="copy" data-copy-agent="education_marketing">营销文案智能体</button></div></section>
+        <section class="module-section material-note"><div><span class="eyebrow">PIPI MATERIAL LIBRARY · TEAM CURATED</span><h3>皮皮素材库</h3><p>团队已按内容类型整理好对标视频与可用文案；不需要学员自己找，筛选后可直接打开链接或带入智能体。</p></div><button class="secondary" data-page="materials">去浏览素材 →</button></section>
       </section>
 
-      <section id="privatePage" class="page hidden module-page">
-        <header class="module-hero"><span class="eyebrow">PRIVATE DOMAIN WORKFLOW</span><h2>私域板块</h2><p>把日常表达做成信任资产，再在真实咨询前练好成交对话。</p></header>
-        <section class="workflow-strip"><button data-page="copy" data-copy-agent="moments"><b>01</b><strong>朋友圈表达</strong><small>日常、专业判断与案例</small></button><i>→</i><button data-page="copy" data-copy-agent="xiaohongshu"><b>02</b><strong>小绿书沉淀</strong><small>图文卡片与价值内容</small></button><i>→</i><button data-page="wechat"><b>03</b><strong>公众号长文</strong><small>观点内容与视觉排版</small></button><i>→</i><button data-page="sales"><b>04</b><strong>销售模拟</strong><small>六步法实战训练</small></button></section>
-        <div class="module-grid three"><article class="module-card"><span>信任表达</span><h3>朋友圈智能体</h3><p>围绕真实教学、案例和专业判断，持续建立被看见的信任感。</p><button class="secondary" data-page="copy" data-copy-agent="moments">开始写朋友圈 →</button></article><article class="module-card"><span>图文沉淀</span><h3>小绿书 + 公众号</h3><p>将一个主题扩展为图文内容或长文，沉淀成可持续复用的表达。</p><button class="secondary" data-page="wechat">去做公众号 →</button></article><article class="module-card"><span>成交训练</span><h3>销售模拟</h3><p>选择家长类型，按成交六步法进行对话与复盘。</p><button class="secondary" data-page="sales">开始模拟 →</button></article></div>
+      <section id="accumulationPage" class="page hidden module-page">
+        <header class="module-hero"><span class="eyebrow">CONTENT DEPOSIT</span><h2>沉淀板块</h2><p>把日常表达、长文观点和真实案例留成可复用的信任资产；销售训练保持在独立的“销售模拟”。</p></header>
+        <div class="module-grid three"><article class="module-card"><span>日常信任</span><h3>朋友圈智能体</h3><p>把教学日常、专业判断和真实感悟整理成自然、有温度的朋友圈。</p><button class="secondary" data-page="copy" data-copy-agent="moments">开始写朋友圈 →</button></article><article class="module-card"><span>长文沉淀</span><h3>公众号文案</h3><p>围绕教育观点、家长问题或案例素材，写成适合公众号阅读与排版的价值长文。</p><button class="secondary" data-page="copy" data-copy-agent="wechat_article">开始写公众号 →</button></article><article class="module-card"><span>发布成品</span><h3>公众号排版</h3><p>把已经写好的文章变成可预览、可复制、可导出的公众号视觉成品。</p><button class="secondary" data-page="copy" data-copy-agent="wechat_layout">去做排版 →</button></article><article class="module-card"><span>图文内容</span><h3>小绿书智能体</h3><p>把主题、图片和案例拆成适合微信传播的图文卡片，并预览卡片节奏。</p><button class="secondary" data-page="copy" data-copy-agent="xiaohongshu">开始写小绿书 →</button></article><article class="module-card"><span>真实案例</span><h3>学员案例库</h3><p>像说话一样投喂真实过程、聊天反馈和图片，整理成可复用、可补图的案例档案。</p><button class="secondary" data-page="copy" data-copy-agent="student_case">整理学员案例 →</button></article></div>
       </section>
 
       <section id="productPage" class="page hidden module-page">
-        <header class="module-hero"><span class="eyebrow">PRODUCT WORKFLOW</span><h2>产品板块</h2><p>先说清你是谁、为什么做这件事，再把公开课和交付流程整理成学员能理解、团队能执行的产品。</p></header>
-        <section class="workflow-strip"><button data-page="copy" data-copy-agent="persona_story"><b>01</b><strong>人设故事</strong><small>形成真实、可信的产品表达</small></button><i>→</i><button data-page="pipi"><b>02</b><strong>公开课大纲</strong><small>梳理主题、结构与讲解路径</small></button><i>→</i><button data-page="coach"><b>03</b><strong>制作 SOP</strong><small>拆成团队能执行的交付步骤</small></button></section>
-        <div class="module-grid three"><article class="module-card"><span>产品表达</span><h3>人设故事智能体</h3><p>用你的经历、教育理念和真实转折，讲清产品背后的信任基础。</p><button class="secondary" data-page="copy" data-copy-agent="persona_story">开始梳理 →</button></article><article class="module-card"><span>课程设计</span><h3>公开课大纲</h3><p>先与皮皮梳理课程目标、听众卡点和课后承接，再生成可调整的大纲。</p><button class="secondary" data-page="pipi">开始梳理 →</button></article><article class="module-card"><span>交付落地</span><h3>制作 SOP</h3><p>把反复发生的交付工作拆成连续步骤，沉淀为可复用的流程。</p><button class="secondary" data-page="coach">去搭建 SOP →</button></article></div>
+        <header class="module-hero"><span class="eyebrow">PRODUCT</span><h2>产品板块</h2><p>从人设信任、公开课准备到学员 SOP，把产品表达和交付路径逐步打磨清楚。</p></header>
+        <div class="module-grid three"><article class="module-card"><span>人设表达</span><h3>人设故事智能体</h3><p>先投喂文章、口述整理、旧文案或经历笔记，再写成有画面、有转折的老师人设故事。</p><button class="secondary" data-page="copy" data-copy-agent="product_storyline">开始投喂素材 →</button></article><article class="module-card"><span>课程准备</span><h3>公开课逐字稿智能体</h3><p>投喂皮皮给你的飞书大纲、PPT 或补充想法，按原结构完成逐字稿与备课清单。</p><button class="secondary" data-page="copy" data-copy-agent="public_class_script">投喂公开课大纲 →</button></article><article class="module-card"><span>交付落地</span><h3>制作 SOP 智能体</h3><p>投喂已有流程或思维导图，同时产出 SOP 工作流思考、思维导图与执行复盘表；教练工具箱保持原有配置不变。</p><button class="secondary" data-page="copy" data-copy-agent="product_sop">开始制作 SOP →</button></article></div>
       </section>
 
       <section id="pipiPage" class="page pipi-page hidden">
@@ -186,13 +195,17 @@
             <div class="chat-head">
               <div>
                 <span class="eyebrow">STUDENT KB · v0.1</span>
-                <strong>先给判断，再给下一步</strong>
+                <strong>和皮皮聊聊你的业务问题</strong>
               </div>
               <button class="secondary" id="newPipiSession">新会话</button>
             </div>
             <div id="pipiMessages" class="messages"></div>
-            <div class="composer">
+            <div class="composer pipi-composer" id="pipiComposer">
+              <div id="pipiMaterials" class="pipi-materials"></div>
               <textarea id="pipiInput" rows="1" placeholder="说说你的赛道、业务和现在最卡的问题"></textarea>
+              <div class="pipi-input-tools"><button type="button" id="pipiAttach" aria-label="上传图片或文档">＋</button><button type="button" id="pipiEmoji" aria-expanded="false" aria-label="选择 emoji">☺</button><button type="button" id="pipiVoice" title="使用浏览器语音识别，可能需要联网处理音频">语音输入</button><small>可拖入图片或文档</small></div>
+              <input id="pipiFiles" type="file" accept="image/jpeg,image/png,image/webp,.txt,.md,.csv,.rtf,.docx" multiple hidden />
+              <div id="pipiEmojiPicker" class="pipi-emoji-picker" hidden></div>
               <button class="primary" id="sendPipi">发送</button>
             </div>
           </section>
@@ -200,6 +213,10 @@
       </section>
 
       <section id="topicsPage" class="page hidden">
+        <section class="topic-page-guide" aria-label="选题页面引导">
+          <div><span class="eyebrow">TOPIC WORKBENCH · 2 WAYS TO START</span><h2>先生成，或先摇一颗灵感</h2><p>有明确业务就填写左侧生成；暂时没方向，也可以直接往下看扭蛋机，先从一颗灵感开始。</p></div>
+          <div class="topic-page-guide-actions"><span><b>01</b>填写业务生成选题</span><span><b>02</b>摇灵感再带去写内容</span><button class="secondary" type="button" data-scroll-to="topicGacha">先看看扭蛋机 ↓</button></div>
+        </section>
         <div class="workbench">
           <aside class="form-panel">
             <label>赛道 <em class="required-mark">*</em><select id="topicTrack" required><option value="" selected disabled>请选择你的赛道</option><option value="online">线上 C 端</option><option value="local">同城 C 端</option><option value="b2b">教育 B 端</option></select><small class="field-error hidden" id="topicTrackError">请选择赛道</small></label>
@@ -213,7 +230,7 @@
             <div id="topicResults" class="topic-list"></div>
           </section>
         </div>
-        <section class="gacha-page-shell topic-gacha-shell">
+        <section class="gacha-page-shell topic-gacha-shell" id="topicGacha">
           <header class="gacha-page-head">
             <div><span class="eyebrow">TOPIC IDEA LAB · 01</span><h2>选题灵感扭蛋机</h2><p>把上面值得留下的选题投进来；没灵感时，摇一颗新的开始。</p></div>
           </header>
@@ -228,7 +245,7 @@
                 <div class="gacha-base"><i></i><i></i><i></i></div>
               </div>
               <button class="gacha-draw-button" id="drawGacha"><span class="draw-icon">✦</span><span>摇一颗灵感</span><small>选题 / 皮皮金句</small></button>
-              <p class="gacha-tip">每次抽取，都会从你的选题仓或皮皮老师的金句里随机掉落一颗。</p>
+              <p class="gacha-tip">不必等选题生成后才能使用：这里会从你的选题仓或皮皮老师的金句里随机掉落一颗。</p>
             </section>
             <section class="gacha-reveal-card" aria-live="polite">
               <div class="gacha-reveal-label"><span id="gachaResultType">等待抽取</span><span class="gacha-spark">✦</span></div>
@@ -244,24 +261,29 @@
         <div id="copyGalleryView">
         <section class="agent-market">
           <div class="agent-market-head">
-            <div><span class="eyebrow">PIPI AI CENTER</span><h2>文案智能体广场 <small id="copyAgentMarketCount">共 9 个专属智能体</small></h2></div>
+            <div><span class="eyebrow">PIPI AI CENTER</span><h2>文案智能体广场 <small id="copyAgentMarketCount">共 14 个专属智能体</small></h2></div>
             <button class="secondary" data-page="personal">我的文案记录</button>
           </div>
           <div class="agent-market-toolbar">
             <label class="agent-search"><span>⌕</span><input id="agentSearch" placeholder="搜索智能体..." /></label>
             <div class="agent-sort"><span>排序：</span><button class="active">推荐</button><button>最近使用</button></div>
           </div>
-          <div class="agent-filters"><button class="active" data-agent-filter="all">全部</button><button data-agent-filter="traffic">流量</button><button data-agent-filter="private">私域</button></div>
+          <div class="agent-filters"><button class="active" data-agent-filter="all">全部</button><button data-agent-filter="traffic">流量</button><button data-agent-filter="private">沉淀</button><button data-agent-filter="product">产品</button></div>
           <div class="agent-gallery" id="copyAgentGrid">
-            <article class="agent-market-card active" data-copy-agent="local_city" data-agent-tags="traffic short"><div class="agent-cover large"><img src="assets/agent-covers/pipi-reading.jpg" alt="同城智能体封面" /></div><div class="agent-card-body"><h3>同城智能体</h3><p>适合同城招生、本地信任和到店/到课转化。</p><div class="agent-meta"><span>流量</span><span>短视频</span></div><button class="primary full agent-use">使用智能体</button></div></article>
-            <article class="agent-market-card" data-copy-agent="persona_story" data-agent-tags="traffic short"><div class="agent-cover large"><img src="assets/agent-covers/pipi-cafe.jpg" alt="人设智能体封面" /></div><div class="agent-card-body"><h3>人设智能体</h3><p>把个人经历、教育理念和身份故事讲得真实。</p><div class="agent-meta"><span>流量</span><span>短视频</span></div><button class="primary full agent-use">使用智能体</button></div></article>
+            <article class="agent-market-card active" data-copy-agent="local_city" data-agent-tags="traffic short"><div class="agent-cover large"><img src="assets/agent-covers/pipi-reading.jpg" alt="同城文案智能体封面" /></div><div class="agent-card-body"><h3>同城文案智能体</h3><p>适合同城招生、本地信任和到店/到课转化。</p><div class="agent-meta"><span>流量</span><span>短视频</span></div><button class="primary full agent-use">使用智能体</button></div></article>
+            <article class="agent-market-card" data-copy-agent="persona_story" data-agent-tags="traffic short"><div class="agent-cover large"><img src="assets/agent-covers/pipi-cafe.jpg" alt="人设文案智能体封面" /></div><div class="agent-card-body"><h3>人设文案智能体</h3><p>把个人经历、教育理念和身份故事讲得真实。</p><div class="agent-meta"><span>流量</span><span>短视频</span></div><button class="primary full agent-use">使用智能体</button></div></article>
             <article class="agent-market-card" data-copy-agent="education_vertical" data-agent-tags="traffic short"><div class="agent-cover large"><img src="assets/agent-covers/pipi-winter-city.jpg" alt="垂类爆款智能体封面" /></div><div class="agent-card-body"><h3>垂类爆款智能体</h3><p>围绕真实问题、专业判断和精准客户创作。</p><div class="agent-meta"><span>流量</span><span>爆款</span></div><button class="primary full agent-use">使用智能体</button></div></article>
             <article class="agent-market-card" data-copy-agent="education_dry_goods" data-agent-tags="traffic short"><div class="agent-cover large"><img src="assets/agent-covers/pipi-hanfu.jpg" alt="垂类干货智能体封面" /></div><div class="agent-card-body"><h3>垂类干货智能体</h3><p>专注教育专业知识、方法拆解和高频问题。</p><div class="agent-meta"><span>流量</span><span>专业干货</span></div><button class="primary full agent-use">使用智能体</button></div></article>
-            <article class="agent-market-card" data-copy-agent="education_marketing" data-agent-tags="traffic short"><div class="agent-cover large"><img src="assets/agent-covers/pipi-white-sea.jpg" alt="营销智能体封面" /></div><div class="agent-card-body"><h3>营销智能体</h3><p>用专业表达承接咨询、公开课和产品了解。</p><div class="agent-meta"><span>流量</span><span>营销</span></div><button class="primary full agent-use">使用智能体</button></div></article>
-            <article class="agent-market-card" data-copy-agent="moments" data-agent-tags="private moments"><div class="agent-cover large"><img src="assets/agent-covers/pipi-blue-sea.jpg" alt="朋友圈智能体封面" /></div><div class="agent-card-body"><h3>朋友圈智能体</h3><p>围绕日常表达、专业判断、案例和信任场生成内容。</p><div class="agent-meta"><span>私域</span><span>信任场</span></div><button class="primary full agent-use">使用智能体</button></div></article>
-            <article class="agent-market-card" data-copy-agent="xiaohongshu" data-agent-tags="private imageText"><div class="agent-cover large"><img src="assets/agent-covers/pipi-pink-sea.jpg" alt="小绿书智能体封面" /></div><div class="agent-card-body"><h3>小绿书智能体</h3><p>面向小绿书图文场景，生成适合教育表达的内容。</p><div class="agent-meta"><span>私域</span><span>图文卡片</span></div><button class="primary full agent-use">使用智能体</button></div></article>
-            <article class="agent-market-card" data-copy-agent="wechat_article" data-wechat-only="true" data-agent-tags="private article"><div class="agent-cover large"><img src="assets/agent-covers/pipi-arch-sea.jpg" alt="公众号文案封面" /></div><div class="agent-card-body"><h3>公众号文案</h3><p>围绕长文结构、观点表达和教育内容沉淀生成文案。</p><div class="agent-meta"><span>私域</span><span>价值长文</span></div><button class="primary full agent-use">使用智能体</button></div></article>
-            <article class="agent-market-card" data-copy-agent="wechat_layout" data-wechat-only="true" data-agent-tags="private layout"><div class="agent-cover large"><img src="assets/agent-covers/pipi-sunset-yellow.jpg" alt="公众号排版封面" /></div><div class="agent-card-body"><h3>公众号排版</h3><p>把已经写好的长文直接变成可预览、可复制的公众号视觉成品。</p><div class="agent-meta"><span>私域</span><span>视觉排版</span></div><button class="primary full agent-use">使用智能体</button></div></article>
+            <article class="agent-market-card" data-copy-agent="education_marketing" data-agent-tags="traffic short"><div class="agent-cover large"><img src="assets/agent-covers/pipi-white-sea.jpg" alt="营销文案智能体封面" /></div><div class="agent-card-body"><h3>营销文案智能体</h3><p>用专业表达承接咨询、公开课和产品了解。</p><div class="agent-meta"><span>流量</span><span>营销</span></div><button class="primary full agent-use">使用智能体</button></div></article>
+            <article class="agent-market-card" data-copy-agent="content_compliance" data-agent-tags="traffic compliance"><div class="agent-cover large"><img src="assets/agent-covers/pipi-reading.jpg" alt="查敏感词智能体封面" /></div><div class="agent-card-body"><h3>查敏感词智能体</h3><p>发布前标出风险原句、风险原因和更稳妥的替换说法。</p><div class="agent-meta"><span>流量</span><span>发布检查</span></div><button class="primary full agent-use">使用智能体</button></div></article>
+            <article class="agent-market-card" data-copy-agent="moments" data-agent-tags="private moments"><div class="agent-cover large"><img src="assets/agent-covers/pipi-blue-sea.jpg" alt="朋友圈智能体封面" /></div><div class="agent-card-body"><h3>朋友圈智能体</h3><p>围绕日常表达、专业判断、案例和信任场生成内容。</p><div class="agent-meta"><span>沉淀</span><span>信任场</span></div><button class="primary full agent-use">使用智能体</button></div></article>
+            <article class="agent-market-card" data-copy-agent="xiaohongshu" data-agent-tags="private imageText"><div class="agent-cover large"><img src="assets/agent-covers/pipi-pink-sea.jpg" alt="小绿书智能体封面" /></div><div class="agent-card-body"><h3>小绿书智能体</h3><p>面向小绿书图文场景，生成适合教育表达的内容。</p><div class="agent-meta"><span>沉淀</span><span>图文卡片</span></div><button class="primary full agent-use">使用智能体</button></div></article>
+            <article class="agent-market-card" data-copy-agent="student_case" data-agent-tags="private case"><div class="agent-cover large"><img src="assets/agent-covers/pipi-blue-sea.jpg" alt="学员案例库智能体封面" /></div><div class="agent-card-body"><h3>学员案例库智能体</h3><p>把口述过程、截图和真实反馈，整理成完整、可补图的学员案例档案。</p><div class="agent-meta"><span>沉淀</span><span>学员案例</span></div><button class="primary full agent-use">使用智能体</button></div></article>
+            <article class="agent-market-card" data-copy-agent="wechat_article" data-wechat-only="true" data-agent-tags="private article"><div class="agent-cover large"><img src="assets/agent-covers/pipi-arch-sea.jpg" alt="公众号文案封面" /></div><div class="agent-card-body"><h3>公众号文案</h3><p>围绕长文结构、观点表达和教育内容沉淀生成文案。</p><div class="agent-meta"><span>沉淀</span><span>价值长文</span></div><button class="primary full agent-use">使用智能体</button></div></article>
+            <article class="agent-market-card" data-copy-agent="wechat_layout" data-wechat-only="true" data-agent-tags="private layout"><div class="agent-cover large"><img src="assets/agent-covers/pipi-sunset-yellow.jpg" alt="公众号排版封面" /></div><div class="agent-card-body"><h3>公众号排版</h3><p>把已经写好的长文直接变成可预览、可复制的公众号视觉成品。</p><div class="agent-meta"><span>沉淀</span><span>视觉排版</span></div><button class="primary full agent-use">使用智能体</button></div></article>
+            <article class="agent-market-card" data-copy-agent="product_storyline" data-agent-tags="product article"><div class="agent-cover large"><img src="assets/agent-covers/pipi-cafe.jpg" alt="人设故事智能体封面" /></div><div class="agent-card-body"><h3>人设故事智能体</h3><p>把文章、口述、旧文案和真实经历，写成有画面、有转折的人设故事。</p><div class="agent-meta"><span>产品</span><span>人设故事</span></div><button class="primary full agent-use">使用智能体</button></div></article>
+            <article class="agent-market-card" data-copy-agent="public_class_script" data-agent-tags="product article"><div class="agent-cover large"><img src="assets/agent-covers/pipi-arch-sea.jpg" alt="公开课逐字稿智能体封面" /></div><div class="agent-card-body"><h3>公开课逐字稿智能体</h3><p>围绕真实课题、听众卡点和承接路径完成公开课表达。</p><div class="agent-meta"><span>产品</span><span>公开课</span></div><button class="primary full agent-use">使用智能体</button></div></article>
+            <article class="agent-market-card" data-copy-agent="product_sop" data-agent-tags="product article"><div class="agent-cover large"><img src="assets/agent-covers/pipi-reading.jpg" alt="制作 SOP 智能体封面" /></div><div class="agent-card-body"><h3>制作 SOP 智能体</h3><p>把一件要完成的工作拆成动作、记录、自检与复盘。</p><div class="agent-meta"><span>产品</span><span>执行 SOP</span></div><button class="primary full agent-use">使用智能体</button></div></article>
           </div>
         </section>
         </div>
@@ -281,9 +303,10 @@
             <div class="agent-chat-body" id="copyChatBody">
             <section class="agent-start-screen" id="copyStartScreen">
               <div class="agent-start-art" aria-hidden="true"></div>
-              <h1 id="copyAgentHeroTitle">同城智能体</h1>
+              <h1 id="copyAgentHeroTitle">同城文案智能体</h1>
               <p id="copyAgentHeroDesc">围绕城市、社区、本地家长和到店/到课场景，生成同城教育口播文案。</p>
               <div class="agent-opening-guide"><strong>不知道怎么问？可以从这里开始</strong><p id="copyAgentGuide">告诉我你的城市、业务、目标家长，以及你想解决的一个本地招生问题。</p></div>
+              <section id="copyProductIntakeGuide" class="product-intake-guide hidden" aria-live="polite"></section>
               <div class="starter-chips" id="copyStarterChips">
                 <button type="button" data-copy-starter="我是做原版英语的，想吸引5-9岁孩子家长">原版英语获客文案</button>
                 <button type="button" data-copy-starter="我想写一条真实的学员变化案例">真实学员案例</button>
@@ -316,8 +339,8 @@
             <div class="wechat-brandbar">
               <button class="wechat-back-button" type="button" id="backFromWechatLayout" aria-label="返回智能体广场">←</button>
               <img src="assets/pipi-avatar.webp" alt="皮皮头像" />
-              <div><strong>Punk微排</strong><small>MARKDOWN → WECHAT</small></div>
-              <p>让每一份好内容，都有一身好排版。</p>
+              <div><strong>皮皮微排</strong><small>ARTICLE → WECHAT</small></div>
+              <p>把课程沉淀，排成更容易被读完的文章。</p>
             </div>
             <div class="wechat-layout-actions">
               <button class="secondary" type="button" id="resetWechatLayout">重新排版</button>
@@ -330,6 +353,7 @@
           <div class="wechat-reference-toolbar">
             <div class="wechat-reference-tools">
               <button type="button" data-wechat-tool="palette">🎨 配色实验室</button>
+              <button type="button" id="wechatAuthorProfile">◉ 文章署名</button>
               <button type="button" data-wechat-tool="ending">◎ 固定结尾</button>
               <button type="button" data-wechat-tool="tutorial">? 新手教程</button>
             </div>
@@ -337,9 +361,9 @@
               <div class="wechat-setting-compact"><label>字号</label><input id="wechatFontSizeRef" type="range" min="14" max="20" step="1" value="16"/><output id="wechatFontSizeRefValue">16px</output></div>
               <div class="wechat-setting-compact"><label>行距</label><input id="wechatLineHeightRef" type="range" min="1.5" max="2.4" step="0.1" value="1.9"/><output id="wechatLineHeightRefValue">1.9</output></div>
               <select id="wechatFontFamilyRef" aria-label="参考站字体"><option value="system">思源黑体</option><option value="yahei">微软雅黑</option><option value="serif">宋体</option></select>
-              <div class="wechat-setting-color wechat-color-row"><span>正文色</span><button type="button" class="active" data-wechat-color-ref="auto">◐</button><button type="button" data-wechat-color-ref="dark">●</button><button type="button" data-wechat-color-ref="light">○</button><input id="wechatAccentColorRef" type="color" value="#B55E32" title="强调色"/></div>
+              <div class="wechat-setting-color wechat-color-row"><span>正文色</span><button type="button" class="active" data-wechat-color-ref="auto">◐</button><button type="button" data-wechat-color-ref="dark">●</button><button type="button" data-wechat-color-ref="light">○</button><input id="wechatAccentColorRef" type="color" value="#255B9C" title="强调色"/></div>
               <span class="wechat-contrast-badge">15.6:1</span>
-              <div class="wechat-chapter-style">章节样式&nbsp; <strong>粗下划线⌄</strong></div>
+              <label class="wechat-chapter-style">章节样式 <select id="wechatChapterStyleRef" aria-label="章节样式"><option value="underline">粗下划线</option><option value="numbered">章节编号</option><option value="minimal">极简留白</option></select></label>
             </div>
           </div>
           <div class="wechat-layout-grid">
@@ -353,7 +377,7 @@
                 <button type="button" data-wechat-mode="visual"><strong>视觉长图</strong><small>参考图式杂志构图</small></button>
               </div>
               <div class="wechat-theme-picker" id="wechatThemePicker">
-                <button class="active" type="button" data-wechat-theme="punk"><span></span><strong>Punk 皮皮主视觉</strong><small>暖白 · 橙金编辑感</small></button>
+                <button type="button" data-wechat-theme="pipi"><span></span><strong>皮皮专栏</strong><small>橙棕 · 教育沉淀</small></button>
                 <button type="button" data-wechat-theme="museum"><span></span><strong>艺展留白</strong><small>米白 · 共生美学</small></button>
                 <button type="button" data-wechat-theme="slow"><span></span><strong>时间漫序</strong><small>黑白 · 叙事杂志</small></button>
                 <button type="button" data-wechat-theme="geometry"><span></span><strong>几何拼贴</strong><small>橙黑 · 视觉节奏</small></button>
@@ -361,16 +385,7 @@
                 <button type="button" data-wechat-theme="nature"><span></span><strong>自然手账</strong><small>草绿 · 松弛感</small></button>
                 <button type="button" data-wechat-theme="gallery"><span></span><strong>暖调画册</strong><small>裸粉 · 人物故事</small></button>
               </div>
-              <div class="wechat-editor-tools">
-                <div class="wechat-layout-step"><b>03</b><div><strong>编辑器设置</strong><small>参考 Punk 微排：字号、行距和固定结尾独立控制。</small></div></div>
-                <div class="wechat-setting-row"><label for="wechatFontSize">字号</label><input id="wechatFontSize" type="range" min="14" max="20" step="1" value="16"/><output id="wechatFontSizeValue">16px</output></div>
-                <div class="wechat-setting-row"><label for="wechatLineHeight">行距</label><input id="wechatLineHeight" type="range" min="1.5" max="2.4" step="0.1" value="1.9"/><output id="wechatLineHeightValue">1.9</output></div>
-                <div class="wechat-setting-row"><label for="wechatFontFamily">字体</label><select id="wechatFontFamily"><option value="system">思源黑体 / 系统无衬线</option><option value="yahei">微软雅黑</option><option value="serif">宋体 / 思源宋体</option></select></div>
-                <div class="wechat-setting-row wechat-color-row"><label>正文色</label><button type="button" class="active" data-wechat-color="auto">自动</button><button type="button" data-wechat-color="dark">黑色</button><button type="button" data-wechat-color="light">浅色</button><input id="wechatAccentColor" type="color" value="#B55E32" title="强调色"/></div>
-                <label class="wechat-fixed-toggle"><input id="wechatFixedEndingEnabled" type="checkbox"/> 自动追加固定结尾</label>
-                <textarea id="wechatFixedEnding" rows="3" placeholder="例如：\n感谢你读到这里，欢迎把这篇文章转给需要的朋友。"></textarea>
-              </div>
-              <div class="wechat-layout-step"><b>04</b><div><strong>加入文章图片</strong><small>按上传顺序放入智能图片位，最多 6 张。</small></div></div>
+              <div class="wechat-layout-step"><b>03</b><div><strong>加入文章图片</strong><small>按上传顺序放入智能图片位，最多 6 张；固定结尾可在顶部工具栏设置。</small></div></div>
               <input id="wechatLayoutImages" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden />
               <input id="wechatLayoutArticleFile" type="file" accept=".md,.markdown,.txt,text/plain,text/markdown" hidden />
               <div class="wechat-import-actions"><button class="secondary" type="button" id="importWechatLayoutBundle">导入文章包</button><button class="secondary" type="button" id="importWechatLayoutArticle">导入 MD / TXT</button><button class="secondary" type="button" id="clearWechatLayoutArticle">清空</button></div>
@@ -390,7 +405,7 @@
           <div class="wechat-reference-modal hidden" id="wechatReferenceModal" role="dialog" aria-modal="true" aria-labelledby="wechatReferenceModalTitle">
             <div class="wechat-reference-modal-card">
               <button class="wechat-reference-modal-close" type="button" id="wechatReferenceModalClose" aria-label="关闭">×</button>
-              <span class="wechat-reference-modal-kicker" id="wechatReferenceModalKicker">PUNK MICRO LAYOUT</span>
+              <span class="wechat-reference-modal-kicker" id="wechatReferenceModalKicker">PIPI MICRO LAYOUT</span>
               <h2 id="wechatReferenceModalTitle">工具</h2>
               <p id="wechatReferenceModalText">在这里调整公众号排版的视觉细节。</p>
               <div class="wechat-reference-modal-body" id="wechatReferenceModalBody"></div>
@@ -441,8 +456,8 @@
               <button type="button" data-sales-method="discovery"><span>02</span><div><strong>深度挖需</strong><small>挖需库 · 找到真需求</small></div></button>
               <button type="button" data-sales-method="case"><span>03</span><div><strong>案例展示</strong><small>案例库 · 建立信任</small></div></button>
               <button type="button" data-sales-method="product"><span>04</span><div><strong>产品介绍</strong><small>产品库 · 匹配方案</small></div></button>
-              <button type="button" data-sales-method="objection"><span>05</span><div><strong>卡点清理</strong><small>异议库 · 重塑价值</small></div></button>
-              <button type="button" data-sales-method="close"><span>06</span><div><strong>临门踢单</strong><small>成交库 · 推动行动</small></div></button>
+              <button type="button" data-sales-method="objection"><span>05</span><div><strong>决策卡点</strong><small>决策卡点库 · 澄清顾虑</small></div></button>
+              <button type="button" data-sales-method="close"><span>06</span><div><strong>临门推进</strong><small>临门推进库 · 推动行动</small></div></button>
             </div>
           </section>
           <div class="sales-setup-grid">
@@ -455,7 +470,7 @@
               <h3>先补充本次训练背景</h3>
               <label>你的业务<input id="salesBusiness" value="少儿英语" placeholder="例如：原版英语、少儿书法、成人雅思" /></label>
               <label>本次要练的产品<input id="salesProduct" value="线下体验课" placeholder="例如：体验课、训练营、陪跑服务" /></label>
-              <label>训练难度<select id="salesDifficulty"><option value="basic">基础：家长愿意沟通</option><option value="normal" selected>进阶：有顾虑和比较</option><option value="hard">挑战：强异议与犹豫</option></select></label>
+              <label>训练难度<select id="salesDifficulty"><option value="basic">基础：愿意沟通，有一个轻顾虑</option><option value="normal" selected>进阶：会比较，有一个真实顾虑</option><option value="hard">挑战：信息不完整，有嵌套卡点</option></select></label>
               <button class="primary full" id="startSalesSimulation">开始模拟对话</button>
             </aside>
           </div>
@@ -501,10 +516,13 @@
               <div class="sales-messages" id="salesMessages"></div>
               <div class="sales-composer">
                 <textarea id="salesInput" rows="2" placeholder="输入你要对家长说的话…"></textarea>
+                <input id="salesFiles" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden />
                 <div class="sales-composer-actions">
+                  <button type="button" class="sales-emoji-trigger" id="addSalesMaterial" title="发送图片" aria-label="发送图片">＋</button>
                   <button type="button" class="sales-emoji-trigger" id="toggleSalesEmojiPicker" title="表情" aria-label="表情" aria-expanded="false">☺</button>
                   <button class="primary" id="sendSalesMessage">发送</button>
                 </div>
+                <div class="sales-attachment-list" id="salesAttachmentList" aria-live="polite"></div>
                 <div class="sales-emoji-picker hidden" id="salesEmojiPicker" aria-label="常用表情"><div class="sales-emoji-grid" id="salesEmojiGrid"></div></div>
               </div>
               <div class="sales-review hidden" id="salesReview"></div>
@@ -532,14 +550,24 @@
               <p>从一个教育关键词开始，找到相关竞品、爆款视频和可以转成自己内容的结构。</p>
               <div class="competitor-search-bar"><span>⌕</span><input id="competitorSearchInput" type="search" value="教育" maxlength="40" placeholder="搜索教育赛道关键词" /><button class="primary" id="competitorSearchButton">开始搜索</button></div>
               <div class="competitor-search-preferences"><div><label>搜索渠道 <select id="competitorChannel" aria-label="搜索渠道"><option value="douyin" selected>抖音</option><option value="wechat_channels">视频号</option><option value="xiaohongshu">小红书</option></select></label><label>每次搜索 <select id="competitorResultCount" aria-label="每次搜索视频数量"><option value="5">5 条</option><option value="10" selected>10 条</option><option value="20">20 条</option></select></label></div><strong id="competitorQuotaStatus">今日已用 0 / 100 条 · 剩余 100 条</strong></div>
+              <div class="competitor-ip-filters" aria-label="教育 IP 精准筛选"><label>优先找 <select id="competitorContentForm"><option value="talking_or_vlog" selected>老师口播 / 真实 Vlog</option><option value="talking_head">老师口播</option><option value="vlog">真实 Vlog</option><option value="all">全部教育视频</option></select></label><label>你的客户 <select id="competitorAudience"><option value="parents" selected>面向家长 / 学生</option><option value="teachers">面向老师 / 教育同行</option><option value="owners">面向校长 / 机构老板</option></select></label><label>想借鉴什么 <select id="competitorIntent"><option value="professional" selected>专业内容 / 干货表达</option><option value="acquisition">获客 / 咨询承接</option><option value="persona">老师人设 / 同城信任</option><option value="case">案例 / 交付过程</option></select></label><label class="competitor-strict-fit"><input id="competitorTeacherUsableOnly" type="checkbox" checked /> 排除图文轮播、混剪和搬运内容</label></div>
+              <section class="competitor-account-diagnosis"><div><span class="eyebrow">BOUTIQUE ACCOUNT DIAGNOSIS</span><strong>精品账号诊断 · 豆包分析</strong><small>粘贴公开抖音主页链接，读取该账号最热 20 条作品，按 PP 老师内容方法论诊断。</small></div><div class="competitor-account-form"><input id="competitorAccountUrl" type="url" placeholder="粘贴含 sec_user_id 的抖音主页链接" /><button class="secondary" id="competitorAccountDiagnoseButton" type="button">诊断账号</button></div><div id="competitorAccountDiagnosisResult" class="competitor-account-result" aria-live="polite"></div></section>
             </div>
             <aside class="competitor-radar" id="competitorRadar" aria-label="教育内容信号雷达"><div class="competitor-radar-head"><span class="eyebrow">CONTENT SIGNAL RADAR</span><span id="competitorRadarStatus">● 雷达待命</span></div><div class="competitor-radar-stage"><canvas id="competitorRadarCanvas" aria-hidden="true"></canvas><b>PIPI<br /><strong>SCAN</strong></b><span>账号</span><span>爆款</span><span>文案</span><span>选题</span></div><div class="competitor-radar-foot"><span id="competitorRadarKeyword">教育内容信号</span><strong id="competitorRadarReadout">持续扫描中</strong></div></aside>
           </section>
           <section class="competitor-profile-strip"><div><span class="eyebrow">我的业务画像 · 可选</span><strong>还没有填写，先用一句话描述你的业务吧</strong></div><button class="secondary">编辑一句话 ↗</button></section>
-          <section class="competitor-hot-section"><div class="competitor-section-head"><div><span class="eyebrow">EDUCATION CONTENT TRENDS</span><h3>双平台教育内容热词榜</h3></div><span id="competitorTrendMeta">进入页面后自动联网更新</span></div><div class="competitor-hot-ranking dynamic" id="competitorHotRanking"><div class="competitor-trend-state"><strong>等待读取热词榜</strong><span>将分别获取抖音与小红书 Top 10。</span></div></div></section>
+          <section class="competitor-hot-section"><div class="competitor-section-head"><div><span class="eyebrow">DOUYIN SEARCH DISCOVERY</span><h3>抖音搜索词根双榜</h3><p>榜一看全站高搜索词根，不限类目；榜二读取教育定向搜索榜，再筛出教育相关高搜索词。用于找内容切口，不等于竞品推荐。</p></div><span id="competitorTrendMeta">进入页面后自动联网更新</span></div><div class="competitor-hot-ranking dynamic" id="competitorHotRanking"><div class="competitor-trend-state"><strong>等待读取抖音搜索词根双榜</strong><span>将读取抖音全站搜索榜与教育定向搜索榜。</span></div></div></section>
           <header class="competitor-native-head"><div><span class="eyebrow">SEARCH RESULTS</span><h2>搜索结果</h2></div></header>
-          <p id="competitorSearchStatus" class="competitor-search-status">输入教育关键词后搜索。提取文案仅在你点击时发起。</p>
+          <p id="competitorSearchStatus" class="competitor-search-status">输入教育关键词后搜索，打开原内容后可自行查看视频表达与内容结构。</p>
           <div id="competitorSearchResults" class="competitor-video-grid"></div>
+        </section>
+      </section>
+
+      <section id="materialsPage" class="page hidden materials-page">
+        <header class="module-hero materials-hero"><span class="eyebrow">PIPI MATERIAL LIBRARY · TEAM CURATED</span><h2>皮皮素材库</h2><p>这里是团队整理好的公共对标素材：按内容类型和小类筛选，直接打开视频链接或带入文案智能体继续创作。</p></header>
+        <section class="materials-workspace">
+          <aside class="materials-catalog-guide"><div class="materials-guide-top"><span class="eyebrow">TEAM REFERENCE DESK</span><span class="materials-guide-mark" aria-hidden="true">✦</span></div><h3>团队公共素材</h3><p>这里放的是皮皮团队提前筛好的对标视频。学员不需要自己四处找案例，选一个适合的结构，再改成自己的业务表达。</p><div class="materials-guide-steps"><div><b>01</b><span><strong>按类找</strong><small>先选同城、人设、垂类、干货或案例。</small></span></div><div><b>02</b><span><strong>看结构</strong><small>打开视频，看开头、逻辑和镜头节奏。</small></span></div><div><b>03</b><span><strong>带去创作</strong><small>把参考带入智能体，结合自己的业务重写。</small></span></div></div><div class="materials-guide-note"><strong>团队持续更新</strong><span>后续新增素材统一由后台入库。</span></div></aside>
+          <section class="materials-list-panel"><div class="panel-head"><div><span class="eyebrow">CURATED REFERENCES</span><h3>公共素材库</h3></div></div><div id="materialLibraryFilters" class="material-library-filters"></div><label class="material-library-search">搜索标题、分类或关键词<input id="materialLibrarySearch" type="search" placeholder="例如：同城、案例、招生、拖拉" /></label><div id="materialLibraryList" class="material-library-list"><div class="empty-box">正在读取素材库…</div></div><nav id="materialLibraryPagination" class="material-library-pagination" aria-label="素材翻页"></nav></section>
         </section>
       </section>
 
@@ -582,51 +610,49 @@
             </div>
           </section>
           <section class="coach-tool-card" id="coachMomentsTool">
-            <header><span class="coach-tool-icon">02</span><div><span class="eyebrow">DELIVERY MOMENTS</span><h3>交付朋友圈</h3><p>把一次真实交付写成“问题、过程、变化、洞察”，并生成可发布的贴图号配图。</p></div></header>
+            <header><span class="coach-tool-icon">02</span><div><span class="eyebrow">DELIVERY MOMENTS</span><h3>交付朋友圈</h3><p>把一次真实交付写成“问题、过程、变化、洞察”，整理为可直接发布的朋友圈文案。</p></div></header>
             <div class="coach-tool-workspace moments-workspace">
               <aside class="coach-tool-form">
                 <label>交付阶段（可选）<input id="coachMomentStage" placeholder="例如：销售模拟、首次诊断、阶段复盘" /></label>
                 <label>这次交付简单说说<textarea id="coachMomentMaterial" rows="7" placeholder="把你看见的问题、怎么带着做、学员有什么变化一起写在这里即可。例如：她一听到客户提问就急着讲产品，我带她重新梳理了提问顺序，走完后她发现自己不是不会讲，而是太着急给答案。"></textarea></label>
-                <div class="coach-photo-upload fixed-template-note"><span>固定海报底版</span><small id="coachMomentTemplateStatus">已使用皮皮 2026 高复利教育 IP 系统大课底版；文字、背景与人物不可替换。</small></div>
-                <label class="coach-photo-upload"><span>上传交付现场图（可选）</span><input id="coachMomentPhoto" type="file" accept="image/jpeg,image/png,image/webp" hidden /><button type="button" class="secondary" id="selectCoachMomentPhoto">选择现场图</button><small id="coachMomentPhotoStatus">现场图会自动嵌入底版的图片展示区，生成图 2 这样的贴图号版式。</small></label>
-                <label class="check-label"><input id="coachMomentPrivacy" type="checkbox" checked /> 配图自动柔焦，隐去姓名、联系方式和可识别信息</label>
-                <button class="primary full" id="generateCoachMoment">第一步：生成文案与配图指令</button>
-                <section id="coachMomentPromptEditor" class="coach-image-prompt-editor hidden"><div><b>第二步：确认配图指令</b><small>可直接修改。确认后才会调用图片模型生成最终成图。</small></div><textarea id="coachMomentImagePrompt" rows="9" aria-label="可编辑的配图指令词"></textarea><button class="primary full" id="generateCoachMomentImage">按此指令生成最终贴图号</button></section>
+                <p class="coach-photo-upload fixed-template-note"><span>配图功能暂未开放</span><small>目前仅生成并整理朋友圈文案，不会调用任何图片生成模型。</small></p>
+                <button class="primary full" id="generateCoachMoment">生成交付朋友圈文案</button>
               </aside>
-              <div class="coach-result-wrap"><div class="panel-head"><div><h3>交付朋友圈</h3><p>可直接编辑、复制文案；只展示 AI 智能合成后的最终成图。</p></div><div class="panel-actions"><button class="secondary mini" id="copyCoachMoment">复制文案</button><button class="secondary mini" id="downloadCoachMoment">下载贴图号图片</button></div></div><div id="coachMomentCopy" class="coach-moment-copy" contenteditable="true" aria-label="可编辑的交付朋友圈文案">简单写下这次交付后，这里会生成一条可直接发布的朋友圈文案。</div><div class="coach-poster-frame"><div id="coachMomentPosterEmpty" class="empty-box">上传现场图并生成后，这里只显示 AI 合成的最终贴图号成图。</div><canvas id="coachMomentPoster" class="hidden" width="1024" height="1536" aria-label="皮皮交付朋友圈贴图号配图"></canvas></div></div>
+              <div class="coach-result-wrap"><div class="panel-head"><div><h3>交付朋友圈</h3><p>可直接编辑、复制文案。</p></div><div class="panel-actions"><button class="secondary mini" id="copyCoachMoment">复制文案</button></div></div><div id="coachMomentCopy" class="coach-moment-copy" contenteditable="true" aria-label="可编辑的交付朋友圈文案">简单写下这次交付后，这里会生成一条可直接发布的朋友圈文案。</div></div>
             </div>
           </section>
         </div>
       </section>
 
       <section id="adminPage" class="page hidden">
-        <div class="admin-tabs">
-          <button class="active" data-admin-module="overview">概览</button>
-          <button data-admin-module="users">用户权限</button>
+        <div class="admin-tabs" role="tablist" aria-label="后台管理模块">
+          <button class="active" data-admin-module="overview">管理工作台</button>
+          <button data-admin-module="users">账号与权限</button>
           <button data-admin-module="pipi-assistant">皮皮分身</button>
-          <button data-admin-module="agent-covers">文案智能体</button>
-          <button data-admin-module="sales-simulation">销售中心</button>
-          <button data-admin-module="coach-toolbox">教练工具箱</button>
-          <button data-admin-module="model-management">AI 配置</button>
-          <button data-admin-module="logs">用量与日志</button>
+          <button data-admin-module="agent-covers">智能体广场</button>
+          <button data-admin-module="sales-simulation">销售训练</button>
+          <button data-admin-module="coach-toolbox">教练工具</button>
+          <button data-admin-module="model-management">AI 与 Prompt</button>
+          <button data-admin-module="logs">用量与运行</button>
         </div>
 
         <section class="admin-module-head">
           <div>
             <span class="eyebrow">ADMIN MODULE</span>
-            <h2 id="adminModuleTitle">后台概览</h2>
-            <p id="adminModuleDesc">把后台拆成独立模块，方便后续逐个补全真实管理能力。</p>
+            <h2 id="adminModuleTitle">管理工作台</h2>
+            <p id="adminModuleDesc">先处理账号、内容与交付，再按需进入 AI 配置和运行数据。</p>
           </div>
           <button class="secondary" id="refreshAdminConfig">刷新配置</button>
         </section>
 
         <section class="admin-module" id="adminModule-overview">
+          <section class="admin-command-center" id="adminOverviewStatus"></section>
           <div class="admin-grid" id="adminModuleCards"></div>
         </section>
 
         <section class="admin-module hidden" id="adminModule-users">
           <section class="panel">
-            <div class="panel-head"><div><h3>用户与权限</h3><p>自助注册账号默认没有 AI 权限；你在这里按学员购买的服务勾选功能、设置到期日或重置密码。</p></div><span class="admin-count" id="adminUserTotal">0 个账号</span></div>
+            <div class="panel-head"><div><h3>用户与权限</h3><p>自助注册账号默认没有 AI 权限；你在这里按学员购买的服务勾选功能、设置到期日、重置密码或删除账号。</p></div><span class="admin-count" id="adminUserTotal">0 个账号</span></div>
             <div class="user-stats" id="userStats"></div>
             <div class="admin-form user-form">
               <input id="newUserName" placeholder="学员姓名" />
@@ -638,8 +664,6 @@
               <button class="primary" id="addUser">开通账号</button>
             </div>
             <p class="form-note">开通账号时请设置初始密码；请通过安全渠道单独告知学员。</p>
-            <div class="test-user-tools"><div><strong>测试账号</strong><small>一次生成 test01–test10，自动开通陪跑权限；账号密码仅在创建后显示一次。</small></div><input id="testUserPassword" type="password" value="Pipi1234" autocomplete="new-password" aria-label="测试账号密码" /><button class="secondary" id="seedTestUsers" type="button">创建并显示账号</button></div>
-            <div id="testCredentials" class="test-credentials hidden"></div>
             <div id="userList" class="user-list"></div>
           </section>
         </section>
@@ -671,7 +695,7 @@
 
         <section class="admin-module hidden" id="adminModule-agent-covers">
           <section class="panel">
-            <div class="panel-head"><div><h3>文案智能体配置</h3><p>新建智能体，并维护上下架、模型、开局引导、前台封面与生成 Prompt。</p></div><span class="admin-count" id="copywritingAgentCount">8 个智能体</span></div>
+            <div class="panel-head"><div><h3>文案智能体配置</h3><p>新建智能体，并维护上下架、模型、开局引导、前台封面与生成 Prompt。</p></div><span class="admin-count" id="copywritingAgentCount">11 个智能体</span></div>
             <section class="copy-agent-manager-panel"><div class="panel-head"><div><h3>智能体管理</h3><p>下架后前台立即隐藏，但历史配置仍会保留；新建智能体默认下架，配置完成后再上架。</p></div><button class="primary" type="button" id="toggleCreateCopyAgent">＋ 新建智能体</button></div><div id="copyAgentCreateForm" class="hidden"></div><div id="copyAgentManager" class="copy-agent-manager"></div></section>
             <section class="copy-agent-cover-panel"><div class="panel-head"><div><h3>智能体封面</h3><p>为每个智能体选择图片并调整取景位置。</p></div></div>
             <div class="agent-cover-upload"><div><strong>图片库</strong><small>支持 JPG、PNG、WebP，单张不超过 8MB，可一次选择多张。</small></div><input id="copywritingCoverFiles" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden /><button class="secondary" type="button" id="selectCopywritingCovers">选择图片</button><button class="primary" type="button" id="uploadCopywritingCovers" disabled>上传</button><span id="copywritingCoverUploadStatus">尚未选择图片</span></div>
@@ -690,6 +714,7 @@
             </div>
             <div class="model-management-view" data-model-management-view="providers">
               <h3>模型供应商</h3><p>API Key 不进入前端，后端运行时读取环境变量或本地凭据。只有启用状态的大模型供应商会进入模型调用链路。</p><div id="providerList"></div>
+              <section class="panel image-proxy-test-panel"><div class="panel-head"><div><h3>GPT 生图测试台</h3><p>仅管理员可用，每次生成 1 张 1024×1024 图片；用于确认中转站连通性，不会开放给学员。</p></div><span class="admin-count">本地测试</span></div><textarea id="imageProxyTestPrompt" rows="3" placeholder="例如：温暖克制的教培朋友圈配图，米白色背景，手绘纸张纹理，无文字、无人像"></textarea><div class="panel-actions"><button class="primary" type="button" id="runImageProxyTest">生成 1 张测试图</button><span id="imageProxyTestStatus">尚未测试</span></div><div id="imageProxyTestResult" class="image-proxy-test-result hidden"></div></section>
             </div>
             <div class="model-management-view hidden" data-model-management-view="models">
               <div class="panel-head"><h3>模型池</h3><div class="panel-actions"><button class="secondary" id="refreshSiliconModels">刷新硅基</button><button class="secondary" id="refreshArkModels">Ark Plan 说明</button></div></div><p>文案智能体已优先绑定 Doubao Seed 2.1（Ark Plan），实际调用入口为 Plan 可用的 ark-code-latest。Ark Plan 不自动探测模型，需要手动维护 Plan 模型名。</p><div id="modelList"></div><div class="admin-form two-col"><select id="newModelProvider"><option value="siliconflow">硅基流动</option><option value="volcengine_ark_plan">火山方舟 Ark Plan</option></select><input id="newModelCode" placeholder="新增模型 code，例如 Qwen/Qwen3-8B 或 ark-code-latest" /><button class="secondary" id="addModel">新增模型</button></div>
@@ -707,6 +732,16 @@
     </main>
   </div>
 
+  <div id="competitorAgentPicker" class="competitor-agent-picker hidden" role="dialog" aria-modal="true" aria-labelledby="competitorAgentPickerTitle">
+    <section class="competitor-agent-picker-card">
+      <button class="modal-close" id="closeCompetitorAgentPicker" type="button" aria-label="关闭选择窗口">×</button>
+      <span class="eyebrow">EXTRACTED COPY · NEXT STEP</span>
+      <h2 id="competitorAgentPickerTitle">这条文案，准备带去哪个智能体？</h2>
+      <p id="competitorAgentPickerSummary">已提取的文案会作为参考素材带入，你可以按目标选择不同的写法。</p>
+      <div id="competitorAgentPickerList" class="competitor-agent-picker-list"></div>
+    </section>
+  </div>
+
   <div id="recordDetailModal" class="record-detail-modal hidden" role="dialog" aria-modal="true" aria-labelledby="recordDetailTitle">
     <section class="record-detail-card">
       <header class="record-detail-head"><div><span class="eyebrow" id="recordDetailType">生成记录</span><h2 id="recordDetailTitle">查看完整内容</h2><p id="recordDetailMeta"></p></div><button class="modal-close" id="closeRecordDetail" type="button" aria-label="关闭完整内容">×</button></header>
@@ -719,7 +754,7 @@
   <div id="appToast" class="app-toast" role="status" aria-live="polite"></div>
   <script src="vendor/lucide.min.js?v=20260804-01"></script>
   <script>window.lucide?.createIcons({ attrs: { 'aria-hidden': 'true', 'stroke-width': 1.8 } });</script>
-  <script src="config.js?v=20260903-02"></script>
-  <script src="app.js?v=20260904-modules-01"></script>
+  <script src="config.js?v=20260907-accumulation-01"></script>
+  <script src="app.js?v=20260907-accumulation-01"></script>
 </body>
 </html>

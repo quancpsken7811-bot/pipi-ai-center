@@ -3,12 +3,13 @@
 const DEFAULT_API_ENDPOINTS = {
   loginPassword: '/api/auth/login/password', register: '/api/auth/register', passwordResetRequest: '/api/auth/password-reset-request', loginSms: '/api/auth/login/sms', sendSms: '/api/auth/sms/send', me: '/api/me',
   personalProfile: '/api/user/profile', personalAvatar: '/api/user/avatar', personalPersona: '/api/user/persona', personalKnowledge: '/api/user/knowledge', personalKnowledgeUpload: '/api/user/knowledge/upload', personalPoints: '/api/user/points',
-  toolAvailability: '/api/tools/availability', pipiChat: '/api/tools/pipi-assistant/chat', salesSimulation: '/api/tools/sales-simulation/chat', salesMethodConfig: '/api/tools/sales-simulation/config', pipiConfig: '/api/tools/pipi-assistant/config', topics: '/api/tools/topics/generate', inspirationCapsules: '/api/inspiration-capsules', inspirationDraws: '/api/inspiration-capsules/draw', copywriting: '/api/tools/copywriting/generate', copywritingConfig: '/api/tools/copywriting/config', wechatLayout: '/api/tools/wechat-layout/analyze', competitor: '/api/tools/competitors/generate', competitorTrends: '/api/tools/competitors/trends', competitorQuota: '/api/tools/competitors/quota', competitorSearch: '/api/tools/competitors/search', competitorTranscript: '/api/tools/competitors/transcript', coachSop: '/api/tools/coach/sop', coachMoments: '/api/tools/coach/moments', coachMomentsTemplate: '/api/tools/coach/moments/template', coachMomentsImage: '/api/tools/coach/moments/image', records: '/api/generation-records',
-  adminUsers: '/api/admin/users', adminStats: '/api/admin/stats', adminPipiConfig: '/api/admin/pipi-assistant/config', adminPipiKnowledge: '/api/admin/pipi-assistant/knowledge', adminSalesConfig: '/api/admin/sales-simulation/config', adminSalesKnowledge: '/api/admin/sales-simulation/knowledge', adminSalesReports: '/api/admin/sales-simulation/reports', adminCoachToolbox: '/api/admin/coach-toolbox/config', adminCopywritingConfig: '/api/admin/copywriting/config', adminCopywritingAgents: '/api/admin/copywriting/agents', adminCopywritingCovers: '/api/admin/copywriting/covers', adminProviders: '/api/admin/ai/providers', adminModels: '/api/admin/ai/models', adminRefreshModels: '/api/admin/ai/models/refresh', adminPrompts: '/api/admin/prompts', adminFeatures: '/api/admin/ai/features', adminUsage: '/api/admin/ai/usage', adminProviderUsage: '/api/admin/ai/provider-usage', adminCallLogs: '/api/admin/ai/call-logs'
+  toolAvailability: '/api/tools/availability', pipiChat: '/api/tools/pipi-assistant/chat', salesSimulation: '/api/tools/sales-simulation/chat', salesMethodConfig: '/api/tools/sales-simulation/config', pipiConfig: '/api/tools/pipi-assistant/config', topics: '/api/tools/topics/generate', inspirationCapsules: '/api/inspiration-capsules', inspirationDraws: '/api/inspiration-capsules/draw', copywriting: '/api/tools/copywriting/generate', copywritingConfig: '/api/tools/copywriting/config', wechatLayout: '/api/tools/wechat-layout/analyze', competitor: '/api/tools/competitors/generate', competitorTrends: '/api/tools/competitors/trends', competitorQuota: '/api/tools/competitors/quota', competitorSearch: '/api/tools/competitors/search', competitorAccountDiagnosis: '/api/tools/competitors/account-diagnosis', competitorTranscript: '/api/tools/competitors/transcript', coachSop: '/api/tools/coach/sop', coachMoments: '/api/tools/coach/moments', coachMomentsTemplate: '/api/tools/coach/moments/template', records: '/api/generation-records',
+  adminUsers: '/api/admin/users', adminStats: '/api/admin/stats', adminPipiConfig: '/api/admin/pipi-assistant/config', adminPipiKnowledge: '/api/admin/pipi-assistant/knowledge', adminSalesConfig: '/api/admin/sales-simulation/config', adminSalesKnowledge: '/api/admin/sales-simulation/knowledge', adminSalesReports: '/api/admin/sales-simulation/reports', adminCoachToolbox: '/api/admin/coach-toolbox/config', adminCopywritingConfig: '/api/admin/copywriting/config', adminCopywritingAgents: '/api/admin/copywriting/agents', adminCopywritingCovers: '/api/admin/copywriting/covers', adminProviders: '/api/admin/ai/providers', adminImageProxyTest: '/api/admin/image-proxy/test', adminModels: '/api/admin/ai/models', adminRefreshModels: '/api/admin/ai/models/refresh', adminPrompts: '/api/admin/prompts', adminFeatures: '/api/admin/ai/features', adminUsage: '/api/admin/ai/usage', adminProviderUsage: '/api/admin/ai/provider-usage', adminCallLogs: '/api/admin/ai/call-logs', materialLibrary: '/api/material-library'
 };
 const DEFAULT_API_CONFIG = {
   baseUrl: /^https?:$/.test(window.location.protocol) ? window.location.origin : 'http://127.0.0.1:8787',
-  fallbackBaseUrls: [],
+  // 直接打开本地 HTML 时，依次兼容默认开发端口和当前本地预览端口；正常通过服务访问时始终优先同源。
+  fallbackBaseUrls: ['http://127.0.0.1:8791'],
   useMockWhenEmpty: false,
   allowDemoLogin: false,
   selfRegistrationEnabled: true,
@@ -33,7 +34,7 @@ const API_REQUEST_TIMEOUTS = {
   personalKnowledge: 15000,
   personalKnowledgeUpload: 45000,
   personalPoints: 15000,
-  pipiChat: 75000,
+  pipiChat: 150000,
   salesSimulation: 105000,
   salesMethodConfig: 15000,
   pipiConfig: 15000,
@@ -50,8 +51,8 @@ const API_REQUEST_TIMEOUTS = {
   competitorTranscript: 240000,
   coachSop: 105000,
   coachMoments: 105000,
-  coachMomentsImage: 240000,
-  records: 15000
+  records: 15000,
+  materialLibrary: 20000
 };
 
 const demoUsers = {
@@ -73,14 +74,19 @@ const state = {
   copyView: 'gallery',
   copyGeneration: null,
   copyGenerationTimer: null,
+  copyEditing: null,
   copyAttachments: [],
-  wechatLayout: { theme: 'punk', mode: 'editable', layout: null, layouts: {}, images: [], html: '', article: '', result: null, settings: { fontSize: 16, lineHeight: 1.9, fontFamily: 'system', bodyColor: 'auto', accent: '#B55E32', fixedEndingEnabled: false, fixedEnding: '' } },
+  wechatLayout: { theme: 'pipi', mode: 'editable', layout: null, layouts: {}, images: [], html: '', article: '', result: null, settings: { fontSize: 16, lineHeight: 1.9, fontFamily: 'system', bodyColor: 'auto', accent: '#255B9C', chapterStyle: 'underline', fixedEndingEnabled: false, fixedEnding: '', authorAvatar: '', authorName: '' } },
   competitorFinder: { keyword: '教育', channel: 'douyin', channelLabel: '抖音', loading: false, items: [], transcripts: {} },
+  competitorAccountDiagnosis: { loading: false, report: '', accountName: '', error: '', model: '' },
+  competitorAgentPicker: { open: false, item: null, transcript: '' },
   gacha: { loaded: false, loading: false, items: [], drawHistory: [], quotes: [], lastResult: null },
   latestTopics: { items: [], payload: null },
+  materialLibrary: { loaded: false, loading: false, items: [], filter: '全部', search: '' },
   competitorTrends: { loaded: false, loading: false, platforms: {}, items: [], meta: null, error: '' },
   competitorQuota: { loaded: false, loading: false, date: '', limit: 100, used: 0, reserved: 0, remaining: 100 },
   salesSession: null,
+  salesAttachments: [],
   salesEmojiPickerOpen: false,
   salesOutcomeTimer: null,
   activeSalesMethod: 'icebreak',
@@ -110,6 +116,7 @@ const state = {
   pipiUserTurns: 0,
   pipiWelcomeNeedsRefresh: false,
   pipiConversation: null,
+  pipiEditing: null,
   adminConfig: {
     users: [],
     passwordResetRequests: [],
@@ -136,10 +143,11 @@ const pages = {
   personal: '个人中心',
   pipi: '皮皮分身',
   traffic: '流量板块',
-  private: '私域板块',
+  accumulation: '沉淀板块',
   product: '产品板块',
   topics: '选题生成',
   copy: '文案智能体',
+  materials: '素材库',
   wechat: '公众号',
   competitor: '找竞品',
   sales: '销售模拟',
@@ -152,7 +160,7 @@ const tools = [
   { page: 'topics', icon: '题', title: '选题生成', desc: '按赛道、业务和方向生成教育赛道内容选题。', roles: ['training', 'coaching', 'admin'] },
   { page: 'copy', icon: '文', title: '文案智能体', desc: '训练营可用短视频文案，陪跑开放朋友圈和贴图号。', roles: ['training', 'coaching', 'admin'] },
   { page: 'wechat', icon: '刊', title: '公众号', desc: '独立完成公众号文案与视觉排版，生成可复制的长文成品。', roles: ['coaching', 'admin'] },
-  { page: 'competitor', icon: '竞', title: '找竞品', desc: '搜索教育爆款内容，提取文案后带去智能体改写。', roles: ['training', 'coaching', 'admin'] },
+  { page: 'competitor', icon: '竞', title: '找竞品', desc: '搜索教育爆款内容，参考表达结构并带入智能体创作。', roles: ['training', 'coaching', 'admin'] },
   { page: 'sales', icon: '销', title: '销售模拟', desc: '选择家长类型，练习真实销售沟通和成交推进。', roles: ['training', 'coaching', 'admin'] },
   { page: 'coach', icon: '教', title: '教练工具箱', desc: '沉淀交付 SOP，并快速产出交付朋友圈和分享图。', roles: ['admin'] }
 ];
@@ -167,7 +175,7 @@ const salesProfiles = {
     opening: '您好，我主要想先了解一下课程具体怎么安排，和其他机构相比有什么不同？',
     tags: ['爱比较', '重证据', '关注价格'],
     methodology: {
-      hypothesis: '待验证的 C 型沟通偏好，不代表购买意向。',
+      hypothesis: '初始为 C 型沟通假设，不代表购买意向；以实际回复为准。',
       parent_clues: ['主动追问课程结构、师资、评估方式和适用边界', '会比较价格，但更在意投入是否有清楚依据'],
       first_fact: '先补齐孩子的现状、过往尝试、目标和家长的效果判断标准。',
       response_rule: '结论先行，再用流程、同类案例和适用边界说明；没有事实时不要硬答。',
@@ -186,7 +194,7 @@ const salesProfiles = {
     opening: '老师您好，我家孩子马上要升三年级了，英语基础特别差，现在开始还来得及吗？',
     tags: ['问题紧迫', '要效率', '怕耽误'],
     methodology: {
-      hypothesis: '待验证的 D 型沟通偏好，紧迫感来自当前情境，不把焦虑本身等同于 D。',
+      hypothesis: '初始为 D 型沟通假设，紧迫感来自当前情境，不把焦虑本身等同于 D。',
       parent_clues: ['回复直接、希望快速进入重点', '反复确认目标、时间、效率和下一步'],
       first_fact: '先确认孩子当前最急的问题、目标时间点和已经尝试过的办法。',
       response_rule: '先给清楚且克制的判断，再说明最短验证路径；避免铺陈，也不能承诺短期结果。',
@@ -205,7 +213,7 @@ const salesProfiles = {
     opening: '老师您好，我先了解一下。孩子之前也试过几家，但都没有坚持下来。',
     tags: ['慢决策', '要安全感', '怕踩坑'],
     methodology: {
-      hypothesis: '待验证的 S 型沟通偏好，不把慢决策当作低意向。',
+      hypothesis: '初始为 S 型沟通假设，不把慢决策当作低意向。',
       parent_clues: ['语气礼貌、需要被充分回应', '更担心孩子适应、持续陪伴和做错选择'],
       first_fact: '先听清过去报名后为什么没坚持，以及孩子和家长各自最担心什么。',
       response_rule: '语气稳定，先复述顾虑，再将体验、陪伴和后续动作拆小；不要突然逼单。',
@@ -224,7 +232,7 @@ const salesProfiles = {
     opening: '老师您好，我家孩子其实挺聪明的，就是注意力不太集中，您先帮我看看适不适合吧。',
     tags: ['重感受', '愿分享', '看关系'],
     methodology: {
-      hypothesis: '待验证的 I 型沟通偏好，不把表达欲等同于容易成交。',
+      hypothesis: '初始为 I 型沟通假设，不把表达欲等同于容易成交。',
       parent_clues: ['愿意分享孩子的故事和感受', '会观察老师是否理解孩子、沟通是否自然'],
       first_fact: '先承接家长对孩子的观察，再追问一个具体场景、过往尝试或期待变化。',
       response_rule: '可以有温度地互动，但每次都要回到一个具体事实，不能只给情绪价值。',
@@ -241,8 +249,8 @@ const salesSixSteps = [
   { title: '深度挖需', hint: '问清孩子现状与需求' },
   { title: '案例展示', hint: '用同类真实变化建信任' },
   { title: '产品介绍', hint: '按诊断结果匹配产品' },
-  { title: '卡点清理', hint: '认同顾虑并重塑价值' },
-  { title: '临门踢单', hint: '推动一个低门槛行动' }
+  { title: '决策卡点', hint: '澄清顾虑并重塑价值' },
+  { title: '临门推进', hint: '推动一个低门槛行动' }
 ];
 
 const salesScoreDimensions = [
@@ -285,21 +293,23 @@ const salesMethodDetails = {
     items: ['先复述诊断：“按照刚才了解的情况，孩子现在最需要的不是……而是……”', '再连接产品：“所以我建议先用……来验证……”', '只说和当前需求相关的交付、节奏和结果验证方式。']
   },
   objection: {
-    number: '05', title: '卡点清理', library: '异议库', desc: '先认同顾虑，再核实真正原因，不要听到“贵”就立即解释价格。',
+    number: '05', title: '决策卡点', library: '决策卡点库', desc: '先认同顾虑，再核实真正原因；价格、效果、时间、决策关系都可能只是表层表达。',
     items: ['认同：“您会考虑这个很正常，给孩子选课本来就需要谨慎。”', '核实：“您现在更担心的是投入后没效果，还是孩子坚持不下来？”', '重塑：回到家长真正在意的结果和风险。']
   },
   close: {
-    number: '06', title: '临门踢单', library: '成交库', desc: '不用虚假稀缺逼单，而是把下一步降低到家长容易做决定的诊断或体验。',
+    number: '06', title: '临门推进', library: '临门推进库', desc: '不用虚假稀缺逼单，而是把下一步降低到家长容易做决定的诊断或体验。',
     items: ['诊断推进：“我们先不急着定长期课，先给孩子做一次测评。”', '体验推进：“先让孩子体验一次，看他是否愿意配合，再决定后面的路径。”', '明确动作：说清时间、方式、需要准备的材料和下次联系点。']
   }
 };
 
 const quickQuestions = [
-  '我是同城少儿书法，现在没客资，先做短视频还是朋友圈？',
-  '我是成人雅思，产品比较散，应该先整理什么？',
-  '朋友圈怎么发才不像招生广告？',
-  '我适合先做线上 C 端还是同城 C 端？',
-  '训练营和陪跑到底有什么区别？'
+  '我现在只有课时课，怎么变成有明确结果的产品？',
+  '我的产品很多，怎么梳理入口产品、利润品和长期产品？',
+  '体验课怎么设计，才能自然接到后面的正式产品？',
+  '我想涨价，怎么判断产品和交付有没有准备好？',
+  '教、帮、陪分别该提供什么，怎么避免交付太累？',
+  '客户买完不复购，我该先检查产品的哪一环？',
+  '公开课大家听懂了却不报名，问题出在哪里？'
 ];
 
 const trainingQuickQuestions = [
@@ -493,7 +503,8 @@ async function apiRequest(endpointKey, payload = {}, options = {}) {
           'Content-Type': 'application/json',
           ...(state.user?.token ? { Authorization: `Bearer ${state.user.token}` } : {})
         },
-        ...(requestMethod === 'GET' || requestMethod === 'DELETE' ? {} : { body: JSON.stringify(payload) }),
+        // 删除账号需要把确认密码放在请求体中；只有 GET 请求没有请求体。
+        ...(requestMethod === 'GET' ? {} : { body: JSON.stringify(payload) }),
         signal: controller.signal
       });
       let data;
@@ -516,7 +527,7 @@ async function apiRequest(endpointKey, payload = {}, options = {}) {
     }
   }
   if (/Failed to fetch|NetworkError/i.test(lastError?.message || '')) {
-    throw new Error('暂时无法连接中台服务，请刷新当前页面后重试；若仍无法连接，请确认 8787 API 服务已启动。');
+    throw new Error('暂时无法连接中台服务，请刷新当前页面后重试；若仍无法连接，请确认本地 API 服务已启动。');
   }
   throw lastError || new Error('接口请求失败');
 }
@@ -524,9 +535,13 @@ async function apiRequest(endpointKey, payload = {}, options = {}) {
 function canUsePage(page) {
   if (!state.user) return false;
   if (page === 'admin' || page === 'coach') return state.user.role === 'admin';
+  // 训练营权益只覆盖皮皮答疑与流量闭环；产品、沉淀和销售模拟属于陪跑权益。
+  if (state.user.role === 'training' && ['product', 'accumulation', 'wechat', 'sales'].includes(page)) return false;
+  // 素材库是流量工作流外的沉淀空间，只要能进入流量板块即可使用，不单独增加 AI 授权项。
+  if (page === 'materials') return ['topics', 'copy', 'competitor'].some((item) => canUsePage(item));
   // 三个板块是已有工具的工作流入口，不增加新的账号权限；只要该账号至少开通其中一个工具即可进入。
   if (page === 'traffic') return ['topics', 'copy', 'competitor'].some((item) => canUsePage(item));
-  if (page === 'private') return ['copy', 'sales'].some((item) => canUsePage(item));
+  if (page === 'accumulation') return ['copy', 'wechat'].some((item) => canUsePage(item));
   if (page === 'product') return ['copy', 'pipi', 'coach'].some((item) => canUsePage(item));
   if (page === 'wechat' && state.user.role === 'training') return false;
   // 扭蛋机复用选题权限：它只保存用户主动投喂的选题，不新增一套账号授权成本。
@@ -598,6 +613,9 @@ async function restoreAuthSession() {
   } catch {
     state.user = null;
     clearAuthSession();
+    state.materialLibrary = { loaded: false, loading: false, items: [], filter: '全部', search: '', page: 1, pageSize: 8 };
+    state.competitorFinder = { keyword: '教育', channel: 'douyin', channelLabel: '抖音', loading: false, items: [], transcripts: {} };
+    state.competitorAgentPicker = { open: false, item: null, transcript: '' };
     showLogin();
   }
 }
@@ -770,11 +788,18 @@ function normalizeApiUser(data) {
 }
 
 function logout() {
+  pageTrail.length = 0;
   state.user = null;
   clearAuthSession();
   state.records = [];
   state.copySessions = [];
   state.activeCopySessionId = null;
+  state.copyAttachments = [];
+  state.materialLibrary = { loaded: false, loading: false, items: [], filter: '全部', search: '', page: 1, pageSize: 8 };
+    state.competitorFinder = { keyword: '教育', channel: 'douyin', channelLabel: '抖音', loading: false, items: [], transcripts: {} };
+  state.competitorAgentPicker = { open: false, item: null, transcript: '' };
+  state.gacha = { loaded: false, loading: false, items: [], drawHistory: [], quotes: [], lastResult: null };
+  state.latestTopics = { items: [], payload: null };
   $('pipiMessages').innerHTML = '';
   showLogin();
 }
@@ -794,13 +819,86 @@ async function loadUserRecords() {
   if (state.page === 'personal' && state.personalTab === 'recent') renderHistory();
 }
 
-function setPage(page) {
+function renderMaterialLibrary() {
+  const list = $('materialLibraryList');
+  if (!list) return;
+  const items = state.materialLibrary.items || [];
+  const categories = ['全部', ...new Set(items.map((item) => item.category).filter(Boolean))];
+  const filterHost = $('materialLibraryFilters');
+  if (filterHost) filterHost.innerHTML = categories.map((category) => `<button type="button" class="${state.materialLibrary.filter === category ? 'active' : ''}" data-material-filter="${escapeHtml(category)}">${escapeHtml(category)}</button>`).join('');
+  const query = String(state.materialLibrary.search || '').trim().toLowerCase();
+  const filtered = items.filter((item) => (state.materialLibrary.filter === '全部' || item.category === state.materialLibrary.filter) && (!query || [item.title, item.category, item.subcategory, item.content, item.tags].filter(Boolean).join(' ').toLowerCase().includes(query)));
+  const pageSize = Math.max(1, Number(state.materialLibrary.pageSize) || 8);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  state.materialLibrary.page = Math.min(Math.max(1, Number(state.materialLibrary.page) || 1), totalPages);
+  const pageItems = filtered.slice((state.materialLibrary.page - 1) * pageSize, state.materialLibrary.page * pageSize);
+  list.innerHTML = filtered.length ? pageItems.map((item) => `<article class="material-library-card">
+    <div class="material-library-card-head"><div><span class="material-library-kicker">${escapeHtml([item.category, item.subcategory].filter(Boolean).join(' · ') || '团队公共素材')}</span><h3>${escapeHtml(item.title || '未命名素材')}</h3></div></div>
+    ${item.url ? `<a class="material-library-url" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer noopener">${/douyin\.com/i.test(item.url) ? '打开原视频链接 ↗' : '查看来源文档 ↗'}</a>` : ''}
+    <p>${escapeHtml(item.content || '团队已收录原视频链接，可直接打开查看。')}</p>
+    <footer><span>${escapeHtml(item.source || '皮皮团队公共素材库')}</span><button class="secondary mini" type="button" data-material-use="${escapeHtml(item.id)}">带去文案智能体 →</button></footer>
+  </article>`).join('') : '<div class="empty-box material-library-empty"><strong>没有匹配的素材</strong><p>换一个关键词，或切换上方内容分类。</p></div>';
+  const pagination = $('materialLibraryPagination');
+  if (pagination) {
+    if (!filtered.length || totalPages <= 1) pagination.innerHTML = '';
+    else {
+      const pageButtons = Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => `<button type="button" class="${page === state.materialLibrary.page ? 'active' : ''}" data-material-page="${page}" aria-label="第 ${page} 页">${page}</button>`).join('');
+      pagination.innerHTML = `<button type="button" data-material-page="${Math.max(1, state.materialLibrary.page - 1)}" ${state.materialLibrary.page === 1 ? 'disabled' : ''}>上一页</button>${pageButtons}<button type="button" data-material-page="${Math.min(totalPages, state.materialLibrary.page + 1)}" ${state.materialLibrary.page === totalPages ? 'disabled' : ''}>下一页</button>`;
+    }
+  }
+}
+
+async function loadMaterialLibrary() {
+  if (!state.user || state.materialLibrary.loading) return;
+  state.materialLibrary.loading = true;
+  try {
+    const result = await apiRequest('materialLibrary', {}, { method: 'GET' });
+    state.materialLibrary.items = Array.isArray(result?.items) ? result.items : [];
+    state.materialLibrary.loaded = true;
+    renderMaterialLibrary();
+  } catch (error) {
+    const list = $('materialLibraryList');
+    if (list) list.innerHTML = `<div class="empty-box">素材库读取失败：${escapeHtml(error.message || '请稍后重试')}</div>`;
+  } finally {
+    state.materialLibrary.loading = false;
+  }
+}
+
+function useMaterialInCopy(id) {
+  const item = (state.materialLibrary.items || []).find((entry) => String(entry.id) === String(id));
+  if (!item) return;
+  openCopyAgentFrom('education_vertical', 'materials');
+  window.setTimeout(() => {
+    const input = $('copyMaterial');
+    if (!input) return;
+    input.value = [item.title, item.url ? `原始链接：${item.url}` : '', item.content || ''].filter(Boolean).join('\n\n');
+    input.focus();
+  }, 100);
+}
+
+const pageTrail = [];
+
+function updatePageBack() {
+  const inAgent = state.page === 'copy' && state.copyView === 'compose';
+  const target = inAgent ? (state.copyOriginPage || 'copy') : (pageTrail[pageTrail.length - 1] || 'home');
+  $('pageBack').classList.toggle('hidden', state.page === 'home');
+  $('pageBack').title = `返回${target === 'copy' ? '智能体广场' : (pages[target] || '工作台')}`;
+  $('pageBack').setAttribute('aria-label', $('pageBack').title);
+}
+
+function setPage(page, { goingBack = false } = {}) {
   if (!canUsePage(page)) {
     alert(page === 'admin' ? '只有管理员可以查看后台。' : '当前账号暂未开通该功能。');
     return;
   }
   const previousPage = state.page;
+  if (page !== previousPage && !goingBack && previousPage && pages[previousPage]) {
+    pageTrail.push(previousPage);
+    if (pageTrail.length > 40) pageTrail.shift();
+  }
+  if (page === 'home') pageTrail.length = 0;
   state.page = page;
+  updatePageBack();
   document.body.classList.remove('copy-compose-open');
   document.body.classList.toggle('sales-page-open', page === 'sales');
   Object.keys(pages).forEach((key) => $(`${key}Page`).classList.toggle('hidden', key !== page));
@@ -826,6 +924,7 @@ function setPage(page) {
     if (!state.competitorQuota.loaded && !state.competitorQuota.loading) loadCompetitorQuota();
   }
   if (page === 'topics') loadGachaCapsules();
+  if (page === 'materials') loadMaterialLibrary();
   if (page === 'coach') renderCoachMomentPoster();
   if (page === 'personal') loadPersonalCenter();
   if (page === 'admin') loadAdminConfig();
@@ -1046,7 +1145,12 @@ function saveCopySession(payload, typeName, content) {
   }
   session.updatedAt = now;
   session.typeName = typeName;
-  session.messages.push({ prompt: payload.material, content, createdAt: now });
+  session.messages.push({
+    prompt: payload.material,
+    content,
+    attachments: Array.isArray(payload.attachments) ? payload.attachments : [],
+    createdAt: now
+  });
   renderCopySessions();
   return session;
 }
@@ -1057,19 +1161,92 @@ function renderCopyConversation(session, pendingPrompt = '', pendingContent = ''
   $('copyChatBody').classList.toggle('has-conversation', hasConversation);
   $('copyChatBody').closest('.agent-chat-main')?.classList.toggle('has-conversation', hasConversation);
   $('copyResult').classList.toggle('empty', !hasConversation);
-  const completed = messages.map((message) => `
-    <div class="copy-chat-message user"><div class="copy-message-bubble">${escapeHtml(message.prompt || '')}</div></div>
+  const completed = messages.map((message, index) => {
+    const isEditing = state.copyEditing?.sessionId === session?.id && state.copyEditing?.messageIndex === index;
+    const attachmentNote = Array.isArray(message.attachments) && message.attachments.length
+      ? `<small class="copy-message-attachments">已附 ${message.attachments.length} 个素材</small>`
+      : '';
+    const userMessage = isEditing
+      ? `<div class="copy-message-editor"><textarea data-copy-edit-input="${index}" aria-label="编辑已发送内容">${escapeHtml(message.prompt || '')}</textarea><div><button type="button" class="link-button" data-copy-edit-cancel>取消</button><button type="button" class="primary mini" data-copy-edit-regenerate="${index}">重新生成</button></div></div>`
+      : `<div class="copy-message-bubble">${escapeHtml(message.prompt || '')}${attachmentNote}<button type="button" class="copy-message-edit" data-copy-edit-message="${index}" aria-label="编辑这条已发送内容">编辑</button></div>`;
+    return `
+    <div class="copy-chat-message user">${userMessage}</div>
     <div class="copy-chat-message assistant"><div class="copy-message-label">皮皮文案智能体</div><div class="copy-message-text" contenteditable="true">${escapeHtml(message.content || '')}</div></div>
-  `).join('');
+  `;
+  }).join('');
   const pending = pendingPrompt ? `
     <div class="copy-chat-message user"><div class="copy-message-bubble">${escapeHtml(pendingPrompt)}</div></div>
     <div class="copy-chat-message assistant pending"><div class="copy-message-label">皮皮文案智能体</div>${pendingContent || '<div class="copy-thinking"><span></span><span></span><span></span></div>'}<div class="copy-generation-status" id="copyGenerationStatus" role="status" aria-live="polite"></div></div>
   ` : '';
-  $('copyResult').innerHTML = completed + pending;
+  const latestContent = messages.at(-1)?.content || '';
+  const xiaohongshuPreview = value('copyAgent') === 'xiaohongshu' && latestContent
+    ? renderXiaohongshuCardPreview(latestContent)
+    : '';
+  $('copyResult').innerHTML = completed + pending + xiaohongshuPreview;
   updateCopyGenerationStatus();
   requestAnimationFrame(() => {
     $('copyChatBody').scrollTop = $('copyChatBody').scrollHeight;
   });
+}
+
+async function regenerateCopyMessage(sessionId, messageIndex, material) {
+  if (state.copyGeneration) {
+    showToast('上一条文案仍在生成中，请等待结果返回。');
+    return;
+  }
+  const session = state.copySessions.find((item) => item.id === sessionId);
+  const previous = session?.messages?.[messageIndex];
+  const prompt = String(material || '').trim();
+  if (!session || !previous || !prompt) {
+    showToast('请输入要修改后的内容。');
+    return;
+  }
+  // 从被修改的提问起截断，模型只会看到修改前的有效上下文；旧回复不会混入新一轮。
+  session.messages = session.messages.slice(0, messageIndex);
+  session.updatedAt = new Date().toLocaleString('zh-CN');
+  if (messageIndex === 0) session.title = prompt.slice(0, 28);
+  state.activeCopySessionId = session.id;
+  state.copyEditing = null;
+  const payload = createCopyPayload({
+    material: prompt,
+    attachments: previous.attachments || [],
+    session
+  });
+  await requestCopyGeneration(payload, session, { clearComposer: false });
+}
+
+function extractXiaohongshuCards(content) {
+  const source = String(content || '').replace(/\r\n?/g, '\n').trim();
+  const marker = /(?:^|\n)\s*(封面|第\s*\d+\s*页|第[一二三四五六七八九十]+页)\s*[：:]/g;
+  const matches = [...source.matchAll(marker)];
+  if (matches.length) {
+    return matches.slice(0, 10).map((match, index) => ({
+      label: match[1].replace(/\s/g, '') || `第${index + 1}页`,
+      text: source.slice(match.index + match[0].length, matches[index + 1]?.index || source.length).trim().replace(/\n{3,}/g, '\n\n')
+    })).filter((item) => item.text);
+  }
+  const parts = source.split(/\n\s*\n/).map((item) => item.trim()).filter(Boolean);
+  return parts.slice(0, 8).map((text, index) => ({ label: index === 0 ? '封面' : `第${index + 1}页`, text }));
+}
+
+function xiaohongshuCardsHtml(content, exportMode = false) {
+  const cards = extractXiaohongshuCards(content);
+  const rendered = cards.map((card, index) => `<article class="xiaohongshu-card ${index === 0 ? 'cover' : ''}"><span>${escapeHtml(card.label)}</span><p>${escapeHtml(card.text)}</p><small>${index === 0 ? '标题要短，画面要明确' : '可在此页补充对应图片或截图'}</small></article>`).join('');
+  if (!exportMode) return rendered;
+  return `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>小绿书卡片稿</title><style>body{margin:0;padding:32px;background:#f5eee9;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;max-width:960px;margin:auto}.xiaohongshu-card{min-height:360px;box-sizing:border-box;display:flex;flex-direction:column;padding:28px;border-radius:24px;background:#fff;color:#40352f;box-shadow:0 12px 32px rgba(94,60,40,.12)}.xiaohongshu-card.cover{background:linear-gradient(145deg,#b65d37,#efb47e);color:#fff}.xiaohongshu-card span{font-size:12px;font-weight:800;letter-spacing:.12em;opacity:.78}.xiaohongshu-card p{margin:auto 0 22px;white-space:pre-wrap;font-size:22px;font-weight:700;line-height:1.65}.xiaohongshu-card small{font-size:12px;line-height:1.6;opacity:.7}</style><main class="cards">${rendered}</main>`;
+}
+
+function renderXiaohongshuCardPreview(content) {
+  const cards = extractXiaohongshuCards(content);
+  if (!cards.length) return '';
+  return `<section class="xiaohongshu-card-preview"><header><div><span>卡片预览</span><strong>小绿书图文节奏</strong><small>可在每一页补图后直接截图使用，也可导出 HTML 卡片稿。</small></div><button type="button" class="secondary mini" data-export-xiaohongshu-cards>导出卡片稿</button></header><div class="xiaohongshu-card-scroller">${xiaohongshuCardsHtml(content)}</div></section>`;
+}
+
+function exportXiaohongshuCards() {
+  const session = state.copySessions.find((item) => item.id === state.activeCopySessionId);
+  const content = session?.messages?.at(-1)?.content || '';
+  if (!content) return showToast('请先生成一组小绿书图文');
+  downloadWechatLayoutFile(timestampName('小绿书卡片稿').replace(/\.\w+$/, '.html'), xiaohongshuCardsHtml(content, true), 'text/html;charset=utf-8');
 }
 
 function updateCopyGenerationStatus() {
@@ -1252,14 +1429,14 @@ async function loadAdminConfig() {
 }
 
 const adminModuleMeta = {
-  overview: ['后台概览', '快速查看账号、内容智能体、AI 配置、销售训练和用量情况。'],
-  users: ['用户与权限', '后台手动开通训练营和陪跑权限。'],
+  overview: ['管理工作台', '先处理账号、内容与交付，再按需进入 AI 配置和运行数据。'],
+  users: ['账号与权限', '查看新注册账号、开通服务、设置到期日和处理密码重置。'],
   'pipi-assistant': ['皮皮分身', '维护皮皮的语气、回复规则、知识库范围和互动表情包。'],
-  'sales-simulation': ['销售中心', '在同一处维护销售模拟规则，并查看学员训练报告。'],
-  'coach-toolbox': ['教练工具箱', '独立管理教练工具、工作流搭建 Prompt 与模型配置。'],
-  'agent-covers': ['文案智能体', '在同一处维护智能体的上下架、模型、开场引导、前台封面与专属 Prompt。'],
-  'model-management': ['AI 配置', '集中管理供应商、模型、Prompt 与功能绑定。'],
-  logs: ['用量与日志', '查看功能和模型的 Token 消耗，以及最近调用状态。']
+  'sales-simulation': ['销售训练', '维护销售模拟规则、六步法资料，并查看学员训练报告。'],
+  'coach-toolbox': ['教练工具', '独立管理工作流搭建、交付朋友圈与相关生成规则。'],
+  'agent-covers': ['智能体广场', '维护智能体上下架、封面、开场引导、模型与专属 Prompt。'],
+  'model-management': ['AI 与 Prompt', '集中管理供应商、模型和 Prompt；API Key 始终只保留在服务端。'],
+  logs: ['用量与运行', '查看调用量、Token、费用估算、供应商状态和最近异常。']
 };
 
 function providerName(code) {
@@ -1267,14 +1444,19 @@ function providerName(code) {
 }
 
 const copyAgentNames = {
-  local_city: '同城智能体',
-  persona_story: '人设智能体',
+  local_city: '同城文案智能体',
+  persona_story: '人设文案智能体',
   education_vertical: '垂类爆款智能体',
   education_dry_goods: '垂类干货智能体',
-  education_marketing: '营销智能体',
+  education_marketing: '营销文案智能体',
+  content_compliance: '查敏感词智能体',
+  product_storyline: '人设故事智能体',
+  public_class_script: '公开课逐字稿智能体',
+  product_sop: '制作 SOP 智能体',
   moments: '朋友圈智能体',
   xiaohongshu: '小绿书智能体',
   wechat_article: '公众号文案',
+  student_case: '学员案例库智能体',
   wechat_layout: '公众号排版'
 };
 
@@ -1284,9 +1466,14 @@ const defaultCopyAgentCovers = {
   education_vertical: 'image-pipi-winter-city-jpg',
   education_dry_goods: 'image-pipi-hanfu-jpg',
   education_marketing: 'image-pipi-white-sea-jpg',
+  content_compliance: 'image-feishu-pipi-lake-light-jpg',
+  product_storyline: 'image-feishu-pipi-lake-person-jpg',
+  public_class_script: 'image-feishu-pipi-garden-jpg',
+  product_sop: 'image-feishu-pipi-tea-room-jpg',
   moments: 'image-pipi-blue-sea-jpg',
   xiaohongshu: 'image-pipi-pink-sea-jpg',
   wechat_article: 'image-pipi-arch-sea-jpg',
+  student_case: 'image-feishu-pipi-river-jpg',
   wechat_layout: 'image-pipi-sunset-yellow-jpg'
 };
 
@@ -1300,6 +1487,12 @@ const defaultCopyCoverOptions = [
   { id: 'image-pipi-pink-sea-jpg', label: '图片 07', file: 'assets/agent-covers/pipi-pink-sea.jpg', focus: '50% 50%' },
   { id: 'image-pipi-arch-sea-jpg', label: '图片 08', file: 'assets/agent-covers/pipi-arch-sea.jpg', focus: '50% 50%' },
   { id: 'image-pipi-sunset-yellow-jpg', label: '图片 09', file: 'assets/agent-covers/pipi-sunset-yellow.jpg', focus: '50% 50%' }
+  ,{ id: 'image-feishu-pipi-lake-person-jpg', label: '图片 10', file: 'assets/agent-covers/feishu-pipi-lake-person.jpg', focus: '50% 36%' }
+  ,{ id: 'image-feishu-pipi-lake-light-jpg', label: '图片 11', file: 'assets/agent-covers/feishu-pipi-lake-light.jpg', focus: '50% 45%' }
+  ,{ id: 'image-feishu-pipi-garden-jpg', label: '图片 12', file: 'assets/agent-covers/feishu-pipi-garden.jpg', focus: '50% 46%' }
+  ,{ id: 'image-feishu-pipi-river-jpg', label: '图片 13', file: 'assets/agent-covers/feishu-pipi-river.jpg', focus: '50% 55%' }
+  ,{ id: 'image-feishu-pipi-tea-room-jpg', label: '图片 14', file: 'assets/agent-covers/feishu-pipi-tea-room.jpg', focus: '50% 60%' }
+  ,{ id: 'image-feishu-pipi-tea-detail-jpg', label: '图片 15', file: 'assets/agent-covers/feishu-pipi-tea-detail.jpg', focus: '50% 56%' }
 ];
 
 function copyCoverOptions() {
@@ -1348,7 +1541,7 @@ function renderCopyAgentManager() {
   toggleButton.textContent = state.copyAgentCreateOpen ? '收起新建' : '＋ 新建智能体';
   createForm.classList.toggle('hidden', !state.copyAgentCreateOpen);
   createForm.innerHTML = state.copyAgentCreateOpen ? `<div class="copy-agent-create-card">
-    <div class="copy-agent-form-grid"><label>智能体名称<input id="newCopyAgentName" placeholder="例如：招生邀约智能体" /></label><label>识别码（可选）<input id="newCopyAgentCode" placeholder="留空自动生成；或填 enrollment_invite" /></label><label>内容类型<select id="newCopyAgentType"><option value="short">短视频文案</option><option value="moments">朋友圈文案</option><option value="imageText">图文卡片</option><option value="article">公众号长文</option></select></label><label>前台分类<select id="newCopyAgentCategory"><option value="traffic">流量</option><option value="private">私域</option></select></label><label>使用模型<select id="newCopyAgentModel">${modelOptions(20)}</select></label></div>
+    <div class="copy-agent-form-grid"><label>智能体名称<input id="newCopyAgentName" placeholder="例如：招生邀约智能体" /></label><label>识别码（可选）<input id="newCopyAgentCode" placeholder="留空自动生成；或填 enrollment_invite" /></label><label>内容类型<select id="newCopyAgentType"><option value="short">短视频文案</option><option value="moments">朋友圈文案</option><option value="imageText">图文卡片</option><option value="article">公众号长文</option></select></label><label>前台分类<select id="newCopyAgentCategory"><option value="traffic">流量</option><option value="private">沉淀</option><option value="product">产品</option></select></label><label>使用模型<select id="newCopyAgentModel">${modelOptions(20)}</select></label></div>
     <label>前台介绍<input id="newCopyAgentDescription" placeholder="一句话说明它能帮老师完成什么" /></label>
     <label>开局引导<textarea id="newCopyAgentGuide" rows="2" placeholder="例如：告诉我你的课程、目标家长和这次邀约的活动。"></textarea></label>
     <label>示例问题（每行一条，最多 4 条）<textarea id="newCopyAgentStarters" rows="4" placeholder="帮我写一条公开课邀约\n把这段课程介绍改得更自然"></textarea></label>
@@ -1356,11 +1549,11 @@ function renderCopyAgentManager() {
     <div class="copy-agent-form-actions"><button class="primary" type="button" id="createCopyAgent">创建智能体（默认下架）</button><small>创建后可继续调整封面和 Prompt，确认无误再上架。</small></div>
   </div>` : '';
   container.innerHTML = agents.length ? agents.map((agent) => {
-    const category = Array.isArray(agent.tags) && agent.tags.includes('private') ? 'private' : 'traffic';
+    const category = Array.isArray(agent.tags) && agent.tags.includes('product') ? 'product' : (Array.isArray(agent.tags) && agent.tags.includes('private') ? 'private' : 'traffic');
     const model = allModels.find((item) => Number(item.id) === Number(agent.model_id));
     return `<article class="copy-agent-manager-item ${agent.status === 'published' ? 'is-published' : 'is-unpublished'}">
       <header><div><span class="copy-agent-status">${agent.status === 'published' ? '已上架' : '已下架'}</span><strong>${escapeHtml(agent.name)}</strong><small>${escapeHtml(agent.code)} · ${escapeHtml(model?.display_name || '模型待选择')}</small></div><div class="copy-agent-row-actions"><button class="secondary mini" type="button" data-copy-agent-save="${escapeHtml(agent.code)}">保存配置</button><button class="${agent.status === 'published' ? 'secondary' : 'primary'} mini" type="button" data-copy-agent-status="${escapeHtml(agent.code)}" data-next-status="${agent.status === 'published' ? 'unpublished' : 'published'}">${agent.status === 'published' ? '下架智能体' : '上架智能体'}</button></div></header>
-      <div class="copy-agent-form-grid"><label>名称<input data-copy-agent-name="${escapeHtml(agent.code)}" value="${escapeHtml(agent.name)}" /></label><label>内容类型<select data-copy-agent-type="${escapeHtml(agent.code)}"><option value="short" ${agent.default_type === 'short' ? 'selected' : ''}>短视频文案</option><option value="moments" ${agent.default_type === 'moments' ? 'selected' : ''}>朋友圈文案</option><option value="imageText" ${agent.default_type === 'imageText' ? 'selected' : ''}>图文卡片</option><option value="article" ${agent.default_type === 'article' ? 'selected' : ''}>公众号长文</option></select></label><label>前台分类<select data-copy-agent-category="${escapeHtml(agent.code)}"><option value="traffic" ${category === 'traffic' ? 'selected' : ''}>流量</option><option value="private" ${category === 'private' ? 'selected' : ''}>私域</option></select></label><label>使用模型<select data-copy-agent-model="${escapeHtml(agent.code)}">${modelOptions(agent.model_id)}</select></label></div>
+      <div class="copy-agent-form-grid"><label>名称<input data-copy-agent-name="${escapeHtml(agent.code)}" value="${escapeHtml(agent.name)}" /></label><label>内容类型<select data-copy-agent-type="${escapeHtml(agent.code)}"><option value="short" ${agent.default_type === 'short' ? 'selected' : ''}>短视频文案</option><option value="moments" ${agent.default_type === 'moments' ? 'selected' : ''}>朋友圈文案</option><option value="imageText" ${agent.default_type === 'imageText' ? 'selected' : ''}>图文卡片</option><option value="article" ${agent.default_type === 'article' ? 'selected' : ''}>公众号长文</option></select></label><label>前台分类<select data-copy-agent-category="${escapeHtml(agent.code)}"><option value="traffic" ${category === 'traffic' ? 'selected' : ''}>流量</option><option value="private" ${category === 'private' ? 'selected' : ''}>沉淀</option><option value="product" ${category === 'product' ? 'selected' : ''}>产品</option></select></label><label>使用模型<select data-copy-agent-model="${escapeHtml(agent.code)}">${modelOptions(agent.model_id)}</select></label></div>
       <label>前台介绍<input data-copy-agent-description="${escapeHtml(agent.code)}" value="${escapeHtml(agent.description || '')}" /></label>
       <label>每个新对话的开局引导<textarea data-copy-agent-guide="${escapeHtml(agent.code)}" rows="2">${escapeHtml(agent.guide || '')}</textarea></label>
       <label>示例问题（每行一条）<textarea data-copy-agent-starters="${escapeHtml(agent.code)}" rows="4">${escapeHtml((agent.starters || []).map((item) => typeof item === 'object' ? item.prompt || item.label : item).join('\n'))}</textarea></label>
@@ -1441,7 +1634,7 @@ function renderCopywritingCoverConfig() {
     return `<article class="agent-cover-config-item">
       <div class="agent-cover-config-preview"><img data-agent-cover-preview="${agentCode}" src="${escapeHtml(cover.file)}" alt="${escapeHtml(agentName)}当前封面" style="--cover-focus:${focusX}% ${focusY}%;--cover-zoom:${zoom / 100}" /></div>
       <div><strong>${escapeHtml(agentName)}</strong><small>此处预览与前台卡片一致，按横版 16:9 取景。</small></div>
-      <label>选择封面<select data-agent-cover-select="${agentCode}">${options.map((item) => `<option value="${escapeHtml(item.id)}" ${item.id === selectedId ? 'selected' : ''}>${escapeHtml(item.label)}</option>`).join('')}</select></label>
+      <details class="agent-cover-gallery"><summary>选择封面：<b data-agent-cover-current-label="${agentCode}">${escapeHtml(cover.label)}</b></summary><select class="agent-cover-native-select" data-agent-cover-select="${agentCode}" aria-label="${escapeHtml(agentName)}封面">${options.map((item) => `<option value="${escapeHtml(item.id)}" ${item.id === selectedId ? 'selected' : ''}>${escapeHtml(item.label)}</option>`).join('')}</select><div class="agent-cover-choice-grid">${options.map((item) => `<button type="button" class="agent-cover-choice ${item.id === selectedId ? 'selected' : ''}" data-agent-cover-choice="${agentCode}" data-cover-id="${escapeHtml(item.id)}" title="${escapeHtml(item.label)}"><img src="${escapeHtml(item.file)}" alt="" /><span>${escapeHtml(item.label)}</span></button>`).join('')}</div></details>
       <div class="agent-cover-layout-controls"><label>横向位置 <input data-agent-cover-focus-x="${agentCode}" type="range" min="0" max="100" value="${focusX}" /><output data-agent-cover-focus-x-value="${agentCode}">${focusX}%</output></label><label>纵向位置 <input data-agent-cover-focus-y="${agentCode}" type="range" min="0" max="100" value="${focusY}" /><output data-agent-cover-focus-y-value="${agentCode}">${focusY}%</output></label><label>图片大小 <input data-agent-cover-zoom="${agentCode}" type="range" min="100" max="200" value="${zoom}" /><output data-agent-cover-zoom-value="${agentCode}">${zoom}%</output></label></div>
       <button type="button" class="secondary mini" data-agent-cover-save="${agentCode}">保存</button>
     </article>`;
@@ -1459,6 +1652,9 @@ function renderCopywritingCoverConfig() {
     image.style.setProperty('--cover-zoom', String(Number(zoom) / 100));
     image.style.objectPosition = `${focusX}% ${focusY}%`;
     image.style.transformOrigin = `${focusX}% ${focusY}%`;
+    const currentLabel = container.querySelector(`[data-agent-cover-current-label="${agentCode}"]`);
+    if (currentLabel) currentLabel.textContent = option.label;
+    container.querySelectorAll(`[data-agent-cover-choice="${agentCode}"]`).forEach((choice) => choice.classList.toggle('selected', choice.dataset.coverId === selector?.value));
     container.querySelector(`[data-agent-cover-focus-x-value="${agentCode}"]`).textContent = `${focusX}%`;
     container.querySelector(`[data-agent-cover-focus-y-value="${agentCode}"]`).textContent = `${focusY}%`;
     container.querySelector(`[data-agent-cover-zoom-value="${agentCode}"]`).textContent = `${zoom}%`;
@@ -1466,6 +1662,15 @@ function renderCopywritingCoverConfig() {
   container.querySelectorAll('[data-agent-cover-select], [data-agent-cover-focus-x], [data-agent-cover-focus-y], [data-agent-cover-zoom]').forEach((input) => {
     input.addEventListener('input', () => {
       const agentCode = input.dataset.agentCoverSelect || input.dataset.agentCoverFocusX || input.dataset.agentCoverFocusY || input.dataset.agentCoverZoom;
+      updatePreview(agentCode);
+    });
+  });
+  container.querySelectorAll('[data-agent-cover-choice]').forEach((choice) => {
+    choice.addEventListener('click', () => {
+      const agentCode = choice.dataset.agentCoverChoice;
+      const selector = container.querySelector(`[data-agent-cover-select="${agentCode}"]`);
+      if (!selector) return;
+      selector.value = choice.dataset.coverId || '';
       updatePreview(agentCode);
     });
   });
@@ -1830,49 +2035,43 @@ function renderAdminUsers() {
       ${item.role === 'admin' ? `<span class="role-tag admin">管理员</span>` : `<select class="user-role-select" data-user-access="${item.id}"><option value="pending" ${accessLevel === 'pending' ? 'selected' : ''}>待开通</option><option value="training" ${accessLevel === 'training' ? 'selected' : ''}>训练营服务</option><option value="coaching" ${accessLevel === 'coaching' ? 'selected' : ''}>陪跑服务</option></select>`}
       <span class="status-tag ${item.status}">${statusLabel(item.status)}</span>
       <div class="user-meta"><small>开通 ${escapeHtml(item.opened_at || '-')}</small>${item.role === 'admin' ? '<strong>永久有效</strong>' : `<label>到期 <input type="date" value="${escapeHtml(item.expires_at || '')}" data-user-expires="${item.id}" /></label>`}</div>
-      ${item.role === 'admin' ? '<span class="user-lock">系统账号</span>' : `<div class="user-access-controls"><div class="user-reset-control"><input type="password" data-user-new-password="${item.id}" autocomplete="new-password" placeholder="设置临时密码（至少 8 位）" />${hasPendingReset ? '<small>该学员已提交密码重置申请</small>' : ''}<button class="secondary mini" data-user-reset="${item.id}">重置密码</button></div><div class="row-actions"><button class="secondary mini" data-user-save="${item.id}">保存服务状态</button><button class="pill-button ${item.status === 'active' ? 'on' : ''}" data-user-toggle="${item.id}" data-next-status="${item.status === 'active' ? 'disabled' : 'active'}">${item.status === 'active' ? '禁用账号' : '启用账号'}</button></div></div>`}
+      ${item.role === 'admin' ? '<span class="user-lock">系统账号</span>' : `<div class="user-access-controls"><div class="user-reset-control"><input type="password" data-user-new-password="${item.id}" autocomplete="new-password" placeholder="设置临时密码（至少 8 位）" />${hasPendingReset ? '<small>该学员已提交密码重置申请</small>' : ''}<button class="secondary mini" data-user-reset="${item.id}">重置密码</button></div><div class="row-actions"><button class="secondary mini" data-user-save="${item.id}">保存服务状态</button><button class="pill-button ${item.status === 'active' ? 'on' : ''}" data-user-toggle="${item.id}" data-next-status="${item.status === 'active' ? 'disabled' : 'active'}">${item.status === 'active' ? '禁用账号' : '启用账号'}</button><button class="secondary mini danger-button" data-user-delete="${item.id}" data-user-account="${escapeHtml(item.account)}">删除账号</button></div></div>`}
     </div>`;
   }).join('') : '<div class="empty-box">暂无已开通账号</div>';
 }
 
 function renderPipiAssistantConfig() {
-  const config = state.adminConfig.pipiAssistant;
-  if (!config || !Object.keys(config).length) {
-    $('pipiAssistantConfigForm').innerHTML = '<div class="empty-box">正在加载皮皮分身配置。</div>';
-    return;
-  }
-  $('pipiAssistantConfigForm').innerHTML = `
-    <div class="assistant-config-grid">
-      <label>显示名称<input id="editPipiDisplayName" value="${escapeHtml(config.display_name || '')}" /></label>
-      <label>表情包模式<select id="editPipiStickerMode"><option value="auto" ${config.response_sticker_mode === 'auto' ? 'selected' : ''}>根据回复自动选择</option><option value="always" ${config.response_sticker_mode === 'always' ? 'selected' : ''}>每次回复都展示</option><option value="never" ${config.response_sticker_mode === 'never' ? 'selected' : ''}>关闭回复表情包</option></select></label>
-    </div>
-    <label class="check-label"><input id="editPipiEnabled" type="checkbox" ${config.enabled !== false ? 'checked' : ''} /> 启用皮皮分身功能</label>
-    <label>欢迎语<textarea id="editPipiWelcome" rows="3">${escapeHtml(config.welcome_message || '')}</textarea></label>
-    <label>回复语气<textarea id="editPipiStyle" rows="4">${escapeHtml(config.response_style || '')}</textarea></label>
-    <label>回复规则<textarea id="editPipiRules" rows="4">${escapeHtml(config.response_rules || '')}</textarea></label>
-    <section class="locked-config"><div><strong>知识库范围</strong><small>平台固定安全边界，不支持修改。</small></div><p>${escapeHtml(config.knowledge_scope || '')}</p></section>
-    <label class="check-label"><input id="editPipiStickersEnabled" type="checkbox" ${config.stickers_enabled ? 'checked' : ''} /> 启用互动表情包和思考中表情包</label>
-    <button class="primary" id="savePipiAssistantConfig">保存皮皮分身配置</button>
-    <section class="pipi-knowledge-manager">
-      <div class="pipi-knowledge-head"><div><h4>皮皮分身知识库</h4><p>把筛选后的 skill、业务方法和中台使用指南放在这里。只有启用的条目会进入皮皮的回答上下文。</p></div><span>${state.adminConfig.pipiKnowledge.length} 条</span></div>
-      <div id="pipiKnowledgeList" class="pipi-knowledge-list">${renderPipiKnowledgeList()}</div>
-      <div class="pipi-knowledge-form">
-        <input id="newPipiKnowledgeTitle" placeholder="知识标题，例如：训练营中台使用指南" />
-        <input id="newPipiKnowledgeCategory" placeholder="分类，例如：产品使用 / 教育业务 / 内容方法" />
-        <textarea id="newPipiKnowledgeContent" rows="8" placeholder="粘贴整理后的知识内容或 skill 片段。建议按主题拆分，不要一次粘贴无关内容。"></textarea>
-        <button class="secondary" id="addPipiKnowledge">新增知识库条目</button>
-      </div>
-    </section>`;
-  $('savePipiAssistantConfig').addEventListener('click', savePipiAssistantConfig);
-  $('addPipiKnowledge').addEventListener('click', addPipiKnowledge);
-  document.querySelectorAll('[data-pipi-knowledge-toggle]').forEach((button) => {
-    button.addEventListener('click', () => patchAdmin(`/api/admin/pipi-assistant/knowledge/${button.dataset.pipiKnowledgeToggle}`, { status: button.dataset.nextStatus }));
-  });
-  document.querySelectorAll('[data-pipi-knowledge-delete]').forEach((button) => {
-    button.addEventListener('click', () => {
-      if (confirm('确定删除这条皮皮分身知识吗？删除后无法恢复。')) deleteAdmin(`/api/admin/pipi-assistant/knowledge/${button.dataset.pipiKnowledgeDelete}`).catch((error) => alert(error.message));
-    });
-  });
+  const items = state.adminConfig.pipiKnowledge || [];
+  $('pipiAssistantConfigForm').innerHTML = `<h3>更新皮皮 Skill</h3><p>选择现有 Skill 更新，或新增一份学员可用的语料。回复风格由后端统一维护。</p>
+    <label>Skill<select id="pipiSkillSelect"><option value="">新增 Skill</option>${items.map(x => `<option value="${escapeHtml(String(x.id))}">${escapeHtml(x.title)}</option>`).join('')}</select></label>
+    <label>名称<input id="pipiSkillTitle" placeholder="例如：皮皮产品答疑 Skill" /></label>
+    <label>导入 Markdown / TXT<input id="pipiSkillFile" type="file" accept=".md,.txt" /></label>
+    <label>Skill 内容<textarea id="pipiSkillContent" rows="18" placeholder="粘贴学员版 Skill、公开课整理语料"></textarea></label>
+    <button class="primary" id="pipiSkillSave">保存更新</button><p id="pipiSkillStatus" role="status"></p>`;
+  $('pipiSkillSelect').onchange = () => {
+    const entry = items.find(x => String(x.id) === value('pipiSkillSelect'));
+    $('pipiSkillTitle').value = entry?.title || '';
+    $('pipiSkillContent').value = entry?.content || '';
+  };
+  $('pipiSkillFile').onchange = async event => {
+    const file = event.target.files[0];
+    if (!file) return;
+    if (file.size > 200000) return showToast('Skill 文件请控制在 200KB 内');
+    $('pipiSkillContent').value = await file.text();
+    if (!value('pipiSkillTitle')) $('pipiSkillTitle').value = file.name.replace(/\.(md|txt)$/i, '');
+  };
+  $('pipiSkillSave').onclick = async () => {
+    const id = value('pipiSkillSelect'), title = value('pipiSkillTitle'), content = value('pipiSkillContent');
+    if (!title || !content) return showToast('请填写 Skill 名称和内容');
+    setButtonLoading('pipiSkillSave', true);
+    try {
+      const body = { title, content, status: 'active', category: '皮皮学员 Skill' };
+      if (id) await patchAdmin('/api/admin/pipi-assistant/knowledge/' + encodeURIComponent(id), body);
+      else await postAdmin('adminPipiKnowledge', body);
+      showToast('Skill 已更新，下次提问生效');
+    } catch (error) { showToast(error.message); }
+    finally { if ($('pipiSkillSave')) setButtonLoading('pipiSkillSave', false); }
+  };
 }
 
 function renderPipiKnowledgeList() {
@@ -2112,14 +2311,24 @@ function renderAdminOverview() {
   const activeProviders = state.adminConfig.providers.filter((item) => item.status === 'active').length;
   const activeModels = state.adminConfig.models.filter((item) => item.status === 'active').length;
   const activePrompts = state.adminConfig.prompts.filter((item) => item.status === 'active').length;
+  const pendingUsers = state.adminConfig.users.filter((item) => item.role !== 'admin' && (!Array.isArray(item.enabled_features) || !item.enabled_features.length)).length;
+  const resetCount = (state.adminConfig.passwordResetRequests || []).length;
+  const failedCalls = Number(state.adminConfig.usage?.totals?.failed_calls || 0);
+  const providerWarning = state.adminConfig.providers.some((item) => item.status === 'active' && (item.key_status !== 'configured' || item.health_status === 'unhealthy'));
+  const actions = [
+    pendingUsers ? { label: `有 ${pendingUsers} 个账号待开通`, detail: '新注册学员默认没有 AI 权限，请确认服务类型后开通。', module: 'users', tone: 'warning', action: '去开通' } : null,
+    resetCount ? { label: `有 ${resetCount} 个密码重置申请`, detail: '为学员设置临时密码后，请通过安全渠道单独告知。', module: 'users', tone: 'warning', action: '处理申请' } : null,
+    failedCalls || providerWarning ? { label: failedCalls ? `发现 ${failedCalls} 次调用失败` : '有供应商需要检查', detail: '优先查看运行状态、模型可用性或密钥配置。', module: 'logs', tone: 'danger', action: '查看运行' } : null
+  ].filter(Boolean);
+  $('adminOverviewStatus').innerHTML = `<div class="admin-command-copy"><span class="eyebrow">TODAY · ADMIN DESK</span><h3>今天先处理什么？</h3><p>${actions.length ? '下面是需要你优先处理的事项；处理完成后，再按模块维护内容和配置。' : '账号、运行和配置目前没有待处理提醒，可以按需维护各业务模块。'}</p></div><div class="admin-command-metrics"><span><b>${state.adminConfig.stats.active_user_total || state.adminConfig.users.length}</b>启用账号</span><span><b>${activeProviders}/${state.adminConfig.providers.length}</b>供应商启用</span><span><b>${formatTokenCount(state.adminConfig.usage?.totals?.total_tokens)}</b>本期 Token</span></div>${actions.length ? `<div class="admin-command-actions">${actions.map((item) => `<button type="button" class="admin-command-action ${item.tone}" data-admin-module="${item.module}"><strong>${escapeHtml(item.label)}</strong><span>${escapeHtml(item.detail)}</span><em>${escapeHtml(item.action)} →</em></button>`).join('')}</div>` : '<div class="admin-command-ok">✓ 当前没有待处理的账号或运行异常提醒</div>'}`;
   const cards = [
-    ['用户与权限', `${state.adminConfig.stats.active_user_total || state.adminConfig.users.length} 个账号启用`, 'users', '打开'],
+    ['账号与权限', `${state.adminConfig.stats.active_user_total || state.adminConfig.users.length} 个账号 · ${pendingUsers} 个待开通`, 'users', '管理账号'],
     ['皮皮分身', `${state.adminConfig.pipiKnowledge.length} 条知识库内容`, 'pipi-assistant', '打开'],
     ['文案智能体', `${Object.keys(state.adminConfig.copywriting.covers || {}).length} 个封面已配置`, 'agent-covers', '打开'],
-    ['教练工具箱', state.adminConfig.coachToolbox.enabled === false ? '当前已停用' : '工作流与交付朋友圈', 'coach-toolbox', '管理'],
-    ['AI 配置', `${activeProviders} 个供应商 · ${activeModels} 个模型 · ${activePrompts} 个 Prompt`, 'model-management', '打开'],
-    ['销售中心', `${state.adminConfig.salesKnowledge.length} 条销售知识 · ${state.adminConfig.salesReports.length} 份报告`, 'sales-simulation', '打开'],
-    ['用量与日志', `${formatTokenCount(state.adminConfig.usage?.totals?.total_tokens)} Token · ${state.adminConfig.usage?.totals?.calls || 0} 次调用`, 'logs', '查看']
+    ['教练工具', state.adminConfig.coachToolbox.enabled === false ? '当前已停用' : '工作流与交付朋友圈', 'coach-toolbox', '管理工具'],
+    ['AI 与 Prompt', `${activeProviders} 个供应商 · ${activeModels} 个模型 · ${activePrompts} 个 Prompt`, 'model-management', '查看配置'],
+    ['销售训练', `${state.adminConfig.salesKnowledge.length} 条销售知识 · ${state.adminConfig.salesReports.length} 份报告`, 'sales-simulation', '管理训练'],
+    ['用量与运行', `${formatTokenCount(state.adminConfig.usage?.totals?.total_tokens)} Token · ${state.adminConfig.usage?.totals?.calls || 0} 次调用`, 'logs', '查看运行']
   ];
   $('adminModuleCards').innerHTML = cards.map((card) => `<button class="admin-card" data-admin-module="${card[2]}"><strong>${card[0]}</strong><span>${card[1]}</span><em>${card[3]}</em></button>`).join('');
 }
@@ -2225,6 +2434,9 @@ function renderSalesReportMarkup(report, options = {}) {
   const strengths = Array.isArray(report.strengths) && report.strengths.length ? report.strengths : ['先保留本轮已经建立的有效沟通动作。'];
   const gaps = Array.isArray(report.gaps) && report.gaps.length ? report.gaps : ['下一轮围绕一个关键能力继续补足。'];
   const nextDrill = report.next_drill || {};
+  const discHypothesis = Array.isArray(report.disc_hypothesis) ? report.disc_hypothesis : [];
+  const phaseEvidence = report.phase_evidence && typeof report.phase_evidence === 'object' ? report.phase_evidence : {};
+  const nextLines = Array.isArray(report.next_lines) ? report.next_lines : [];
   return `<div class="sales-score-report ${options.compact ? 'compact' : ''}">
     <header class="sales-score-report-head">
       <div><span class="eyebrow">SALES SCORE REPORT</span><h3>${escapeHtml(report.level || '销售能力复盘')}</h3><p>${escapeHtml(report.summary || report.coach_summary || '已根据本轮真实对话生成复盘。')}</p></div>
@@ -2241,6 +2453,8 @@ function renderSalesReportMarkup(report, options = {}) {
       <section><span>做得好的地方</span><ul>${strengths.slice(0, 3).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></section>
       <section><span>优先补足</span><ul>${gaps.slice(0, 3).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></section>
     </div>
+    ${(discHypothesis.length || phaseEvidence.completed?.length || phaseEvidence.missing?.length || report.image_feedback) ? `<section class="sales-report-evidence"><span>沟通证据与判断</span>${discHypothesis.length ? `<p><b>动态 DISC：</b>${discHypothesis.map((item) => `${escapeHtml(item.style || '')}${item.confidence ? `（${escapeHtml(item.confidence)}）` : ''}：${escapeHtml(item.evidence || '待继续验证')}`).join('；')}</p>` : ''}${phaseEvidence.completed?.length ? `<p><b>已完成：</b>${phaseEvidence.completed.map(escapeHtml).join('；')}</p>` : ''}${phaseEvidence.missing?.length ? `<p><b>待补足：</b>${phaseEvidence.missing.map(escapeHtml).join('；')}</p>` : ''}${report.image_feedback ? `<p><b>图片使用：</b>${escapeHtml(report.image_feedback)}</p>` : ''}</section>` : ''}
+    ${nextLines.length ? `<section class="sales-next-lines"><span>下一句的 3 种练法</span><ol>${nextLines.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ol></section>` : ''}
     <section class="sales-next-drill"><span>下一轮只练一个动作</span><strong>${escapeHtml(nextDrill.title || '先完成一次有效挖需')}</strong><p>${escapeHtml(nextDrill.action || '围绕孩子现状、过往尝试和家长最想先解决的问题，连续问清三个事实。')}</p>${nextDrill.sample ? `<blockquote>${escapeHtml(nextDrill.sample)}</blockquote>` : ''}</section>
   </div>`;
 }
@@ -2400,6 +2614,11 @@ function filterCopyAgents() {
 function setCopyView(view) {
   const isCompose = view === 'compose';
   state.copyView = view;
+  const returnLabel = `返回${pages[state.copyOriginPage] || '智能体广场'}`;
+  $('backToCopyAgents').textContent = `← ${returnLabel}`;
+  $('backFromWechatLayout').setAttribute('aria-label', returnLabel);
+  $('backFromWechatLayout').title = returnLabel;
+  updatePageBack();
   document.body.classList.toggle('copy-compose-open', isCompose);
   $('copyGalleryView').classList.toggle('hidden', isCompose);
   $('copyComposeView').classList.toggle('hidden', !isCompose);
@@ -2412,14 +2631,19 @@ function setCopyView(view) {
 }
 
 const copyAgentMeta = {
-  local_city: { title: '同城智能体', desc: '围绕城市、社区、本地家长和到店/到课场景，生成同城教育口播文案。', guide: '告诉我你的城市、业务、目标家长，以及你想解决的一个本地招生问题。' },
-  persona_story: { title: '人设智能体', desc: '把真实经历、教育理念和身份故事整理成有温度的口播文案。', guide: '告诉我你的身份、经历、教育理念和一个你真正想表达的观点。' },
+  local_city: { title: '同城文案智能体', desc: '围绕城市、社区、本地家长和到店/到课场景，生成同城教育口播文案。', guide: '告诉我你的城市、业务、目标家长，以及你想解决的一个本地招生问题。' },
+  persona_story: { title: '人设文案智能体', desc: '把真实经历、教育理念和身份故事整理成有温度的口播文案。', guide: '告诉我你的身份、经历、教育理念和一个你真正想表达的观点。' },
   education_vertical: { title: '垂类爆款智能体', desc: '围绕真实问题、专业判断和精准客户，生成教育垂类短视频文案。', guide: '告诉我你的细分赛道、目标客户和一个高频问题，我会帮你找到更有传播力的切口。' },
   education_dry_goods: { title: '垂类干货智能体', desc: '把教育专业知识、真实经验和方法判断，写成听得懂、记得住、能执行的短视频文案。', guide: '先告诉我你想讲的专业知识、适用人群和希望用户学会什么。' },
-  education_marketing: { title: '营销智能体', desc: '用专业、克制的教育表达承接咨询、公开课和产品了解。', guide: '告诉我你的产品、用户当前的需求，以及这条内容希望承接什么动作。' },
+  education_marketing: { title: '营销文案智能体', desc: '用专业、克制的教育表达承接咨询、公开课和产品了解。', guide: '告诉我你的产品、用户当前的需求，以及这条内容希望承接什么动作。' },
+  content_compliance: { title: '查敏感词智能体', desc: '在发布前检查夸大承诺、绝对化、敏感和容易误解的表达，并给出稳妥替换。', guide: '粘贴准备发布的完整文案。我会先给风险判断，再标出原句、原因和可替换说法。' },
+  product_storyline: { title: '人设故事智能体', desc: '把文章、口述、旧文案和真实经历，写成有画面、有转折的老师人设故事。', guide: '先上传或粘贴你已有的文章、口述整理、旧文案或经历笔记；再补充你最想被看见的一段经历。' },
+  public_class_script: { title: '公开课逐字稿智能体', desc: '围绕真实课题、听众卡点和后续承接，完成公开课结构、备课清单与逐段表达。', guide: '告诉我公开课主题、听众是谁、希望他们理解什么，以及课后准备如何承接。' },
+  product_sop: { title: '制作 SOP 智能体', desc: '把产品、公开课、内容或交付动作拆成可跟着完成的 SOP 和复盘记录。', guide: '告诉我你要完成的具体工作、现在做到哪一步，以及最容易卡住的地方。' },
   moments: { title: '朋友圈智能体', desc: '围绕日常表达、专业判断、案例和信任场，生成真实、有温度的朋友圈文案。', guide: '告诉我今天想表达的事情、真实素材和希望建立的信任感。' },
   xiaohongshu: { title: '小绿书智能体', desc: '把教育主题拆成封面明确、单页易读、适合微信传播的小绿书图文内容。', guide: '告诉我图文主题、目标人群和你准备使用的图片或案例。' },
-  wechat_article: { title: '公众号文案', desc: '围绕长文结构、观点表达和教育内容沉淀，生成高信任的公众号价值文章。', guide: '告诉我文章主题、读者对象和你希望沉淀的核心观点。' },
+  wechat_article: { title: '公众号文案', desc: '把真实素材写成带标题、章节、金句和图片建议的公众号结构化成稿。', guide: '上传或粘贴旧文、案例、逐字稿或口述想法；我会按公众号阅读节奏写成 Markdown 成稿。' },
+  student_case: { title: '学员案例库智能体', desc: '把口述过程、真实反馈、截图和图片整理成可补图、可复用的学员案例档案。', guide: '像说话一样告诉我学员从哪里开始、做了什么、有什么真实变化；聊天截图和过程图片也可以一起上传。' },
   wechat_layout: { title: '公众号排版', desc: '把已经写好的文章变成可预览、可复制、可导出的公众号视觉成品。', guide: '粘贴完整成稿，选择风格和图片；系统会保留原文完成结构识别与视觉排版。' }
 };
 
@@ -2429,10 +2653,15 @@ const defaultCopyAgentExtras = {
   education_vertical: { starters: ['帮我把一个家长高频问题写成短视频', '我想做一条有专业判断的教育内容', '围绕我的细分赛道找一个传播切口'], tags: ['traffic', 'short'], tag_labels: ['流量', '爆款'], default_type: 'short' },
   education_dry_goods: { starters: ['把这个知识点拆成一条易懂干货', '帮我写一个家长能马上执行的方法', '把我的专业经验整理成短视频'], tags: ['traffic', 'short'], tag_labels: ['流量', '专业干货'], default_type: 'short' },
   education_marketing: { starters: ['帮我写一条公开课邀约内容', '把产品介绍写得专业但不生硬', '写一条能自然承接咨询的短视频'], tags: ['traffic', 'short'], tag_labels: ['流量', '营销'], default_type: 'short' },
-  moments: { starters: ['我想写一条今天的教学感悟', '把这个真实案例写成朋友圈', '帮我写一条有专业感但不营销的朋友圈'], tags: ['private', 'moments'], tag_labels: ['私域', '信任场'], default_type: 'moments' },
-  xiaohongshu: { starters: ['把这个主题拆成小绿书图文', '帮我设计一组家长易读的图文卡片', '写一篇适合微信传播的教育小绿书'], tags: ['private', 'imageText'], tag_labels: ['私域', '图文卡片'], default_type: 'imageText' },
-  wechat_article: { starters: ['帮我搭一篇教育观点文章的结构', '把这段素材写成公众号长文', '围绕这个家长问题写一篇深度文章'], tags: ['private', 'article'], tag_labels: ['私域', '价值长文'], default_type: 'article' }
-  ,wechat_layout: { starters: ['排版一篇学员案例文章', '把这篇教育观点文章做成公众号成品', '给这篇招生活动文章做视觉排版'], tags: ['private', 'layout'], tag_labels: ['私域', '视觉排版'], default_type: 'article' }
+  content_compliance: { starters: ['检查这条短视频文案有没有敏感表达', '把夸大承诺改成更稳妥的说法', '发布前帮我标出高风险原句'], tags: ['traffic', 'compliance'], tag_labels: ['流量', '发布检查'], default_type: 'short' },
+  product_storyline: { starters: ['我准备投喂我的人生经历，请先帮我提炼再写初心故事', '把我上传的文章整理成老师人设故事', '我想写一个真实的学员案例故事'], tags: ['product', 'article'], tag_labels: ['产品', '人设故事'], default_type: 'article' },
+  public_class_script: { starters: ['帮我搭一场家长公开课的逐字稿', '我有一场招生公开课，先帮我梳理结构', '把我的公开课大纲扩成可以备课的表达稿'], tags: ['product', 'article'], tag_labels: ['产品', '公开课'], default_type: 'article' },
+  product_sop: { starters: ['帮我把一场公开课准备拆成 SOP', '把我的产品交付流程整理成执行清单', '我想为学员做一个 7 天行动 SOP'], tags: ['product', 'article'], tag_labels: ['产品', '执行 SOP'], default_type: 'article' },
+  moments: { starters: ['我想写一条今天的教学感悟', '把这个真实案例写成朋友圈', '帮我写一条有专业感但不营销的朋友圈'], tags: ['private', 'moments'], tag_labels: ['沉淀', '信任场'], default_type: 'moments' },
+  xiaohongshu: { starters: ['把这个主题拆成小绿书图文', '帮我设计一组家长易读的图文卡片', '写一篇适合微信传播的教育小绿书'], tags: ['private', 'imageText'], tag_labels: ['沉淀', '图文卡片'], default_type: 'imageText' },
+  wechat_article: { starters: ['把这段素材写成公众号结构化长文', '把我的案例材料写成公众号文章', '围绕这个家长问题写一篇深度文章'], tags: ['private', 'article'], tag_labels: ['沉淀', '价值长文'], default_type: 'article' },
+  student_case: { starters: ['我来口述一个学员的变化，请按案例模板帮我整理', '把这段交付复盘和聊天反馈整理成学员案例', '先告诉我整理案例需要补哪些材料'], tags: ['private', 'case'], tag_labels: ['沉淀', '学员案例'], default_type: 'article' }
+  ,wechat_layout: { starters: ['排版一篇学员案例文章', '把这篇教育观点文章做成公众号成品', '给这篇招生活动文章做视觉排版'], tags: ['private', 'layout'], tag_labels: ['沉淀', '视觉排版'], default_type: 'article' }
 };
 
 function copyAgentDefinitions() {
@@ -2461,7 +2690,7 @@ function syncCopyAgentDefinitions() {
 function renderCopyAgentGallery() {
   const container = $('copyAgentGrid');
   if (!container) return;
-  const agents = copyAgentDefinitions().filter((item) => item.status !== 'unpublished' && !['wechat_article', 'wechat_layout'].includes(item.code) && (state.user?.role !== 'training' || (item.default_type === 'short' && item.tags?.includes('traffic'))));
+  const agents = copyAgentDefinitions().filter((item) => item.status !== 'unpublished' && (state.user?.role !== 'training' || (item.default_type === 'short' && item.tags?.includes('traffic'))));
   const currentCode = value('copyAgent');
   const isWechatAgent = ['wechat_article', 'wechat_layout'].includes(currentCode);
   const activeAgent = agents.find((item) => item.code === currentCode) || (isWechatAgent ? copyAgentDefinitions().find((item) => item.code === currentCode) : agents[0]);
@@ -2499,12 +2728,72 @@ function renderWechatHub() {
   page.classList.toggle('wechat-hub-empty', visibleCount === 0);
 }
 
-function openWechatHubAgent(agentCode) {
+function openCopyAgentFrom(agentCode, origin = '') {
+  if (!canUsePage('copy')) return;
+  if (state.page !== 'copy') setPage('copy');
   $('copyAgent').value = agentCode;
   state.activeCopySessionId = null;
-  state.copyOriginPage = 'wechat';
-  setPage('copy');
+  state.copyOriginPage = origin === 'copy' ? '' : origin;
+  renderCopyConversation(null);
   setCopyView('compose');
+}
+
+function returnFromCopyAgent() {
+  const target = state.copyOriginPage;
+  state.copyOriginPage = '';
+  setCopyView('gallery');
+  if (target && target !== 'copy' && canUsePage(target)) {
+    const index = pageTrail.lastIndexOf(target);
+    if (index >= 0) pageTrail.splice(index);
+    setPage(target, { goingBack: true });
+  }
+}
+
+function openWechatHubAgent(agentCode) {
+  openCopyAgentFrom(agentCode, 'wechat');
+}
+
+const productAgentIntakeGuides = {
+  product_storyline: {
+    eyebrow: '01 · 先投喂，再写故事',
+    title: '把你已经有的经历交给我',
+    steps: ['上传或粘贴：文章、旧文案、经历笔记、口述整理，或老师人设故事思维导图截图。', '补充：这次最想让家长或学员看见的经历、情绪或转折。', '选择：初心故事 / 高光故事 / 学员案例故事 / 三篇完整版本。'],
+    template: '【我已经投喂的素材】\n我会上传或粘贴：文章、旧文案、经历笔记、口述整理或思维导图。\n\n【我自己的补充】\n我最想被看见的一段经历/转折：\n\n【本次想先写】\n初心故事 / 高光故事 / 学员案例故事 / 三篇完整版本（请选择其一）\n\n请先识别素材中的真实事实，再按人设故事模板完成初稿；没有依据的内容请标“待补充”。'
+  },
+  public_class_script: {
+    eyebrow: '01 · 投喂已有公开课大纲',
+    title: '先把皮皮给你的大纲交给我',
+    steps: ['直接粘贴飞书思维导图的多级目录，或上传导出的 Word / RTF / 文本。', '也可以上传公开课大纲、PPT 或思维导图截图，系统会先识图提取结构。', '再补充：本场对象、时长、你自己的案例/想法，以及哪些地方要改。'],
+    template: '【已有公开课大纲】\n请粘贴飞书思维导图的层级内容，或直接上传对应文件/截图。\n\n【额外补充或变动】\n听众是谁：\n本场时长：\n我自己的案例、观点或想调整的章节：\n\n请先还原并识别原大纲，不要另起一套课纲；再按原顺序生成公开课逐字稿。没有事实依据的案例、数据、产品信息请标“待补充”。'
+  },
+  product_sop: {
+    eyebrow: '01 · 先交给我现有流程',
+    title: '把现有做法变成可执行 SOP',
+    steps: ['上传或粘贴：旧 SOP、会议记录、飞书思维导图、流程截图或零散想法。', '说明：这件事最终要完成什么、谁会执行、目前最容易卡在哪里。', '生成后会同时得到工作流思考、SOP 思维导图、执行清单与复盘表。'],
+    template: '【我要制作的 SOP】\n这件事要解决什么：\n\n【已有流程或材料】\n请粘贴旧 SOP、飞书思维导图、会议记录，或上传文件/截图。\n\n【我的补充】\n谁来执行：\n当前最容易卡住的地方：\n希望在几天内先跑通：\n\n请先区分原有流程、我的新增想法和待确认事项；再输出“工作流思考与流程”及对应的“SOP 思维导图”。'
+  },
+  student_case: {
+    eyebrow: '01 · 像讲故事一样投喂真实过程',
+    title: '先把真实的学员变化交给我',
+    steps: ['直接口述、粘贴复盘或聊天记录：学员起点、遇到的卡点、你做过的动作和变化。', '上传：喜报、聊天反馈、课堂现场、过程截图或视频截图；系统会先识别素材，但不会凭空补造。', '生成后会按“里程碑喜报、最初情况、解决过程、过程反馈、视频素材、缺口核验”整理成案例档案。'],
+    template: '【案例对象】\n学员称呼（可匿名）：\n业务/课程：\n\n【我先用口语说一下过程】\n学员一开始是什么情况：\n中间最明显的卡点：\n我/教练做了哪些具体动作：\n目前能确认的变化或反馈：\n\n【我会补充的素材】\n喜报 / 聊天反馈 / 过程截图 / 课堂照片 / 视频截图（可直接上传）\n\n请只根据已确认的材料，按“学员案例档案”模板整理；没有依据的信息标“待补充”，并在最后列出还需补的图片、授权或脱敏事项。'
+  }
+};
+
+function renderProductAgentIntakeGuide(agent) {
+  const container = $('copyProductIntakeGuide');
+  if (!container) return;
+  const guide = productAgentIntakeGuides[agent];
+  const chatMain = container.closest('.agent-chat-main');
+  chatMain?.classList.toggle('has-intake-guide', Boolean(guide));
+  // 已有专属投喂卡时，不再重复显示通用的“从这里开始”提示。
+  $('copyStartScreen')?.querySelector('.agent-opening-guide')?.classList.toggle('hidden', Boolean(guide));
+  container.classList.toggle('hidden', !guide);
+  if (!guide) {
+    container.innerHTML = '';
+    return;
+  }
+  container.innerHTML = `<span>${escapeHtml(guide.eyebrow)}</span><h2>${escapeHtml(guide.title)}</h2><ol>${guide.steps.map((step) => `<li>${escapeHtml(step)}</li>`).join('')}</ol><button type="button" class="secondary" data-product-intake="${escapeHtml(agent)}">开始投喂材料 ↓</button>`;
 }
 
 function renderCopyAgentChat() {
@@ -2527,6 +2816,10 @@ function renderCopyAgentChat() {
   if ($('copyAgentHeroTitle')) $('copyAgentHeroTitle').textContent = meta.title;
   if ($('copyAgentHeroDesc')) $('copyAgentHeroDesc').textContent = meta.desc;
   if ($('copyAgentGuide')) $('copyAgentGuide').textContent = meta.guide;
+  renderProductAgentIntakeGuide(agent);
+  if ($('copyMaterial')) $('copyMaterial').placeholder = productAgentIntakeGuides[agent]
+    ? '先上传或粘贴已有材料，再写下你的补充与变动…'
+    : '告诉我你想写什么，或直接发来真实素材';
   if ($('copyStarterChips')) {
     const starters = Array.isArray(definition.starters) && definition.starters.length ? definition.starters : ['告诉我你想写什么，我先帮你完成一版'];
     $('copyStarterChips').innerHTML = starters.map((starter) => `<button type="button" data-copy-starter="${escapeHtml(typeof starter === 'object' ? starter.prompt || starter.label : starter)}">${escapeHtml(typeof starter === 'object' ? starter.label || starter.prompt : starter)}</button>`).join('');
@@ -2539,23 +2832,67 @@ function renderCopyAgentChat() {
   renderCopySessions();
 }
 
-function appendMessage(role, html, cites = []) {
+function appendMessage(role, html, cites = [], messageIndex = null) {
   const wrapper = document.createElement('div');
   wrapper.className = `message ${role}`;
   const citeHtml = cites.length ? `<div class="cites">${cites.map((item) => `<span class="cite">${item.title}</span>`).join('')}</div>` : '';
+  const isEditing = role === 'user' && state.pipiEditing === messageIndex;
   wrapper.innerHTML = role === 'assistant'
     ? `<img src="assets/pipi-avatar.webp" alt="" /><div class="bubble">${html}${citeHtml}</div>`
-    : `<div class="bubble">${escapeHtml(html)}</div>`;
+    : isEditing
+      ? `<div class="pipi-message-editor"><textarea data-pipi-edit-input="${messageIndex}" aria-label="编辑已发送内容">${escapeHtml(html)}</textarea><div><button type="button" class="link-button" data-pipi-edit-cancel>取消</button><button type="button" class="primary mini" data-pipi-edit-regenerate="${messageIndex}">重新生成</button></div></div>`
+      : `<div class="bubble">${escapeHtml(html)}<button type="button" class="pipi-message-edit" data-pipi-edit-message="${messageIndex}" aria-label="编辑这条已发送内容">编辑</button></div>`;
   $('pipiMessages').appendChild(wrapper);
   wrapper.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   return wrapper;
 }
 
-function appendSticker(filename) {
-  if (!filename) return null;
+function renderPipiConversation() {
+  const conversation = ensurePipiConversation();
+  $('pipiMessages').innerHTML = '';
+  appendMessage('assistant', escapeHtml(state.pipiConfig.welcome_message), [{ title: '学员可见知识库 v0.1' }]);
+  conversation.messages.forEach((message, index) => {
+    if (message.role === 'user') appendMessage('user', message.content, [], index);
+    else appendMessage('assistant', escapeHtml(message.content).replace(/\n/g, '<br>'));
+  });
+  $('pipiMessages').scrollTop = $('pipiMessages').scrollHeight;
+}
+
+async function regeneratePipiMessage(messageIndex, content) {
+  const conversation = ensurePipiConversation();
+  const previous = conversation.messages[messageIndex];
+  const question = String(content || '').trim();
+  if (!previous || previous.role !== 'user' || !question) {
+    showToast('请输入要修改后的内容。');
+    return;
+  }
+  conversation.messages = conversation.messages.slice(0, messageIndex);
+  if (messageIndex === 0) conversation.title = question.slice(0, 28);
+  state.pipiEditing = null;
+  renderPipiConversation();
+  await sendPipi({ question, attachments: previous.attachments || [] });
+}
+
+const pipiStickerPackCells = {
+  clap: '0% 0%', thumbsUp: '100% 0%', ponder: '0% 33.333%', surprised: '100% 33.333%',
+  warmHug: '0% 66.667%', cheer: '100% 66.667%', note: '0% 100%', wave: '100% 100%'
+};
+
+function appendSticker(sticker) {
+  if (!sticker) return null;
   const wrapper = document.createElement('div');
   wrapper.className = 'message assistant sticker-only';
-  wrapper.innerHTML = `<img class="message-sticker" src="assets/pipi-stickers/${escapeHtml(filename)}" alt="皮皮互动表情" />`;
+  if (String(sticker).startsWith('pack:')) {
+    const cell = pipiStickerPackCells[String(sticker).slice(5)] || pipiStickerPackCells.clap;
+    const visual = document.createElement('div');
+    visual.className = 'message-sticker message-sticker-pack';
+    visual.style.backgroundPosition = cell;
+    visual.setAttribute('role', 'img');
+    visual.setAttribute('aria-label', '皮皮互动表情');
+    wrapper.appendChild(visual);
+  } else {
+    wrapper.innerHTML = `<img class="message-sticker" src="assets/pipi-stickers/${escapeHtml(sticker)}" alt="皮皮互动表情" />`;
+  }
   $('pipiMessages').appendChild(wrapper);
   wrapper.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   return wrapper;
@@ -2607,8 +2944,12 @@ function upsertPipiConversationRecord() {
 }
 
 function resetPipi() {
+  if ($('sendPipi').disabled) return;
+  pipiLastReply = '';
+  clearPipiMaterials();
   $('pipiMessages').innerHTML = '';
   state.pipiUserTurns = 0;
+  state.pipiEditing = null;
   state.pipiConversation = {
     id: `pipi-${Date.now()}`,
     title: '皮皮分身对话',
@@ -2632,10 +2973,17 @@ function pickPipiSticker(question, text) {
   if (!state.pipiConfig.stickers_enabled || state.pipiConfig.response_sticker_mode === 'never') return '';
   if (/(晚安|睡觉|睡了|休息|下班|明天再聊|先休息)/.test(question)) return 'goodnight.png';
   if (/谢谢|感谢|辛苦了/.test(question)) return 'thanks.jpg';
-  if (/收到|明白了|好的|了解了/.test(question)) return 'received.jpg';
-  if (/有帮助|有灵感|我试试|太棒了/.test(question)) return 'idea.jpg';
+  if (/收到|明白了|好的|了解了/.test(question)) return 'pack:thumbsUp';
+  if (/有帮助|有灵感|我试试|太棒了/.test(question)) return 'pack:clap';
+  if (/焦虑|难受|没信心|崩溃|挫败|害怕/.test(question)) return 'pack:warmHug';
+  if (/太累|忙不过来|疲惫/.test(question)) return 'coffee.jpg';
+  if (/想一想|不知道|怎么做|卡住|不会/.test(question)) return 'pack:ponder';
+  if (/原来如此|居然|才知道|没想到/.test(question)) return 'pack:surprised';
+  if (/开始做|去执行|去试试|行动|加油/.test(question)) return 'pack:cheer';
+  if (/记录|笔记|整理|复盘|记下来/.test(question)) return 'pack:note';
   if (/恭喜|太棒|很棒|做得好/.test(text)) return 'wow.jpg';
-  if (state.pipiConfig.response_sticker_mode === 'always') return 'encourage.jpg';
+  if (state.pipiUserTurns % 4 === 0) return ['pack:clap', 'focus.jpg', 'pack:thumbsUp', 'pack:wave'][Math.floor(state.pipiUserTurns / 4) % 4];
+  if (state.pipiConfig.response_sticker_mode === 'always') return 'pack:cheer';
   return '';
 }
 
@@ -2683,17 +3031,20 @@ function buildPipiAnswer(question) {
   return { cites: used, text: `${used[0].answer}<br><br>${next}` };
 }
 
-async function sendPipi() {
-  const question = value('pipiInput');
+async function sendPipi({ question: suppliedQuestion = '', attachments: suppliedAttachments = null } = {}) {
+  if ($('sendPipi').disabled) return;
+  const question = suppliedQuestion || value('pipiInput') || (pipiMaterials.length ? '请结合这些资料帮我分析当前问题。' : '');
   if (!question) return;
+  const attached = suppliedAttachments === null ? [...pipiMaterials] : suppliedAttachments;
   const conversation = ensurePipiConversation();
   if (!conversation.messages.length) conversation.title = question.slice(0, 28);
-  conversation.messages.push({ role: 'user', content: question });
-  appendMessage('user', question);
+  conversation.messages.push({ role: 'user', content: question, attachments: attached });
+  const userBubble = appendMessage('user', question + (attached.length ? '\n【附件】' + attached.map(x => x.name || x.file_name).join('、') : ''), [], conversation.messages.length - 1);
   $('pipiInput').value = '';
   state.pipiUserTurns += 1;
-  const fastAnswer = buildFastPipiAnswer(question);
+  const fastAnswer = attached.length ? null : buildFastPipiAnswer(question);
   if (fastAnswer) {
+    pipiLastReply = fastAnswer;
     appendMessage('assistant', fastAnswer);
     appendSticker(pickPipiSticker(question, fastAnswer) || (state.pipiUserTurns === 3 ? 'encourage.jpg' : ''));
     conversation.messages.push({ role: 'assistant', content: plainPipiText(fastAnswer) });
@@ -2705,16 +3056,25 @@ async function sendPipi() {
   try {
     const apiResult = await apiRequest('pipiChat', {
       message: question,
+      attachments: attached.map(item => ({ file_name: item.name, data_url: item.dataUrl })),
       conversation_id: conversation.id,
       conversation_title: conversation.title,
       conversation_history: conversation.messages
-    }).catch(() => null);
-    const answer = apiResult ? { text: apiResult.reply, cites: apiResult.cited_knowledge || [] } : buildPipiAnswer(question);
+    });
+    const answer = { text: escapeHtml(plainPipiText(apiResult.reply)).replace(/\n/g, '<br>'), cites: [] };
+    clearPipiMaterials();
+    pipiLastReply = plainPipiText(answer.text);
     thinkingSticker?.remove();
     appendMessage('assistant', answer.text, answer.cites);
     appendSticker(pickPipiSticker(question, answer.text) || (state.pipiUserTurns === 3 ? 'encourage.jpg' : ''));
     conversation.messages.push({ role: 'assistant', content: plainPipiText(answer.text) });
     upsertPipiConversationRecord();
+  } catch (error) {
+    thinkingSticker?.remove();
+    $('pipiInput').value = question;
+    conversation.messages.pop();
+    userBubble.remove();
+    appendMessage('assistant', escapeHtml(`这次没有处理成功：${error.message}。资料已保留，可以重试。`));
   } finally {
     setButtonLoading('sendPipi', false);
   }
@@ -2915,9 +3275,10 @@ async function deleteGachaCapsule(id) {
 function useGachaResult() {
   const result = state.gacha.lastResult;
   if (!result) return;
+  state.copyOriginPage = 'topics';
   setPage('copy');
   window.setTimeout(() => {
-    const input = $('copyInput');
+    const input = $('copyMaterial');
     if (!input) return;
     input.value = result.type === 'topic' ? `围绕这个选题写一条内容：${result.text}` : `请围绕这句表达写一条教育内容：${result.text}`;
     input.focus();
@@ -3208,13 +3569,11 @@ async function generateCoachMoment() {
     const result = await apiRequest('coachMoments', {
       material,
       stage: value('coachMomentStage'),
-      protect_privacy: $('coachMomentPrivacy').checked
+      protect_privacy: true
     });
     $('coachMomentCopy').textContent = result.content || material;
-    $('coachMomentImagePrompt').value = defaultCoachMomentImagePrompt();
-    $('coachMomentPromptEditor').classList.remove('hidden');
     addRecord('教练交付朋友圈', value('coachMomentStage') || '交付记录', result.content || material);
-    showToast('文案与配图指令已生成，请确认后再生成成图');
+    showToast('交付朋友圈文案已生成，可直接编辑或复制');
   } catch (error) {
     $('coachMomentCopy').textContent = `生成失败：${error.message}`;
   } finally {
@@ -3277,7 +3636,7 @@ function downloadCoachMomentPoster() {
 }
 
 const WECHAT_LAYOUT_THEMES = {
-  punk: { name: 'Punk 皮皮主视觉', primary: '#B55E32', dark: '#3A271F', ink: '#40352F', muted: '#85756B', paper: '#FBF8F3', soft: '#FFF0E4', accent: '#F6DFAA', label: 'PIPI · WECHAT', variant: 'punk' },
+  pipi: { name: '皮皮专栏', primary: '#255B9C', dark: '#1F2E3D', ink: '#26394C', muted: '#7C8B9C', paper: '#FFFFFF', soft: '#EEF5FC', accent: '#FFDC46', label: 'PIPI EDUCATION NOTE', variant: 'pipi' },
   museum: { name: '艺展留白', primary: '#9B8C64', dark: '#30302C', ink: '#3A3933', muted: '#8D897B', paper: '#E9E5CF', soft: '#F7F5EB', accent: '#C6B991', label: 'WHERE ART MEETS EDUCATION', variant: 'museum' },
   slow: { name: '时间漫序', primary: '#202020', dark: '#111111', ink: '#252525', muted: '#7F7F7C', paper: '#FFFFFF', soft: '#F0F0ED', accent: '#CFCFC9', label: 'SLOW TIME SEQUENCE', variant: 'slow' },
   geometry: { name: '几何拼贴', primary: '#E76E4C', dark: '#171512', ink: '#352D28', muted: '#897A6E', paper: '#FFF0D9', soft: '#FFE2B8', accent: '#1C1A18', label: 'EDITORIAL COLLAGE', variant: 'geometry' },
@@ -3358,10 +3717,10 @@ function buildWechatEditableHtml(article, theme, images = []) {
       }
       if (level === 2) {
         const chapterNumber = String(rendered.filter((item) => /data-wechat-chapter/.test(item)).length + 1).padStart(2, '0');
-        rendered.push(theme.variant === 'punk'
+        rendered.push(theme.variant === 'pipi'
           ? `<h2 data-wechat-chapter="true" style="display:flex;align-items:flex-start;gap:12px;margin:38px 0 18px;padding:0 0 12px;border-bottom:2px solid ${theme.primary};color:${theme.dark};font-size:${fontSize + 6}px;line-height:1.4;letter-spacing:.01em;"><span style="display:inline-grid;width:30px;height:30px;flex:0 0 30px;place-items:center;margin-top:2px;color:${theme.dark};background:${theme.accent};font-family:Georgia,serif;font-size:13px;font-style:italic;">${chapterNumber}</span><span>${text}</span></h2>`
           : `<h2 data-wechat-chapter="true" style="margin:34px 0 16px;padding:0 0 9px;border-bottom:3px solid ${accent};color:${theme.dark};font-size:${fontSize + 6}px;line-height:1.4;letter-spacing:.01em;">${text}</h2>`);
-      } else rendered.push(theme.variant === 'punk'
+      } else rendered.push(theme.variant === 'pipi'
         ? `<h3 style="margin:27px 0 12px;padding:9px 0 9px 13px;border-left:5px solid ${theme.primary};color:${theme.dark};font-size:${fontSize + 3}px;line-height:1.5;">${text}</h3>`
         : `<h3 style="margin:27px 0 12px;padding-left:12px;border-left:4px solid ${accent};color:${theme.dark};font-size:${fontSize + 3}px;line-height:1.5;">${text}</h3>`);
       if (lines.length > 1) rendered.push(renderParagraph(lines.slice(1), false));
@@ -3373,7 +3732,7 @@ function buildWechatEditableHtml(article, theme, images = []) {
       return;
     }
     if (/^>\s?/.test(lines[0])) {
-      rendered.push(`<blockquote style="margin:22px 0 28px;padding:17px 20px;border-left:${theme.variant === 'punk' ? '5px' : '4px'} solid ${accent};background:${theme.soft};color:${theme.dark};font-size:${fontSize + 1}px;line-height:${lineHeight};">${lines.map((line) => wechatInlineMarkdown(line.replace(/^>\s?/, ''))).join('<br>')}</blockquote>`);
+      rendered.push(`<blockquote style="margin:22px 0 28px;padding:17px 20px;border-left:${theme.variant === 'pipi' ? '5px' : '4px'} solid ${accent};background:${theme.soft};color:${theme.dark};font-size:${fontSize + 1}px;line-height:${lineHeight};">${lines.map((line) => wechatInlineMarkdown(line.replace(/^>\s?/, ''))).join('<br>')}</blockquote>`);
       return;
     }
     if (lines.length >= 2 && lines.every((line) => /^\|/.test(line))) { rendered.push(renderTable(lines)); return; }
@@ -3390,10 +3749,13 @@ function buildWechatEditableHtml(article, theme, images = []) {
   if (settings.fixedEndingEnabled && String(settings.fixedEnding || '').trim()) {
     rendered.push(`<section style="margin:34px 0 0;padding:20px 18px;border-top:1px solid ${accent};border-bottom:1px solid ${accent};color:${bodyColor};font-size:${fontSize - 1}px;line-height:${lineHeight};">${String(settings.fixedEnding).trim().split(/\n+/).map((line) => `<p style="margin:0 0 8px;">${wechatInlineMarkdown(line)}</p>`).join('')}</section>`);
   }
-  const editableCover = theme.variant === 'punk'
-    ? `<header class="wechat-editable-cover" style="position:relative;overflow:hidden;padding:38px 34px 40px;background:linear-gradient(90deg,${theme.paper} 0 64%,${theme.primary} 64%);border-top:0;border-bottom:7px solid ${theme.accent};"><span style="position:relative;display:block;color:${theme.primary};font-family:Arial,sans-serif;font-size:10px;font-weight:800;letter-spacing:.22em;">PIPI</span><span style="position:absolute;top:38px;right:30px;color:#fff;font-family:Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:.16em;">MADE FOR WECHAT</span><span style="position:relative;display:block;margin-top:22px;color:${theme.muted};font-family:Arial,sans-serif;font-size:10px;letter-spacing:.14em;">皮皮公众号&nbsp; · &nbsp;刚刚 · 原创</span><h1 style="position:relative;max-width:72%;margin:26px 0 0;color:${theme.dark};font-size:${fontSize + 15}px;line-height:1.3;letter-spacing:.01em;">${wechatInlineMarkdown(titleCandidate)}</h1><span style="position:relative;display:block;width:46px;height:5px;margin-top:27px;background:${theme.primary};box-shadow:12px 0 0 ${theme.accent};"></span><strong style="position:absolute;right:28px;bottom:28px;color:#fff;font-family:Georgia,serif;font-size:12px;font-style:italic;letter-spacing:.16em;">ORIGINAL</strong></header>`
+  const authorAvatar = String(settings.authorAvatar || state.personal.profile?.avatar_url || 'assets/pipi-avatar.webp');
+  const authorName = String(settings.authorName || state.personal.profile?.name || state.user?.name || '皮皮老师');
+  const authorRow = `<div style="position:relative;display:flex;align-items:center;gap:9px;margin-top:22px;color:${theme.muted};font-family:Arial,'PingFang SC',sans-serif;font-size:11px;"><img src="${escapeHtml(authorAvatar)}" alt="${escapeHtml(authorName)}" style="width:28px;height:28px;border:1px solid rgba(255,255,255,.65);border-radius:50%;object-fit:cover;background:#fff;"/><span>${escapeHtml(authorName)}&nbsp; · &nbsp;刚刚&nbsp; · &nbsp;原创</span></div>`;
+  const editableCover = theme.variant === 'pipi'
+    ? `<header class="wechat-editable-cover" style="position:relative;overflow:hidden;padding:29px 38px 42px;background:#fff;border-top:5px solid ${theme.primary};text-align:center;"><span style="display:block;color:${theme.primary};font-family:Arial,sans-serif;font-size:10px;font-weight:800;letter-spacing:.22em;">PIPI · EDUCATION NOTE</span><div style="display:flex;align-items:center;justify-content:center;gap:9px;margin-top:20px;color:${theme.muted};font-family:Arial,'PingFang SC',sans-serif;font-size:11px;"><img src="${escapeHtml(authorAvatar)}" alt="${escapeHtml(authorName)}" style="width:30px;height:30px;border:1px solid #d9e5f2;border-radius:50%;object-fit:cover;background:#fff;"/><span>${escapeHtml(authorName)}&nbsp; · &nbsp;刚刚&nbsp; · &nbsp;原创</span></div><h1 style="max-width:90%;margin:29px auto 0;color:${theme.primary};font-size:${fontSize + 15}px;line-height:1.38;letter-spacing:.01em;">${wechatInlineMarkdown(titleCandidate)}</h1><span style="display:block;width:42px;height:5px;margin:26px auto 0;background:${theme.accent};"></span></header>`
     : `<header class="wechat-editable-cover" style="padding:48px 32px 34px;background:${theme.paper};border-top:7px solid ${accent};"><span style="display:block;margin-bottom:18px;color:${accent};font-family:Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:.2em;">WECHAT ARTICLE</span><h1 style="margin:0;color:${theme.dark};font-size:${fontSize + 15}px;line-height:1.35;letter-spacing:.01em;">${wechatInlineMarkdown(titleCandidate)}</h1></header>`;
-  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(titleCandidate)}</title><style>@media(max-width:520px){body{padding:0!important}.wechat-editable{width:100%!important;box-shadow:none!important}.wechat-editable-body{padding:30px 20px 40px!important}.wechat-editable-cover{padding:34px 24px 30px!important}.wechat-editable-cover h1{max-width:100%!important;font-size:28px!important}}</style></head><body style="margin:0;padding:20px;background:${theme.variant === 'punk' ? '#F1EDE8' : '#eee9e3'};font-family:${fontFamily};"><article class="wechat-article wechat-editable" style="width:677px;max-width:100%;margin:0 auto;overflow:hidden;background:${paper};box-shadow:0 12px 42px rgba(113,58,25,.14);">${editableCover}<section class="wechat-editable-body" style="padding:36px 32px 46px;">${rendered.join('')}<footer style="margin-top:36px;padding-top:18px;border-top:1px solid ${theme.soft};color:${theme.muted};font-family:Arial,sans-serif;font-size:10px;letter-spacing:.13em;text-align:center;">PIPI · WECHAT ARTICLE</footer></section></article></body></html>`;
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(titleCandidate)}</title><style>@media(max-width:520px){body{padding:0!important}.wechat-editable{width:100%!important;box-shadow:none!important}.wechat-editable-body{padding:30px 20px 40px!important}.wechat-editable-cover{padding:34px 24px 30px!important}.wechat-editable-cover h1{max-width:100%!important;font-size:28px!important}}</style></head><body style="margin:0;padding:20px;background:${theme.variant === 'pipi' ? '#F3EEE8' : '#eee9e3'};font-family:${fontFamily};"><article class="wechat-article wechat-editable" style="width:677px;max-width:100%;margin:0 auto;overflow:hidden;background:${paper};box-shadow:0 12px 42px rgba(113,58,25,.14);">${editableCover}<section class="wechat-editable-body" style="padding:36px 32px 46px;">${rendered.join('')}<footer style="margin-top:36px;padding-top:18px;border-top:1px solid ${theme.soft};color:${theme.muted};font-family:Arial,sans-serif;font-size:10px;letter-spacing:.13em;text-align:center;">PIPI · WECHAT ARTICLE</footer></section></article></body></html>`;
 }
 
 function buildReferenceWechatLayoutHtml(layout, theme, images = []) {
@@ -3438,7 +3800,7 @@ function buildReferenceWechatLayoutHtml(layout, theme, images = []) {
   const chapterTitle = (chapter, index, className = '') => chapter.title ? `<header class="visual-chapter ${className}"><span>${String(index + 1).padStart(2, '0')}</span><h2>${wechatLayoutText(chapter.title)}</h2></header>` : '';
 
   let body = '';
-  if (theme.variant === 'punk') {
+  if (theme.variant === 'pipi') {
     const punkParagraph = (item) => item.highlight
       ? `<p style="margin:24px 0;padding:20px 22px;border-left:6px solid ${theme.primary};background:${theme.soft};color:${theme.dark};font-size:19px;font-weight:750;line-height:1.8;">${wechatLayoutText(item.text)}</p>`
       : `<p style="margin:0 0 20px;color:${theme.ink};font-size:16px;line-height:2.05;letter-spacing:.035em;text-align:justify;">${wechatLayoutText(item.text)}</p>`;
@@ -3523,11 +3885,11 @@ function buildWechatVisualLongformHtml(layout, theme, images = []) {
   const footer = `<footer class="vl-footer"><span>END</span><strong>${escapeHtml(theme.name)}</strong><span>${theme.label}</span></footer>`;
   let body = '';
 
-  if (theme.variant === 'punk') {
+  if (theme.variant === 'pipi') {
     const punkParagraph = (item) => item.highlight
       ? `<blockquote style="margin:24px 0;padding:19px 21px;border-left:6px solid ${theme.primary};background:${theme.soft};color:${theme.dark};font-size:19px;font-weight:750;line-height:1.8;">${wechatLayoutText(item.text)}</blockquote>`
       : `<p class="vl-closing" style="margin:0 0 20px;color:${theme.ink};font-size:16px;line-height:2.05;letter-spacing:.035em;text-align:justify;">${wechatLayoutText(item.text)}</p>`;
-    const punkChapter = (chapter, index) => `<section style="margin:52px 0 0;padding-top:24px;border-top:2px solid ${theme.primary};"><div style="display:flex;align-items:flex-start;gap:13px;margin-bottom:19px;"><span style="display:inline-grid;width:37px;height:37px;flex:0 0 37px;place-items:center;color:${theme.dark};background:${theme.accent};font-family:Georgia,serif;font-size:16px;font-style:italic;">${String(index + 1).padStart(2, '0')}</span><h2 style="margin:0;color:${theme.dark};font-size:27px;line-height:1.4;">${wechatLayoutText(chapter.title || `章节 ${index + 1}`)}</h2></div><div style="padding-left:50px;">${chapter.items.map(punkParagraph).join('')}</div>${index % 2 === 0 ? media(index === 0 ? 'wide' : 'square', index === 0 ? 'PUNK / COVER STORY' : 'CHAPTER IMAGE') : ''}</section>`;
+    const punkChapter = (chapter, index) => `<section style="margin:52px 0 0;padding-top:24px;border-top:2px solid ${theme.primary};"><div style="display:flex;align-items:flex-start;gap:13px;margin-bottom:19px;"><span style="display:inline-grid;width:37px;height:37px;flex:0 0 37px;place-items:center;color:${theme.dark};background:${theme.accent};font-family:Georgia,serif;font-size:16px;font-style:italic;">${String(index + 1).padStart(2, '0')}</span><h2 style="margin:0;color:${theme.dark};font-size:27px;line-height:1.4;">${wechatLayoutText(chapter.title || `章节 ${index + 1}`)}</h2></div><div style="padding-left:50px;">${chapter.items.map(punkParagraph).join('')}</div>${index % 2 === 0 ? media(index === 0 ? 'wide' : 'square', index === 0 ? 'PIPI / COVER STORY' : 'CHAPTER IMAGE') : ''}</section>`;
     body = `<header style="position:relative;min-height:450px;overflow:hidden;padding:40px 40px 46px;background:linear-gradient(90deg,${theme.paper} 0 63%,${theme.primary} 63%);border-bottom:8px solid ${theme.accent};"><span style="position:relative;display:block;color:${theme.primary};font:800 11px Arial,sans-serif;letter-spacing:.24em;">PIPI</span><span style="position:absolute;top:40px;right:34px;color:#fff;font:700 10px Arial,sans-serif;letter-spacing:.16em;">MADE FOR WECHAT</span><span style="position:relative;display:block;margin-top:24px;color:${theme.muted};font:10px Arial,sans-serif;letter-spacing:.14em;">皮皮公众号&nbsp; · &nbsp;刚刚 · 原创</span><h1 style="position:relative;max-width:72%;margin:34px 0 0;color:${theme.dark};font-size:${titleSize}px;line-height:1.3;letter-spacing:.01em;">${safeTitle}</h1>${subtitle ? `<p style="position:relative;max-width:68%;margin:20px 0 0;color:${theme.muted};font-size:15px;line-height:1.8;">${wechatLayoutText(subtitle)}</p>` : ''}<span style="position:relative;display:block;width:54px;height:6px;margin-top:31px;background:${theme.primary};box-shadow:15px 0 0 ${theme.accent};"></span><strong style="position:absolute;right:34px;bottom:34px;color:#fff;font:italic 12px Georgia,serif;letter-spacing:.16em;">ORIGINAL</strong></header><main style="padding:0 34px 56px;background:${theme.paper};">${leadItems[0] ? `<section style="margin:0 -6px;padding:38px 22px 29px;border-bottom:1px solid ${theme.soft};"><span style="display:block;margin-bottom:12px;color:${theme.primary};font:800 10px Arial,sans-serif;letter-spacing:.18em;">LEAD / 01</span>${punkParagraph(leadItems[0])}</section>` : ''}${chapters.map(punkChapter).join('')}${footer}</main>`;
   } else if (theme.variant === 'museum') {
     body = `<header class="vl-cover museum-cover"><div class="museum-frame"><span>${theme.label}</span><b>EXHIBITION · 01</b><h1>${safeTitle}</h1>${subtitle ? `<p>${wechatLayoutText(subtitle)}</p>` : ''}</div></header><main class="vl-body museum-body">${lead}<section class="museum-opening"><small>AN INVITATION</small><strong>${safeTitle}</strong><i></i></section>${media('wide', 'EDUCATION & LIFE')}${chapters.map((chapter, index) => `<section class="museum-chapter ${index % 2 ? 'is-offset' : ''}">${chapterHeading(chapter, index)}<div class="museum-copy">${paragraphs(chapter.items)}</div>${index % 2 === 0 ? media(index % 3 ? 'portrait' : 'square', 'EXHIBIT DETAIL') : ''}</section>`).join('')}${footer}</main>`;
@@ -3557,7 +3919,7 @@ function buildWechatVisualLongformHtml(layout, theme, images = []) {
 }
 
 function buildWechatLayoutHtml(layout, themeCode, images = []) {
-  const theme = WECHAT_LAYOUT_THEMES[themeCode] || WECHAT_LAYOUT_THEMES.punk;
+  const theme = WECHAT_LAYOUT_THEMES[themeCode] || WECHAT_LAYOUT_THEMES.pipi;
   if (state.wechatLayout.mode === 'editable') {
     const article = state.wechatLayout.article || (layout?.segments || []).map((item) => item.text).join('\n\n');
     return buildWechatEditableHtml(article, theme, images);
@@ -3578,7 +3940,10 @@ function buildWechatLayoutHtml(layout, themeCode, images = []) {
   const serif = theme.variant === 'slow' ? "Georgia,'Times New Roman','Songti SC',serif" : "-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif";
   const darkText = theme.darkMode ? '#EFF7F5' : theme.ink;
   const paragraphStyle = `margin:0 0 22px;color:${darkText};font-size:${theme.variant === 'slow' ? '17px' : '16px'};line-height:2.02;letter-spacing:.035em;text-align:justify;font-family:${serif};`;
+  const chapterStyle = settings.chapterStyle || 'underline';
   const chapterLayout = (number, text) => {
+    if (chapterStyle === 'minimal') return `<section style="margin:48px 0 28px;padding-top:10px;border-top:1px solid ${theme.accent};"><h2 style="margin:0;color:${theme.dark};font-size:24px;font-weight:650;line-height:1.5;letter-spacing:.02em;">${text}</h2></section>`;
+    if (chapterStyle === 'numbered') return `<section style="display:grid;grid-template-columns:48px minmax(0,1fr);gap:14px;align-items:start;margin:48px 0 28px;padding-bottom:16px;border-bottom:1px solid ${theme.accent};"><span style="display:grid;width:42px;height:42px;place-items:center;border-radius:50%;color:${theme.paper};background:${theme.primary};font-family:Arial,sans-serif;font-size:12px;font-weight:800;">${String(number).padStart(2, '0')}</span><h2 style="margin:4px 0 0;color:${theme.dark};font-size:24px;line-height:1.45;">${text}</h2></section>`;
     if (theme.variant === 'geometry') return `<section style="position:relative;margin:48px 0 30px;padding:22px 22px 19px;background:${theme.primary};color:#fff;"><span style="position:absolute;top:-13px;right:18px;display:grid;width:42px;height:42px;place-items:center;border-radius:50%;color:${theme.dark};background:${theme.accent};font-size:11px;font-weight:900;">${String(number).padStart(2, '0')}</span><span style="display:block;margin-bottom:10px;font-size:9px;font-weight:800;letter-spacing:.2em;">SECTION</span><h2 style="margin:0;color:#fff;font-size:25px;line-height:1.4;">${text}</h2></section>`;
     if (theme.variant === 'noir') return `<section style="margin:52px 0 30px;padding:18px 0;border-top:1px solid ${theme.primary};border-bottom:1px solid ${theme.primary};"><span style="display:block;margin-bottom:8px;color:${theme.primary};font-family:Arial,sans-serif;font-size:10px;font-weight:900;letter-spacing:.23em;">${String(number).padStart(2, '0')} / CHAPTER</span><h2 style="margin:0;color:${theme.dark};font-size:26px;line-height:1.42;">${text}</h2></section>`;
     if (theme.variant === 'nature') return `<section style="margin:48px 0 28px;padding:17px 20px;border-left:10px solid ${theme.primary};background:${theme.soft};"><span style="display:block;margin-bottom:7px;color:${theme.primary};font-size:10px;font-weight:900;letter-spacing:.15em;">FIELD NOTE · ${String(number).padStart(2, '0')}</span><h2 style="margin:0;color:${theme.dark};font-size:24px;line-height:1.45;">${text}</h2></section>`;
@@ -3675,25 +4040,18 @@ function updateWechatArticleStats() {
 }
 
 function renderWechatLayoutWorkspace() {
+  if (!WECHAT_LAYOUT_THEMES[state.wechatLayout.theme]) state.wechatLayout.theme = 'pipi';
   document.querySelectorAll('[data-wechat-mode]').forEach((button) => button.classList.toggle('active', button.dataset.wechatMode === state.wechatLayout.mode));
   document.querySelectorAll('[data-wechat-theme]').forEach((button) => button.classList.toggle('active', button.dataset.wechatTheme === state.wechatLayout.theme));
   const settings = state.wechatLayout.settings || {};
   if ($('wechatLayoutArticle') && $('wechatLayoutArticle').value !== state.wechatLayout.article) $('wechatLayoutArticle').value = state.wechatLayout.article || '';
-  if ($('wechatFontSize')) $('wechatFontSize').value = settings.fontSize || 16;
-  if ($('wechatLineHeight')) $('wechatLineHeight').value = settings.lineHeight || 1.9;
-  if ($('wechatFontFamily')) $('wechatFontFamily').value = settings.fontFamily || 'system';
-  if ($('wechatAccentColor')) $('wechatAccentColor').value = settings.accent || '#B55E32';
-  if ($('wechatFixedEndingEnabled')) $('wechatFixedEndingEnabled').checked = Boolean(settings.fixedEndingEnabled);
-  if ($('wechatFixedEnding')) $('wechatFixedEnding').value = settings.fixedEnding || '';
-  if ($('wechatFontSizeValue')) $('wechatFontSizeValue').textContent = `${settings.fontSize || 16}px`;
-  if ($('wechatLineHeightValue')) $('wechatLineHeightValue').textContent = Number(settings.lineHeight || 1.9).toFixed(1);
   if ($('wechatFontSizeRef')) $('wechatFontSizeRef').value = settings.fontSize || 16;
   if ($('wechatLineHeightRef')) $('wechatLineHeightRef').value = settings.lineHeight || 1.9;
   if ($('wechatFontFamilyRef')) $('wechatFontFamilyRef').value = settings.fontFamily || 'system';
-  if ($('wechatAccentColorRef')) $('wechatAccentColorRef').value = settings.accent || '#B55E32';
+  if ($('wechatAccentColorRef')) $('wechatAccentColorRef').value = settings.accent || '#255B9C';
+  if ($('wechatChapterStyleRef')) $('wechatChapterStyleRef').value = settings.chapterStyle || 'underline';
   if ($('wechatFontSizeRefValue')) $('wechatFontSizeRefValue').textContent = `${settings.fontSize || 16}px`;
   if ($('wechatLineHeightRefValue')) $('wechatLineHeightRefValue').textContent = Number(settings.lineHeight || 1.9).toFixed(1);
-  document.querySelectorAll('[data-wechat-color]').forEach((button) => button.classList.toggle('active', button.dataset.wechatColor === (settings.bodyColor || 'auto')));
   document.querySelectorAll('[data-wechat-color-ref]').forEach((button) => button.classList.toggle('active', button.dataset.wechatColorRef === (settings.bodyColor || 'auto')));
   updateWechatArticleStats();
   renderWechatLayoutImages();
@@ -3862,28 +4220,27 @@ function mockCopy(payload) {
   return `标题：${payload.material}\n\n开头3秒：很多${payload.audience}以为问题出在不够努力，但真实情况可能不是这样。\n\n正文：做${payload.business}，先别急着加量。第一步看现象，第二步找原因，第三步把动作缩小到能执行。只要这三步没拆清楚，后面再努力也容易重复消耗。\n\n结尾CTA：如果你也卡在这个问题，可以先把具体情况发来，我们一起判断下一步。`;
 }
 
-async function generateCopy() {
-  if (state.copyGeneration) {
-    showToast('上一条文案仍在生成中，请等待结果返回。');
-    return;
-  }
-  const typedMaterial = value('copyMaterial').trim();
-  if (!typedMaterial && !state.copyAttachments.length) {
-    $('copyMaterial').focus();
-    return;
-  }
-  const attachmentNames = state.copyAttachments.map((item) => item.name);
-  const material = typedMaterial || `请根据我附上的素材，先帮我提炼关键信息，再生成一版可直接使用的内容。\n\n【本轮素材】${attachmentNames.join('、')}`;
-  const activeSession = state.copySessions.find((item) => item.id === state.activeCopySessionId);
-  const payload = {
+function createCopyPayload({ material, attachments = [], session = null }) {
+  const activeSession = session || state.copySessions.find((item) => item.id === state.activeCopySessionId);
+  return {
     agent: value('copyAgent') || 'local_city',
     type: value('copyType'),
     business: value('copyBusiness') || '教育业务',
     audience: value('copyAudience') || '目标客户',
     material,
-    attachments: state.copyAttachments.map((item) => ({ file_name: item.name, data_url: item.dataUrl })),
+    attachments: attachments.map((item) => ({
+      file_name: item.file_name || item.name || '素材',
+      data_url: item.data_url || item.dataUrl || ''
+    })).filter((item) => item.data_url),
     history: (activeSession?.messages || []).slice(-6).map((message) => ({ user: message.prompt, assistant: message.content }))
   };
+}
+
+async function requestCopyGeneration(payload, activeSession, { clearComposer = true } = {}) {
+  if (state.copyGeneration) {
+    showToast('上一条文案仍在生成中，请等待结果返回。');
+    return;
+  }
   if (state.user.role === 'training' && payload.type !== 'short') {
     alert('训练营学员暂时只开放短视频文案。');
     $('copyType').value = 'short';
@@ -3894,14 +4251,16 @@ async function generateCopy() {
   state.copyGeneration = { id: generationId, payload, typeName, startedAt: Date.now() };
   renderCopyConversation(activeSession, payload.material);
   startCopyGenerationStatus();
-  $('copyMaterial').value = '';
+  if (clearComposer) $('copyMaterial').value = '';
   setButtonLoading('generateCopy', true, '…');
   try {
     const apiResult = await apiRequest('copywriting', payload);
     const content = apiResult?.content || apiResult?.message || mockCopy(payload);
     const session = saveCopySession(payload, typeName, content);
-    state.copyAttachments = [];
-    renderCopyAttachments();
+    if (clearComposer) {
+      state.copyAttachments = [];
+      renderCopyAttachments();
+    }
     if (state.copyGeneration?.id === generationId) state.copyGeneration = null;
     if (state.page === 'copy' && state.copyView === 'compose') renderCopyConversation(session);
     addRecord(typeName, `${payload.business}${typeName}`, content, { conversationKey: session.id, conversationTitle: session.title });
@@ -3923,6 +4282,19 @@ async function generateCopy() {
   }
 }
 
+async function generateCopy() {
+  const typedMaterial = value('copyMaterial').trim();
+  if (!typedMaterial && !state.copyAttachments.length) {
+    $('copyMaterial').focus();
+    return;
+  }
+  const attachmentNames = state.copyAttachments.map((item) => item.name);
+  const material = typedMaterial || `请根据我附上的素材，先帮我提炼关键信息，再生成一版可直接使用的内容。\n\n【本轮素材】${attachmentNames.join('、')}`;
+  const activeSession = state.copySessions.find((item) => item.id === state.activeCopySessionId);
+  const payload = createCopyPayload({ material, attachments: state.copyAttachments, session: activeSession });
+  await requestCopyGeneration(payload, activeSession);
+}
+
 function formatCompetitorMetric(metric) {
   const amount = Number(metric) || 0;
   return amount >= 10000 ? `${(amount / 10000).toFixed(amount >= 100000 ? 0 : 1)}万` : String(amount);
@@ -3934,19 +4306,19 @@ function renderCompetitorTrends() {
   if (!container || !meta) return;
   const trends = state.competitorTrends;
   if (trends.loading) {
-    container.innerHTML = '<div class="competitor-trend-state"><strong>正在同时读取抖音与小红书教育热词…</strong><span>两个平台分别联网更新，本次不调用大模型。</span></div>';
-    meta.textContent = '双平台实时读取中';
+    container.innerHTML = '<div class="competitor-trend-state"><strong>正在读取抖音搜索词根双榜…</strong><span>读取全站搜索榜与教育定向搜索榜，再按教育相关性筛选。</span></div>';
+    meta.textContent = '抖音搜索榜读取中';
     return;
   }
   if (trends.error) {
-    container.innerHTML = `<div class="competitor-trend-state error"><strong>热词榜暂时未读取</strong><span>${escapeHtml(trends.error)}</span><button class="secondary mini" type="button" data-competitor-trends-retry>重试</button></div>`;
+    container.innerHTML = `<div class="competitor-trend-state error"><strong>抖音搜索双榜暂时未读取</strong><span>${escapeHtml(trends.error)}</span><button class="secondary mini" type="button" data-competitor-trends-retry>重试</button></div>`;
     meta.textContent = 'TikHub 连接异常';
     return;
   }
   const platforms = trends.platforms || {};
   const hasPlatformItems = Object.values(platforms).some((item) => Array.isArray(item?.items) && item.items.length);
   if (!hasPlatformItems && !trends.items.length) {
-    container.innerHTML = '<div class="competitor-trend-state"><strong>等待首次读取</strong><span>进入本页后自动获取抖音与小红书各 Top 10。</span></div>';
+    container.innerHTML = '<div class="competitor-trend-state"><strong>等待首次读取</strong><span>进入本页后自动获取抖音全站词根榜与教育相关词根榜。</span></div>';
     return;
   }
   const formatUpdatedAt = (value) => {
@@ -3955,17 +4327,17 @@ function renderCompetitorTrends() {
     if (Number.isNaN(date.getTime())) return '更新时间待同步';
     return `更新至今天 ${date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })}`;
   };
-  const renderPlatform = (platform, label, scope) => {
-    const details = platforms[platform] || (platform === 'douyin' ? { ...(trends.meta || {}), items: trends.items || [] } : {});
+  const renderPlatform = (platform, label, title, scope) => {
+    const details = platforms[platform] || (platform === 'douyin_education' ? { ...(trends.meta || {}), items: trends.items || [] } : {});
     const items = Array.isArray(details.items) ? details.items.slice(0, 10) : [];
     const list = items.length
-      ? items.map((item) => `<button type="button" data-competitor-keyword="${escapeHtml(item.keyword)}" data-competitor-trend-channel="${platform}"><b>${String(item.rank).padStart(2, '0')}</b><span>${escapeHtml(item.keyword)}</span><small>${item.heat ? `热度 ${formatCompetitorMetric(item.heat)}` : '去搜索 →'}</small></button>`).join('')
+      ? items.map((item) => `<button type="button" data-competitor-keyword="${escapeHtml(item.keyword)}" data-competitor-trend-channel="douyin"><b>${String(item.rank).padStart(2, '0')}</b><span>${escapeHtml(item.keyword)}</span><small>${item.heat ? `热度 ${formatCompetitorMetric(item.heat)}` : '去搜索 →'}</small></button>`).join('')
       : `<div class="competitor-trend-platform-empty"><strong>${escapeHtml(label)}暂未读取</strong><span>${escapeHtml(details.error || '可点击右上角重试')}</span></div>`;
-    return `<section class="competitor-trend-platform"><header><div><span>${escapeHtml(label)}</span><strong>教育内容热词 Top 10</strong><small>${escapeHtml(scope)}</small></div><time>${escapeHtml(formatUpdatedAt(details.refreshed_at))}</time></header><div class="competitor-trend-list">${list}</div></section>`;
+    return `<section class="competitor-trend-platform"><header><div><span>${escapeHtml(label)}</span><strong>${escapeHtml(title)}</strong><small>${escapeHtml(scope)}</small></div><time>${escapeHtml(formatUpdatedAt(details.refreshed_at))}</time></header><div class="competitor-trend-list">${list}</div></section>`;
   };
-  container.innerHTML = `${renderPlatform('douyin', '抖音', '实时教育搜索榜')}${renderPlatform('xiaohongshu', '小红书', '教育搜索联想热词')}`;
+  container.innerHTML = `${renderPlatform('douyin_general', '抖音全站', '高搜索词根 Top 10', '不限类目 · 观察用户正在搜什么')}${renderPlatform('douyin_education', '抖音教育', '教育相关搜索词 Top 10', '平台搜索数据 + 教育相关性筛选')}`;
   const details = trends.meta || {};
-  meta.textContent = `${details.cached ? '当前为最新缓存' : '已联网更新'} · 每 30 分钟自动刷新`;
+  meta.textContent = `${details.cached ? '当前为短时缓存' : '已联网更新'} · 最多 5 分钟缓存`;
 }
 
 async function loadCompetitorTrends() {
@@ -4029,7 +4401,8 @@ function renderCompetitorFinder() {
     container.innerHTML = '<div class="competitor-empty"><strong>还没有搜索结果</strong><span>可从上方教育热搜开始，或输入一个更具体的教育关键词。</span></div>';
     return;
   }
-  status.textContent = `已从${finder.channelLabel || '抖音'}找到 ${finder.items.length} 条“${finder.keyword}”教育精品内容，均通过教育相关性过滤。今日剩余 ${Number(state.competitorQuota.remaining ?? 100)} 条。`;
+  const strictLabel = finder.teacherUsableOnly ? '已排除图文轮播、混剪和搬运内容' : '已按教育相关性排序';
+  status.textContent = `已从${finder.channelLabel || '抖音'}找到 ${finder.items.length} 条“${finder.keyword}”外部内容；优先保留可拍的${finder.contentFormLabel || '老师口播 / 真实 Vlog'}，${strictLabel}。`;
   container.innerHTML = finder.items.map((item) => {
     const transcript = finder.transcripts[item.id];
     const sourceUrl = item.source_url || item.sourceUrl || '';
@@ -4040,15 +4413,15 @@ function renderCompetitorFinder() {
     const sourceAction = sourceUrl
       ? `<a class="secondary" href="${escapeHtml(sourceUrl)}" target="_blank" rel="noreferrer">打开原内容</a>`
       : '<button class="secondary" type="button" disabled>暂无网页外链</button>';
-    const transcriptAction = item.can_transcribe
-      ? `<button class="primary" data-competitor-extract="${escapeHtml(item.id)}">${transcript ? '重新提取' : '提取文案'}</button>`
-      : '<button class="primary" type="button" disabled>暂不支持提取</button>';
+    // 抖音视频转文字依赖的语音识别服务未配置稳定凭证，暂时不展示入口。
+    const transcriptAction = '';
     return `<article class="competitor-video-card">
       ${cover}
       <div class="competitor-video-channel"><span>${escapeHtml(item.channel_label || finder.channelLabel || '抖音')}</span></div>
-      <div class="competitor-video-top"><span>爆款指数 <b>${Number(item.score || item.match_score || 60)}</b></span><small>教育匹配 ${Number(item.education_score || 0)} · ${item.duration ? `${item.duration} 秒` : '视频内容'}</small></div>
+      <div class="competitor-video-top"><span>爆款指数 <b>${Number(item.score || item.match_score || 60)}</b></span><small>抖音搜索第 ${Number(item.platform_rank || 0) || '—'} · ${escapeHtml(item.content_form_label || '教育视频')}</small></div>
       <h3 title="${escapeHtml(item.title || '')}">${escapeHtml(item.title || '未命名内容')}</h3>
       <p class="competitor-author">${escapeHtml(item.author || '未知账号')}</p>
+      ${item.teacher_usable_reason ? `<p class="competitor-fit-note">可借鉴：${escapeHtml(item.teacher_usable_reason)}${item.content_form_reason ? ` · ${escapeHtml(item.content_form_reason)}` : ''}</p>` : ''}
       <div class="competitor-metrics"><span>赞 ${formatCompetitorMetric(item.likes)}</span><span>评 ${formatCompetitorMetric(item.comments)}</span><span>转 ${formatCompetitorMetric(item.shares)}</span><span>藏 ${formatCompetitorMetric(item.collects)}</span></div>
       <div class="competitor-card-actions">
         ${sourceAction}
@@ -4056,9 +4429,40 @@ function renderCompetitorFinder() {
       </div>
       ${transcript?.loading ? '<div class="competitor-transcript loading">正在提取视频口播，请稍候…</div>' : ''}
       ${transcript?.error ? `<div class="competitor-transcript error">提取失败：${escapeHtml(transcript.error)}</div>` : ''}
-      ${transcript?.content ? `<div class="competitor-transcript"><strong>${transcript.degraded ? '原平台发布文案' : '视频口播文案'}</strong>${transcript.notice ? `<small>${escapeHtml(transcript.notice)}</small>` : ''}<p>${escapeHtml(transcript.content)}</p><div><button class="secondary" data-competitor-copy="${escapeHtml(item.id)}">一键复制</button><button class="primary" data-competitor-to-agent="${escapeHtml(item.id)}">带着文案去智能体</button></div></div>` : ''}
+      ${transcript?.content ? `<div class="competitor-transcript"><strong>${transcript.degraded ? '原平台发布文案' : '视频口播文案'}</strong><small class="competitor-transcript-provider">${transcript.degraded ? '降级来源 · TikHub 原文' : `识别来源 · ${transcript.provider === 'volcengine_asr' ? '火山 ASR' : transcript.provider === 'siliconflow_asr' ? '硅基语音识别' : '已配置语音识别'}${transcript.model ? ` · ${escapeHtml(transcript.model)}` : ''}`}</small>${transcript.notice ? `<small>${escapeHtml(transcript.notice)}</small>` : ''}<p>${escapeHtml(transcript.content)}</p><div><button class="secondary" data-competitor-copy="${escapeHtml(item.id)}">一键复制</button><button class="primary" data-competitor-to-agent="${escapeHtml(item.id)}">带着文案去智能体</button></div></div>` : ''}
     </article>`;
   }).join('');
+}
+
+function renderCompetitorAccountDiagnosis() {
+  const host = $('competitorAccountDiagnosisResult');
+  const diagnosis = state.competitorAccountDiagnosis;
+  if (!host) return;
+  if (diagnosis.loading) {
+    host.innerHTML = '<strong>正在读取账号最热作品，并交给豆包按 PP 方法论诊断…</strong>';
+    return;
+  }
+  if (diagnosis.error) {
+    host.innerHTML = `<strong>账号诊断暂未完成</strong><span>${escapeHtml(diagnosis.error)}</span>`;
+    return;
+  }
+  if (!diagnosis.report) return;
+  const reportHtml = escapeHtml(diagnosis.report).replace(/^##\s+(.+)$/gm, '<h4>$1</h4>').replace(/\n/g, '<br>');
+  host.innerHTML = `<header><span>豆包 · ${escapeHtml(diagnosis.model || '账号诊断')}</span><strong>${escapeHtml(diagnosis.accountName || '精品账号')}诊断结果</strong></header><div>${reportHtml}</div>`;
+}
+
+async function diagnoseCompetitorAccount() {
+  const accountUrl = String(value('competitorAccountUrl') || '').trim();
+  if (!accountUrl) { $('competitorAccountUrl')?.focus(); return; }
+  state.competitorAccountDiagnosis = { loading: true, report: '', accountName: '', error: '', model: '' };
+  renderCompetitorAccountDiagnosis();
+  try {
+    const result = await apiRequest('competitorAccountDiagnosis', { account_url: accountUrl }, { timeoutMs: 120000 });
+    state.competitorAccountDiagnosis = { loading: false, report: result?.report || '', accountName: result?.account?.account_name || '', error: '', model: result?.model || 'Doubao Seed 2.0 Pro' };
+  } catch (error) {
+    state.competitorAccountDiagnosis = { loading: false, report: '', accountName: '', error: error.message || '账号诊断失败', model: '' };
+  }
+  renderCompetitorAccountDiagnosis();
 }
 
 async function searchCompetitorFinder(keyword = value('competitorSearchInput'), options = {}) {
@@ -4074,21 +4478,29 @@ async function searchCompetitorFinder(keyword = value('competitorSearchInput'), 
     $('competitorSearchInput')?.focus();
     return;
   }
-  state.competitorFinder = { keyword: normalizedKeyword, requestedCount, channel, channelLabel, source: searchSource, loading: true, items: [], transcripts: {} };
+  const audience = value('competitorAudience') || 'parents';
+  const intent = value('competitorIntent') || 'professional';
+  const contentForm = value('competitorContentForm') || 'talking_or_vlog';
+  const contentFormLabels = { talking_or_vlog: '老师口播 / 真实 Vlog', talking_head: '老师口播', vlog: '真实 Vlog', all: '教育视频' };
+  const teacherUsableOnly = $('competitorTeacherUsableOnly')?.checked !== false;
+  state.competitorFinder = { keyword: normalizedKeyword, requestedCount, channel, channelLabel, audience, intent, contentForm, contentFormLabel: contentFormLabels[contentForm], teacherUsableOnly, source: searchSource, loading: true, items: [], transcripts: {} };
   $('competitorRadar')?.classList.add('searching');
   if ($('competitorRadarStatus')) $('competitorRadarStatus').textContent = '● 正在扫描';
   if ($('competitorRadarKeyword')) $('competitorRadarKeyword').textContent = normalizedKeyword;
   if ($('competitorRadarReadout')) $('competitorRadarReadout').textContent = '匹配竞品信号';
   $('competitorSearchInput').value = normalizedKeyword;
-  $('competitorSearchStatus').textContent = `正在从${channelLabel}搜索 ${requestedCount} 条教育视频…`;
+  $('competitorSearchStatus').textContent = `正在按${channelLabel}原始搜索结果筛选 ${requestedCount} 条可拍的${contentFormLabels[contentForm]}内容…`;
   renderCompetitorQuota();
   renderCompetitorFinder();
   try {
-    const result = await apiRequest('competitorSearch', { keyword: normalizedKeyword, channel, limit: requestedCount, source: searchSource, minimum_score: 60 });
+    const result = await apiRequest('competitorSearch', { keyword: normalizedKeyword, channel, limit: requestedCount, source: searchSource, audience, intent, content_form: contentForm, teacher_usable_only: teacherUsableOnly, minimum_score: 60 });
     state.competitorFinder.items = Array.isArray(result?.items) ? result.items : [];
     state.competitorFinder.searchKeyword = result?.search_keyword || normalizedKeyword;
     state.competitorFinder.channel = result?.channel || channel;
     state.competitorFinder.channelLabel = result?.channel_label || channelLabel;
+    state.competitorFinder.contentForm = result?.content_form || contentForm;
+    state.competitorFinder.contentFormLabel = contentFormLabels[state.competitorFinder.contentForm] || contentFormLabels.talking_or_vlog;
+    state.competitorFinder.teacherUsableOnly = result?.teacher_usable_only !== false;
     if (result?.quota) state.competitorQuota = { ...state.competitorQuota, ...result.quota, loaded: true, loading: false };
     competitorRadarSignalWords = Array.from(new Set([normalizedKeyword, ...state.competitorFinder.items.slice(0, 4).map((item) => item.author), '高赞内容', '高收藏', '同赛道账号', '口播结构'].map((item) => String(item || '').trim().slice(0, 10)).filter(Boolean))).slice(0, 10);
     if (!state.competitorFinder.items.length) $('competitorSearchStatus').textContent = `${channelLabel}本次确实没有返回与“${result?.search_keyword || normalizedKeyword}”相关的教育内容。请检查关键词是否过长、过于冷门，或换成具体学科和人群。`;
@@ -4110,7 +4522,7 @@ async function extractCompetitorTranscript(id) {
   renderCompetitorFinder();
   try {
     const result = await apiRequest('competitorTranscript', { video_id: id });
-    state.competitorFinder.transcripts[id] = { content: result?.transcript || '', degraded: Boolean(result?.degraded), notice: result?.notice || '' };
+    state.competitorFinder.transcripts[id] = { content: result?.transcript || '', degraded: Boolean(result?.degraded), provider: result?.provider || '', model: result?.model || '', notice: result?.notice || '' };
     if (!result?.transcript) throw new Error('未识别到可复制的口播文案');
   } catch (error) {
     state.competitorFinder.transcripts[id] = { error: error.message || '文案提取失败' };
@@ -4118,16 +4530,45 @@ async function extractCompetitorTranscript(id) {
   renderCompetitorFinder();
 }
 
-function openCompetitorCopyInAgent(id) {
+function renderCompetitorAgentPicker() {
+  const list = $('competitorAgentPickerList');
+  if (!list) return;
+  const agents = copyAgentDefinitions().filter((agent) => agent.status !== 'unpublished' && agent.tags?.includes('traffic') && agent.code !== 'content_compliance');
+  list.innerHTML = agents.map((agent, index) => `<button type="button" class="competitor-agent-picker-item" data-competitor-target-agent="${escapeHtml(agent.code)}"><span class="competitor-agent-picker-number">${String(index + 1).padStart(2, '0')}</span><span><strong>${escapeHtml(agent.name)}</strong><small>${escapeHtml(agent.description || agent.guide || '')}</small></span><em>带入 →</em></button>`).join('');
+}
+
+function openCompetitorAgentPicker(id) {
   const item = state.competitorFinder.items.find((entry) => String(entry.id) === String(id));
   const transcript = state.competitorFinder.transcripts[id]?.content;
   if (!item || !transcript) return;
-  $('copyAgent').value = 'education_vertical';
+  state.competitorAgentPicker = { open: true, item, transcript };
+  $('competitorAgentPickerSummary').textContent = `已提取《${item.title || '这条内容'}》的文案，共 ${transcript.length} 字。选择一个目标智能体，原文会作为参考素材带入。`;
+  renderCompetitorAgentPicker();
+  $('competitorAgentPicker').classList.remove('hidden');
+}
+
+function closeCompetitorAgentPicker() {
+  state.competitorAgentPicker = { open: false, item: null, transcript: '' };
+  $('competitorAgentPicker')?.classList.add('hidden');
+}
+
+function selectCompetitorTargetAgent(agentCode) {
+  const { item, transcript } = state.competitorAgentPicker || {};
+  if (!item || !transcript) return;
+  closeCompetitorAgentPicker();
+  $('copyAgent').value = agentCode;
   state.activeCopySessionId = null;
-  setPage('copy');
-  setCopyView('compose');
-  $('copyMaterial').value = `请参考下面竞品视频的表达结构和切入角度，结合我的真实业务改写成一条自己的教育短视频文案。不要照搬原句，也不要虚构事实。\n\n竞品标题：${item.title}\n竞品口播文案：\n${transcript}`;
-  $('copyMaterial').focus();
+  openCopyAgentFrom(agentCode, 'competitor');
+  window.setTimeout(() => {
+    const input = $('copyMaterial');
+    if (!input) return;
+    input.value = `请参考下面竞品视频的表达结构和切入角度，结合我的真实业务改写成一条自己的教育短视频文案。不要照搬原句，也不要虚构事实。\n\n竞品标题：${item.title}\n竞品口播文案：\n${transcript}`;
+    input.focus();
+  }, 80);
+}
+
+function openCompetitorCopyInAgent(id) {
+  openCompetitorAgentPicker(id);
 }
 
 function renderSalesProfiles() {
@@ -4205,30 +4646,89 @@ async function generateSalesStepGuide() {
   }
 }
 
+const salesStepCodes = ['icebreak', 'discovery', 'case', 'product', 'objection', 'close'];
+
+function defaultSalesStageState(profile) {
+  return {
+    current_step: 'icebreak',
+    completed_steps: [],
+    step_evidence: {},
+    facts: {},
+    disc_hypothesis: [{ style: String(profile?.disc || 'C').replace('DISC · ', ''), confidence: '初始', evidence: '仅根据开场设定，等待真实回复验证。' }],
+    missing_facts: ['孩子当前情况', '过往尝试', '期待变化'],
+    next_focus: '先用真实、具体的观察建立信任。'
+  };
+}
+
+function salesStageIndex(code) {
+  const index = salesStepCodes.indexOf(code);
+  return index < 0 ? 0 : index;
+}
+
+function salesStageText(stateValue) {
+  const current = salesStageIndex(stateValue?.current_step);
+  return `当前第 ${current + 1} 步 · ${salesSixSteps[current].title}`;
+}
+
+function renderSalesAttachments() {
+  const target = $('salesAttachmentList');
+  if (!target) return;
+  target.innerHTML = state.salesAttachments.map((item, index) => `<span class="sales-attachment"><img src="${item.dataUrl}" alt="${escapeHtml(item.name)}"/><span>${escapeHtml(item.name)}</span><button type="button" data-remove-sales-attachment="${index}" aria-label="移除 ${escapeHtml(item.name)}">×</button></span>`).join('');
+}
+
+async function addSalesAttachments(files) {
+  const selected = [...files];
+  if (!selected.length) return;
+  const available = 3 - state.salesAttachments.length;
+  if (available <= 0) return showToast('每次最多发送 3 张图片。');
+  const additions = [];
+  for (const file of selected.slice(0, available)) {
+    if (!copyImageMimeTypes.has(file.type) || !file.size || file.size > COPY_ATTACHMENT_MAX_IMAGE_BYTES) {
+      showToast('仅支持 JPG、PNG、WebP，且单张不超过 4MB。');
+      continue;
+    }
+    if (state.salesAttachments.some((item) => item.name === file.name && item.size === file.size)) continue;
+    additions.push({ name: file.name, size: file.size, dataUrl: await readImageFile(file) });
+  }
+  state.salesAttachments.push(...additions);
+  renderSalesAttachments();
+  if (additions.length) showToast(`已添加 ${additions.length} 张图片；AI 家长会基于图片内容继续对话。`);
+}
+
+function renderSalesMessageAttachments(message) {
+  const attachments = Array.isArray(message.attachments) ? message.attachments : [];
+  if (!attachments.length) return '';
+  return `<div class="sales-message-images">${attachments.map((item) => `<figure><img src="${item.dataUrl}" alt="${escapeHtml(item.name || '发送给家长的图片')}"/><figcaption>${escapeHtml(item.name || '图片素材')}</figcaption></figure>`).join('')}</div>`;
+}
+
 function renderSalesChat() {
   const session = state.salesSession;
   if (!session) return;
   const profile = salesProfiles[session.profileCode] || salesProfiles.rational;
   const isLocked = Boolean(session.awaitingReply || session.blocked || session.disengaged || session.reviewing || session.completed);
-  $('salesScenarioCard').innerHTML = `<span class="sales-profile-disc">${escapeHtml(profile.disc)} · 沟通假设</span><strong>${escapeHtml(profile.name)}</strong><p>${escapeHtml(profile.short)}</p><small>${escapeHtml(session.business)} · ${escapeHtml(session.product)}</small><div class="sales-scenario-method"><span>本轮重点</span><b>${escapeHtml(profile.methodology.coaching_focus)}</b></div>`;
+  const liveDisc = Array.isArray(session.stageState?.disc_hypothesis) && session.stageState.disc_hypothesis.length
+    ? session.stageState.disc_hypothesis.map((item) => `${item.style}${item.confidence ? `（${item.confidence}）` : ''}`).join(' · ')
+    : profile.disc;
+  $('salesScenarioCard').innerHTML = `<span class="sales-profile-disc">动态 DISC 假设</span><strong>${escapeHtml(profile.name)}</strong><p>${escapeHtml(profile.short)}</p><small>${escapeHtml(session.business)} · ${escapeHtml(session.product)}</small><div class="sales-scenario-method"><span>当前沟通判断</span><b>${escapeHtml(liveDisc)}</b><small>${escapeHtml(session.stageState?.next_focus || profile.methodology.coaching_focus)}</small></div>`;
   $('salesChatTitle').textContent = `${profile.name} · 模拟对话`;
   $('salesLiveStatus').textContent = session.blocked ? '已拉黑' : session.disengaged ? '用户不想理你' : session.reviewing ? '报告生成中' : session.completed ? '已完成' : session.awaitingReply ? '对方输入中' : '进行中';
   $('salesLiveStatus').classList.toggle('typing', Boolean(session.awaitingReply));
   $('salesLiveStatus').classList.toggle('blocked', Boolean(session.blocked));
   $('salesLiveStatus').classList.toggle('disengaged', Boolean(session.disengaged));
   $('salesInput').disabled = isLocked;
+  $('addSalesMaterial').disabled = isLocked;
   $('toggleSalesEmojiPicker').disabled = isLocked;
   $('sendSalesMessage').disabled = isLocked;
   $('endSalesSimulation').disabled = isLocked;
   $('salesEmojiPicker').classList.toggle('hidden', !state.salesEmojiPickerOpen || isLocked);
   $('toggleSalesEmojiPicker').setAttribute('aria-expanded', String(state.salesEmojiPickerOpen && !isLocked));
   $('salesOutcomeOverlay').classList.toggle('hidden', !session.showDisengagedOutcomeOverlay);
-  const userTurns = session.messages.filter((item) => item.role === 'user').length;
-  const stepIndex = Math.min(salesSixSteps.length - 1, Math.max(0, userTurns));
-  $('salesProgressText').textContent = `建议第 ${stepIndex + 1} 步`;
+  const stepIndex = salesStageIndex(session.stageState?.current_step);
+  const doneCodes = new Set(session.stageState?.completed_steps || []);
+  $('salesProgressText').textContent = salesStageText(session.stageState);
   $('salesProgressBar').style.width = `${Math.max(12, ((stepIndex + 1) / salesSixSteps.length) * 100)}%`;
-  $('salesSixSteps').innerHTML = salesSixSteps.map((step, index) => `<li class="${index < stepIndex ? 'done' : index === stepIndex ? 'current' : ''}"><span>${index + 1}</span><div><strong>${step.title}</strong><small>${step.hint}</small></div></li>`).join('');
-  const completedMessages = session.messages.map((message) => `<article class="sales-message ${message.role}"><span class="sales-message-label">${message.role === 'user' ? '你' : profile.name}</span><div>${escapeHtml(message.content)}</div></article>`).join('');
+  $('salesSixSteps').innerHTML = salesSixSteps.map((step, index) => `<li class="${doneCodes.has(salesStepCodes[index]) ? 'done' : index === stepIndex ? 'current' : ''}"><span>${index + 1}</span><div><strong>${step.title}</strong><small>${step.hint}</small></div></li>`).join('');
+  const completedMessages = session.messages.map((message) => `<article class="sales-message ${message.role}"><span class="sales-message-label">${message.role === 'user' ? '你' : profile.name}</span><div>${escapeHtml(message.content)}${renderSalesMessageAttachments(message)}</div></article>`).join('');
   const pendingReply = session.awaitingReply ? `
     <article class="sales-message parent pending" aria-label="${escapeHtml(profile.name)}正在思考">
       <span class="sales-message-label">${escapeHtml(profile.name)}</span>
@@ -4401,12 +4901,14 @@ async function endSalesSessionForOutcome(session, outcome) {
 
 async function sendSalesMessage() {
   const message = value('salesInput');
-  if (!message || !state.salesSession || state.salesSession.awaitingReply || state.salesSession.blocked || state.salesSession.disengaged || state.salesSession.reviewing || state.salesSession.completed) return;
+  if ((!message && !state.salesAttachments.length) || !state.salesSession || state.salesSession.awaitingReply || state.salesSession.blocked || state.salesSession.disengaged || state.salesSession.reviewing || state.salesSession.completed) return;
   const session = state.salesSession;
-  session.messages.push({ role: 'user', content: message });
+  const attachments = state.salesAttachments.splice(0);
+  session.messages.push({ role: 'user', content: message || '我发一张图片给您参考。', attachments });
   session.awaitingReply = true;
   state.salesEmojiPickerOpen = false;
   $('salesInput').value = '';
+  renderSalesAttachments();
   renderSalesChat();
   setButtonLoading('sendSalesMessage', true, '…');
   const outcome = assessSalesConversationOutcome(message);
@@ -4423,9 +4925,12 @@ async function sendSalesMessage() {
       product: session.product,
       difficulty: session.difficulty,
       message,
-      history: session.messages.slice(-12)
+      attachments: attachments.map((item) => ({ file_name: item.name, data_url: item.dataUrl })),
+      stage_state: session.stageState,
+      history: session.messages.slice(-16)
     });
     session.messages.push({ role: 'parent', content: formatParentReply(result?.content || mockSalesReply(session), session) });
+    if (result?.sales_state && typeof result.sales_state === 'object') session.stageState = result.sales_state;
   } catch (error) {
     session.messages.push({ role: 'parent', content: formatParentReply(mockSalesReply(session), session) });
   } finally {
@@ -4449,10 +4954,13 @@ async function startSalesSimulation() {
     reviewing: false,
     completed: false,
     outcome: salesConversationOutcomes.normal,
+    stageState: defaultSalesStageState(salesProfiles[activeProfile]),
     messages: [{ role: 'parent', content: salesProfiles[activeProfile].opening }]
   };
   setSalesView('chat');
   state.salesEmojiPickerOpen = false;
+  state.salesAttachments = [];
+  renderSalesAttachments();
   renderSalesChat();
 }
 
@@ -4472,6 +4980,7 @@ async function endSalesSimulation() {
       business: session.business,
       product: session.product,
       difficulty: session.difficulty,
+      stage_state: session.stageState,
       conversation_outcome: session.outcome,
       history: session.messages
     });
@@ -4494,6 +5003,15 @@ async function endSalesSimulation() {
 }
 
 function bindEvents() {
+  $('pageBack').addEventListener('click', () => {
+    if (state.page === 'copy' && state.copyView === 'compose') {
+      returnFromCopyAgent();
+      return;
+    }
+    let target = pageTrail.pop();
+    while (target && !canUsePage(target)) target = pageTrail.pop();
+    setPage(target || 'home', { goingBack: true });
+  });
   $('openLoginModal').addEventListener('click', () => {
     setLoginMode('login');
     $('loginModal').classList.remove('hidden');
@@ -4506,6 +5024,10 @@ function bindEvents() {
   $('recordDetailModal').addEventListener('click', (event) => {
     if (event.target === $('recordDetailModal')) closeRecordDetail();
   });
+  $('closeCompetitorAgentPicker').addEventListener('click', closeCompetitorAgentPicker);
+  $('competitorAgentPicker').addEventListener('click', (event) => {
+    if (event.target === $('competitorAgentPicker')) closeCompetitorAgentPicker();
+  });
   $('copyRecordDetail').addEventListener('click', () => copyText($('recordDetailContent').textContent || ''));
   $('goToRecordTool').addEventListener('click', () => {
     const record = state.records.find((item) => String(item.id) === String(state.selectedRecordId));
@@ -4513,22 +5035,42 @@ function bindEvents() {
     if (record) setPage(recordPage(record.type || ''));
   });
   document.body.addEventListener('click', (event) => {
+    const scrollButton = event.target.closest('[data-scroll-to]');
+    if (scrollButton) {
+      const target = document.getElementById(scrollButton.dataset.scrollTo);
+      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
     const recordOpenButton = event.target.closest('[data-record-open]');
     if (recordOpenButton) {
       openRecordDetail(recordOpenButton.dataset.recordOpen);
       return;
     }
     const button = event.target.closest('[data-page]');
+    const agentEntry = event.target.closest('[data-copy-agent]');
+    if (agentEntry && state.user) {
+      openCopyAgentFrom(agentEntry.dataset.copyAgent, state.page);
+      return;
+    }
     if (button && state.user) {
-      setPage(button.dataset.page);
-      // 工作流卡片可以一步进入指定的文案智能体，而不是让学员再找一次入口。
-      if (button.dataset.copyAgent && button.dataset.page === 'copy') {
-        $('copyAgent').value = button.dataset.copyAgent;
-        state.activeCopySessionId = null;
-        state.copyOriginPage = '';
-        renderCopyConversation(null);
-        setCopyView('compose');
+      if (button.dataset.pipiStarter && button.dataset.page === 'pipi') {
+        setPage('pipi');
+        window.setTimeout(() => {
+          $('pipiInput').value = button.dataset.pipiStarter;
+          $('pipiInput').focus();
+        }, 0);
+        return;
       }
+      // 从任一业务板块进入智能体时，保留来源；返回优先回到该板块，而不是智能体广场。
+      if (button.dataset.copyAgent && button.dataset.page === 'copy') {
+        openCopyAgentFrom(button.dataset.copyAgent, state.page);
+        return;
+      }
+      if (button.closest('.sidebar') && button.dataset.page === 'copy') {
+        state.copyView = 'gallery';
+        state.copyOriginPage = '';
+      }
+      setPage(button.dataset.page);
     }
     const wechatHubButton = event.target.closest('[data-wechat-hub-agent]');
     if (wechatHubButton && state.user) {
@@ -4559,10 +5101,24 @@ function bindEvents() {
     if (extractButton && state.user) extractCompetitorTranscript(extractButton.dataset.competitorExtract);
     const copyButton = event.target.closest('[data-competitor-copy]');
     if (copyButton) copyText(state.competitorFinder.transcripts[copyButton.dataset.competitorCopy]?.content || '');
-    const testCredentialsButton = event.target.closest('[data-copy-test-credentials]');
-    if (testCredentialsButton) copyText(decodeURIComponent(testCredentialsButton.dataset.copyTestCredentials || ''));
     const toAgentButton = event.target.closest('[data-competitor-to-agent]');
     if (toAgentButton && state.user) openCompetitorCopyInAgent(toAgentButton.dataset.competitorToAgent);
+    const targetAgentButton = event.target.closest('[data-competitor-target-agent]');
+    if (targetAgentButton && state.user) selectCompetitorTargetAgent(targetAgentButton.dataset.competitorTargetAgent);
+    const materialFilterButton = event.target.closest('[data-material-filter]');
+    if (materialFilterButton && state.user) {
+      state.materialLibrary.filter = materialFilterButton.dataset.materialFilter || '全部';
+      state.materialLibrary.page = 1;
+      renderMaterialLibrary();
+    }
+    const materialPageButton = event.target.closest('[data-material-page]');
+    if (materialPageButton && state.user && !materialPageButton.disabled) {
+      state.materialLibrary.page = Number(materialPageButton.dataset.materialPage) || 1;
+      renderMaterialLibrary();
+      $('materialLibraryList')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    const materialUseButton = event.target.closest('[data-material-use]');
+    if (materialUseButton && state.user) useMaterialInCopy(materialUseButton.dataset.materialUse);
   });
   $('loginButton').addEventListener('click', loginWithPassword);
   $('registerButton').addEventListener('click', registerAccount);
@@ -4588,6 +5144,25 @@ function bindEvents() {
     setPage('home');
   });
   $('sendPipi').addEventListener('click', sendPipi);
+  $('pipiMessages').addEventListener('click', (event) => {
+    const editButton = event.target.closest('[data-pipi-edit-message]');
+    if (editButton) {
+      state.pipiEditing = Number(editButton.dataset.pipiEditMessage);
+      renderPipiConversation();
+      requestAnimationFrame(() => document.querySelector('[data-pipi-edit-input]')?.focus());
+      return;
+    }
+    if (event.target.closest('[data-pipi-edit-cancel]')) {
+      state.pipiEditing = null;
+      renderPipiConversation();
+      return;
+    }
+    const regenerateButton = event.target.closest('[data-pipi-edit-regenerate]');
+    if (regenerateButton) {
+      const index = Number(regenerateButton.dataset.pipiEditRegenerate);
+      regeneratePipiMessage(index, document.querySelector(`[data-pipi-edit-input="${index}"]`)?.value);
+    }
+  });
   $('pipiInput').addEventListener('keydown', (event) => {
     if (event.isComposing || event.keyCode === 229) return;
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -4620,6 +5195,11 @@ function bindEvents() {
   $('drawGacha').addEventListener('click', drawGacha);
   $('drawAgain').addEventListener('click', drawGacha);
   $('useGachaResult').addEventListener('click', useGachaResult);
+  $('materialLibrarySearch')?.addEventListener('input', (event) => {
+    state.materialLibrary.search = event.target.value || '';
+    state.materialLibrary.page = 1;
+    renderMaterialLibrary();
+  });
   $('gachaInventory').addEventListener('click', (event) => {
     const button = event.target.closest('[data-gacha-delete]');
     if (button) deleteGachaCapsule(button.dataset.gachaDelete);
@@ -4651,35 +5231,15 @@ function bindEvents() {
     $('coachSopResult').classList.remove('dragging');
   }));
   window.addEventListener('resize', () => window.requestAnimationFrame(renderCoachMindmapLinks));
-  $('selectCoachMomentPhoto').addEventListener('click', () => $('coachMomentPhoto').click());
-  $('coachMomentPhoto').addEventListener('change', (event) => handleCoachMomentPhoto(event.target.files?.[0]));
   $('generateCoachMoment').addEventListener('click', generateCoachMoment);
-  $('generateCoachMomentImage').addEventListener('click', generateCoachMomentImage);
   $('copyCoachMoment').addEventListener('click', () => copyText($('coachMomentCopy').innerText));
-  $('downloadCoachMoment').addEventListener('click', downloadCoachMomentPoster);
-  $('coachMomentCopy').addEventListener('input', () => renderCoachMomentPoster());
-  $('coachMomentStage').addEventListener('input', () => renderCoachMomentPoster());
-  $('coachMomentPrivacy').addEventListener('change', () => {
-    if (state.coachMomentProcessedImageDataUrl) {
-      state.coachMomentProcessedImageDataUrl = '';
-      $('coachMomentPhotoStatus').textContent = '隐私设置已更新，请重新生成图片以应用新的处理方式。';
-    }
-    renderCoachMomentPoster();
-  });
   document.querySelectorAll('[data-coach-tool-target]').forEach((button) => button.addEventListener('click', () => {
     document.querySelectorAll('[data-coach-tool-target]').forEach((item) => item.classList.toggle('active', item === button));
     document.getElementById(button.dataset.coachToolTarget)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }));
   $('generateCopy').addEventListener('click', generateCopy);
   bindCopyAttachmentInput();
-  $('backToCopyAgents').addEventListener('click', () => {
-    if (state.copyOriginPage === 'wechat') {
-      state.copyOriginPage = '';
-      setPage('wechat');
-      return;
-    }
-    setCopyView('gallery');
-  });
+  $('backToCopyAgents').addEventListener('click', returnFromCopyAgent);
   $('copyNewSession').addEventListener('click', () => {
     state.activeCopySessionId = null;
     renderCopyConversation(null);
@@ -4689,6 +5249,42 @@ function bindEvents() {
     renderCopySessions();
   });
   document.body.addEventListener('click', (event) => {
+    const editMessageButton = event.target.closest('[data-copy-edit-message]');
+    if (editMessageButton) {
+      const session = state.copySessions.find((item) => item.id === state.activeCopySessionId);
+      if (!session) return;
+      state.copyEditing = { sessionId: session.id, messageIndex: Number(editMessageButton.dataset.copyEditMessage) };
+      renderCopyConversation(session);
+      requestAnimationFrame(() => document.querySelector('[data-copy-edit-input]')?.focus());
+      return;
+    }
+    if (event.target.closest('[data-copy-edit-cancel]')) {
+      state.copyEditing = null;
+      const session = state.copySessions.find((item) => item.id === state.activeCopySessionId);
+      renderCopyConversation(session);
+      return;
+    }
+    const regenerateButton = event.target.closest('[data-copy-edit-regenerate]');
+    if (regenerateButton) {
+      const session = state.copySessions.find((item) => item.id === state.activeCopySessionId);
+      const editor = document.querySelector(`[data-copy-edit-input="${regenerateButton.dataset.copyEditRegenerate}"]`);
+      regenerateCopyMessage(session?.id, Number(regenerateButton.dataset.copyEditRegenerate), editor?.value);
+      return;
+    }
+    if (event.target.closest('[data-export-xiaohongshu-cards]')) {
+      exportXiaohongshuCards();
+      return;
+    }
+    const productIntake = event.target.closest('[data-product-intake]');
+    if (productIntake) {
+      const guide = productAgentIntakeGuides[productIntake.dataset.productIntake];
+      if (guide) {
+        $('copyMaterial').value = guide.template;
+        $('copyMaterial').focus();
+        $('copyPromptBox')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
     const starter = event.target.closest('[data-copy-starter]');
     if (starter) {
       $('copyMaterial').value = starter.dataset.copyStarter;
@@ -4706,14 +5302,7 @@ function bindEvents() {
   });
   $('copyCopywriting').addEventListener('click', () => copyText($('copyResult').innerText));
   $('exportCopywriting').addEventListener('click', () => downloadText(timestampName('皮皮文案'), $('copyResult').innerText));
-  $('backFromWechatLayout').addEventListener('click', () => {
-    if (state.copyOriginPage === 'wechat') {
-      state.copyOriginPage = '';
-      setPage('wechat');
-      return;
-    }
-    setCopyView('gallery');
-  });
+  $('backFromWechatLayout').addEventListener('click', returnFromCopyAgent);
   $('generateWechatLayout').addEventListener('click', generateWechatLayout);
   $('wechatLayoutArticle').addEventListener('input', () => {
     state.wechatLayout.article = value('wechatLayoutArticle');
@@ -4746,51 +5335,53 @@ function bindEvents() {
     $('wechatLayoutStatus').textContent = '原稿已清空，可以粘贴新的 Markdown / TXT 文章。';
     if (state.wechatLayout.layout) $('resetWechatLayout').click();
   });
-  const updateWechatLayoutSetting = () => {
-    const settings = state.wechatLayout.settings;
-    settings.fontSize = Number($('wechatFontSize').value);
-    settings.lineHeight = Number($('wechatLineHeight').value);
-    settings.fontFamily = $('wechatFontFamily').value;
-    settings.fixedEndingEnabled = $('wechatFixedEndingEnabled').checked;
-    settings.fixedEnding = $('wechatFixedEnding').value;
-    $('wechatFontSizeValue').textContent = `${settings.fontSize}px`;
-    $('wechatLineHeightValue').textContent = settings.lineHeight.toFixed(1);
-    if (state.wechatLayout.layout) refreshWechatLayoutPreview();
-  };
-  ['wechatFontSize', 'wechatLineHeight', 'wechatFontFamily', 'wechatFixedEndingEnabled', 'wechatFixedEnding'].forEach((id) => $(id).addEventListener('input', updateWechatLayoutSetting));
-  $('wechatAccentColor').addEventListener('input', () => { state.wechatLayout.settings.accent = $('wechatAccentColor').value; if (state.wechatLayout.layout) refreshWechatLayoutPreview(); });
-  document.querySelector('.wechat-editor-tools .wechat-color-row').addEventListener('click', (event) => {
-    const button = event.target.closest('[data-wechat-color]');
-    if (!button) return;
-    state.wechatLayout.settings.bodyColor = button.dataset.wechatColor;
-    document.querySelectorAll('[data-wechat-color]').forEach((item) => item.classList.toggle('active', item === button));
-    if (state.wechatLayout.layout) refreshWechatLayoutPreview();
-  });
   const syncReferenceSetting = () => {
     const settings = state.wechatLayout.settings;
     settings.fontSize = Number($('wechatFontSizeRef').value);
     settings.lineHeight = Number($('wechatLineHeightRef').value);
     settings.fontFamily = $('wechatFontFamilyRef').value;
     settings.accent = $('wechatAccentColorRef').value;
-    $('wechatFontSize').value = settings.fontSize;
-    $('wechatLineHeight').value = settings.lineHeight;
-    $('wechatFontFamily').value = settings.fontFamily;
-    $('wechatAccentColor').value = settings.accent;
-    $('wechatFontSizeValue').textContent = `${settings.fontSize}px`;
-    $('wechatLineHeightValue').textContent = settings.lineHeight.toFixed(1);
     $('wechatFontSizeRefValue').textContent = `${settings.fontSize}px`;
     $('wechatLineHeightRefValue').textContent = settings.lineHeight.toFixed(1);
     if (state.wechatLayout.layout) refreshWechatLayoutPreview();
   };
   ['wechatFontSizeRef', 'wechatLineHeightRef', 'wechatFontFamilyRef', 'wechatAccentColorRef'].forEach((id) => $(id).addEventListener('input', syncReferenceSetting));
   $('wechatFontFamilyRef').addEventListener('change', syncReferenceSetting);
+  $('wechatChapterStyleRef').addEventListener('change', () => {
+    state.wechatLayout.settings.chapterStyle = $('wechatChapterStyleRef').value;
+    if (state.wechatLayout.layout) refreshWechatLayoutPreview();
+  });
   document.querySelector('.wechat-reference-settings').addEventListener('click', (event) => {
     const button = event.target.closest('[data-wechat-color-ref]');
     if (!button) return;
     state.wechatLayout.settings.bodyColor = button.dataset.wechatColorRef;
     document.querySelectorAll('[data-wechat-color-ref]').forEach((item) => item.classList.toggle('active', item === button));
-    document.querySelectorAll('[data-wechat-color]').forEach((item) => item.classList.toggle('active', item.dataset.wechatColor === button.dataset.wechatColorRef));
     if (state.wechatLayout.layout) refreshWechatLayoutPreview();
+  });
+  $('wechatAuthorProfile').addEventListener('click', () => {
+    const picker = document.createElement('input');
+    picker.type = 'file';
+    picker.accept = 'image/jpeg,image/png,image/webp';
+    picker.onchange = () => {
+      const file = picker.files?.[0];
+      picker.remove();
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) {
+        $('wechatLayoutStatus').textContent = '署名头像未更新：请使用小于 2MB 的 JPG、PNG 或 WebP 图片。';
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        state.wechatLayout.settings.authorAvatar = String(reader.result || '');
+        state.wechatLayout.settings.authorName = state.personal.profile?.name || state.user?.name || '皮皮老师';
+        if (state.wechatLayout.layout) refreshWechatLayoutPreview();
+        $('wechatLayoutStatus').textContent = '文章署名头像已更新，当前预览和复制成品都会使用这张头像。';
+      };
+      reader.onerror = () => { $('wechatLayoutStatus').textContent = '署名头像读取失败，请重新选择。'; };
+      reader.readAsDataURL(file);
+    };
+    document.body.appendChild(picker);
+    picker.click();
   });
   $('selectWechatLayoutImages').addEventListener('click', () => $('wechatLayoutImages').click());
   $('wechatLayoutImages').addEventListener('change', (event) => {
@@ -4865,7 +5456,7 @@ function bindEvents() {
       title.textContent = '所有配色，都在这里完成';
       text.textContent = '选择一组主视觉配色，强调色会同步到章节标题、引用和预览工具栏。';
       body.innerHTML = `<div class="wechat-reference-palette-grid">
-        <button type="button" data-ref-palette="#B55E32"><span style="background:linear-gradient(90deg,#B55E32 0 55%,#F6DFAA 55%)"></span><strong>PIPI 主视觉</strong><small>陶土橙 · 奶油米白</small></button>
+        <button type="button" data-ref-palette="#255B9C"><span style="background:linear-gradient(90deg,#255B9C 0 55%,#FFDC46 55%)"></span><strong>PIPI 主视觉</strong><small>专栏蓝 · 明亮黄</small></button>
         <button type="button" data-ref-palette="#e45d43"><span style="background:linear-gradient(90deg,#e1b447 0 34%,#438da0 34% 67%,#e45d43 67%)"></span><strong>复古潮流</strong><small>复古黄 · 湖蓝 · 番茄红</small></button>
         <button type="button" data-ref-palette="#a94845"><span style="background:linear-gradient(90deg,#a94845 0 50%,#6f8ca3 50%)"></span><strong>红蓝 CP</strong><small>复古红 · 雾霾蓝</small></button>
         <button type="button" data-ref-palette="#f28a39"><span style="background:linear-gradient(90deg,#f28a39 0 50%,#6ea8d4 50%)"></span><strong>活力橙</strong><small>活力橙 · 清透蓝</small></button>
@@ -4873,7 +5464,6 @@ function bindEvents() {
       body.querySelectorAll('[data-ref-palette]').forEach((item) => item.addEventListener('click', () => {
         const color = item.dataset.refPalette;
         state.wechatLayout.settings.accent = color;
-        $('wechatAccentColor').value = color;
         $('wechatAccentColorRef').value = color;
         if (state.wechatLayout.layout) refreshWechatLayoutPreview();
         $('wechatLayoutStatus').textContent = '配色已应用到当前公众号预览。';
@@ -4887,8 +5477,6 @@ function bindEvents() {
       body.querySelector('#wechatModalEndingSave').addEventListener('click', () => {
         state.wechatLayout.settings.fixedEndingEnabled = body.querySelector('#wechatModalEndingEnabled').checked;
         state.wechatLayout.settings.fixedEnding = body.querySelector('#wechatModalEnding').value;
-        $('wechatFixedEndingEnabled').checked = state.wechatLayout.settings.fixedEndingEnabled;
-        $('wechatFixedEnding').value = state.wechatLayout.settings.fixedEnding;
         if (state.wechatLayout.layout) refreshWechatLayoutPreview();
         $('wechatLayoutStatus').textContent = state.wechatLayout.settings.fixedEndingEnabled ? '固定结尾已启用。' : '固定结尾已关闭。';
         closeWechatModal();
@@ -4905,10 +5493,20 @@ function bindEvents() {
   $('competitorSearchInput').addEventListener('keydown', (event) => {
     if (event.key === 'Enter') searchCompetitorFinder();
   });
+  $('competitorAccountDiagnoseButton')?.addEventListener('click', () => diagnoseCompetitorAccount());
+  $('competitorAccountUrl')?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') diagnoseCompetitorAccount();
+  });
   renderSalesProfiles();
   renderSalesEmojiPicker();
+  renderSalesAttachments();
   $('startSalesSimulation').addEventListener('click', startSalesSimulation);
   $('sendSalesMessage').addEventListener('click', sendSalesMessage);
+  $('addSalesMaterial').addEventListener('click', () => $('salesFiles').click());
+  $('salesFiles').addEventListener('change', async (event) => {
+    await addSalesAttachments(event.target.files || []);
+    event.target.value = '';
+  });
   $('toggleSalesEmojiPicker').addEventListener('click', toggleSalesEmojiPicker);
   $('continueToSalesReport').addEventListener('click', continueToSalesReport);
   $('endSalesSimulation').addEventListener('click', endSalesSimulation);
@@ -4922,6 +5520,12 @@ function bindEvents() {
     const emojiButton = event.target.closest('[data-sales-emoji]');
     if (methodButton) openSalesMethodStep(methodButton.dataset.salesMethod);
     if (emojiButton) insertSalesEmoji(emojiButton.dataset.salesEmoji);
+    const removeAttachment = event.target.closest('[data-remove-sales-attachment]');
+    if (removeAttachment) {
+      state.salesAttachments.splice(Number(removeAttachment.dataset.removeSalesAttachment), 1);
+      renderSalesAttachments();
+      return;
+    }
     if (libraryCopyButton) {
       const details = getSalesMethodDetails();
       const detail = details[state.activeSalesMethod] || details.icebreak;
@@ -4934,6 +5538,11 @@ function bindEvents() {
       event.preventDefault();
       sendSalesMessage();
     }
+  });
+  ['dragenter', 'dragover'].forEach((eventName) => $('salesInput').addEventListener(eventName, (event) => event.preventDefault()));
+  $('salesInput').addEventListener('drop', async (event) => {
+    event.preventDefault();
+    await addSalesAttachments(event.dataTransfer?.files || []);
   });
   $('salesProfileGrid').addEventListener('click', (event) => {
     const card = event.target.closest('[data-sales-profile]');
@@ -5101,26 +5710,28 @@ function bindEvents() {
       alert(error.message);
     }
   });
-  $('seedTestUsers').addEventListener('click', async () => {
-    const password = value('testUserPassword');
-    if (password.length < 8) return alert('测试账号密码至少需要 8 位');
-    try {
-      const result = await apiRequest('adminUsers', { password, count: 10 }, { path: '/api/admin/users/seed-test' });
-      const credentials = result?.credentials || [];
-      const skipped = result?.skipped || [];
-      await loadAdminConfig();
-      const text = credentials.map((item) => `${item.account} / ${item.password}`).join('\n');
-      const panel = $('testCredentials');
-      panel.classList.remove('hidden');
-      panel.innerHTML = credentials.length
-        ? `<div><strong>本次测试账号（请立即复制保存）</strong><small>为安全起见，刷新页面后不会再次显示明文密码。</small></div><code>${escapeHtml(text)}</code><button class="secondary mini" data-copy-test-credentials="${encodeURIComponent(text)}">复制全部账号密码</button>${skipped.length ? `<small>未覆盖同名真实账号：${escapeHtml(skipped.join('、'))}</small>` : ''}`
-        : `<strong>没有创建新测试账号</strong><small>${skipped.length ? `同名账号未被覆盖：${escapeHtml(skipped.join('、'))}` : '请稍后重试。'}</small>`;
-    } catch (error) {
-      alert(error.message);
-    }
-  });
   $('refreshSiliconModels').addEventListener('click', () => refreshProviderModels('siliconflow'));
   $('refreshArkModels').addEventListener('click', () => alert('Ark Plan 已接入 OpenAI-compatible Plan 接口。文案智能体当前展示为 Doubao Seed 2.1，实际调用 Plan 可用入口 ark-code-latest；Ark Plan 不使用 /models 自动探测。'));
+  $('runImageProxyTest').addEventListener('click', async () => {
+    const prompt = value('imageProxyTestPrompt');
+    if (!prompt) return alert('请先输入图片描述。');
+    const status = $('imageProxyTestStatus');
+    const resultBox = $('imageProxyTestResult');
+    const button = $('runImageProxyTest');
+    button.disabled = true;
+    status.textContent = '正在生成，中转站首次生成可能需要 1–3 分钟，请不要重复点击…';
+    resultBox.classList.add('hidden');
+    try {
+      const result = await apiRequest('adminImageProxyTest', { prompt }, { timeoutMs: 255000, retryCount: 0 });
+      resultBox.innerHTML = `<img src="${result.image_data_url}" alt="GPT 图片生成测试结果" /><p>已由 ${escapeHtml(result.model || '图片模型')} 生成 · ${Math.round((result.latency_ms || 0) / 1000)} 秒</p>`;
+      resultBox.classList.remove('hidden');
+      status.textContent = '测试成功';
+    } catch (error) {
+      status.textContent = error.message || '测试失败';
+    } finally {
+      button.disabled = false;
+    }
+  });
   $('addPrompt').addEventListener('click', async () => {
     const name = value('newPromptName');
     const content = value('newPromptContent');
@@ -5146,6 +5757,7 @@ function bindEvents() {
     const userToggleButton = event.target.closest('[data-user-toggle]');
     const userSaveButton = event.target.closest('[data-user-save]');
     const userResetButton = event.target.closest('[data-user-reset]');
+    const userDeleteButton = event.target.closest('[data-user-delete]');
     if (moduleButton) {
       state.adminModule = moduleButton.dataset.adminModule;
       renderAdminConfig();
@@ -5224,6 +5836,21 @@ function bindEvents() {
         alert(error.message);
       }
     }
+    if (userDeleteButton) {
+      const userId = userDeleteButton.dataset.userDelete;
+      const account = userDeleteButton.dataset.userAccount || '该账号';
+      const confirmationPassword = window.prompt(`删除账号「${account}」后，该账号的生成记录、密码重置申请和个人资料将无法恢复。\n请输入删除确认密码：`);
+      if (confirmationPassword === null) return;
+      if (!confirmationPassword) return alert('请输入删除确认密码');
+      if (!window.confirm(`请再次确认：确定永久删除账号「${account}」吗？`)) return;
+      try {
+        await apiRequest('adminUsers', { confirmation_password: confirmationPassword }, { method: 'DELETE', path: `/api/admin/users/${encodeURIComponent(userId)}` });
+        showToast(`账号「${account}」已删除`);
+        await loadAdminConfig();
+      } catch (error) {
+        alert(error.message);
+      }
+    }
   });
 }
 
@@ -5234,4 +5861,78 @@ document.addEventListener('visibilitychange', () => {
 });
 initSilkMotion();
 initCompetitorRadar();
+// 皮皮答疑输入：附件与文案智能体分别保存，避免跨工具混入资料。
+let pipiMaterials = [];
+let pipiLastReply = '';
+function clearPipiMaterials() {
+  pipiMaterials = [];
+  renderPipiMaterials();
+}
+function renderPipiMaterials() {
+  const target = document.getElementById('pipiMaterials');
+  if (!target) return;
+  target.replaceChildren();
+  pipiMaterials.forEach((item, index) => {
+    const chip = document.createElement('span');
+    chip.className = 'copy-attachment';
+    if (item.kind === 'image') {
+      const img = document.createElement('img'); img.src = item.dataUrl; img.alt = item.name; chip.append(img);
+    }
+    const displayName = item.kind === 'image' && /^[a-f0-9]{16,}(?:\.[a-z0-9]{2,5})?$/i.test(item.name)
+      ? `图片素材 ${index + 1}`
+      : item.name;
+    const name = document.createElement('span'); name.textContent = displayName; name.title = item.name; name.className = 'copy-attachment-name'; chip.append(name);
+    const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '×'; remove.setAttribute('aria-label', `移除${item.name}`);
+    remove.onclick = () => { pipiMaterials.splice(index, 1); renderPipiMaterials(); }; chip.append(remove); target.append(chip);
+  });
+}
+async function addPipiMaterials(files) {
+  if (document.getElementById('sendPipi').disabled) return showToast('请等本次回复完成再添加资料');
+  for (const file of files) {
+    if (pipiMaterials.length >= 5) { showToast('每轮最多 5 份资料'); break; }
+    const kind = copyAttachmentKind(file);
+    if (!kind || !file.size || file.size > (kind === 'image' ? 4 : 5) * 1024 * 1024) {
+      showToast('支持 JPG/PNG/WebP（4MB）和 TXT/MD/CSV/RTF/DOCX（5MB）'); continue;
+    }
+    if (kind === 'image' && pipiMaterials.filter(x => x.kind === 'image').length >= 3) { showToast('每轮最多 3 张图片'); continue; }
+    if (pipiMaterials.some(x => x.name === file.name && x.size === file.size)) continue;
+    pipiMaterials.push({ name: file.name, size: file.size, kind, dataUrl: await readImageFile(file) });
+  }
+  renderPipiMaterials();
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const box = document.getElementById('pipiComposer');
+  const input = document.getElementById('pipiInput');
+  const files = document.getElementById('pipiFiles');
+  document.getElementById('pipiAttach').onclick = () => files.click();
+  files.onchange = async () => { await addPipiMaterials([...files.files]); files.value = ''; };
+  box.addEventListener('dragover', event => { event.preventDefault(); box.classList.add('drag-over'); });
+  box.addEventListener('dragleave', () => box.classList.remove('drag-over'));
+  box.addEventListener('drop', event => { event.preventDefault(); box.classList.remove('drag-over'); addPipiMaterials([...event.dataTransfer.files]); });
+  input.addEventListener('paste', event => {
+    const pasted = [...(event.clipboardData?.files || [])];
+    if (pasted.length) { event.preventDefault(); addPipiMaterials(pasted); }
+  });
+  const picker = document.getElementById('pipiEmojiPicker');
+  const toggle = document.getElementById('pipiEmoji');
+  toggle.onclick = () => { picker.hidden = !picker.hidden; toggle.setAttribute('aria-expanded', String(!picker.hidden)); };
+  salesEmojiSet.forEach(emoji => {
+    const button = document.createElement('button'); button.type = 'button'; button.textContent = emoji; button.setAttribute('aria-label', `插入${emoji}`);
+    button.onclick = () => { input.setRangeText(emoji, input.selectionStart, input.selectionEnd, 'end'); input.focus(); picker.hidden = true; toggle.setAttribute('aria-expanded', 'false'); };
+    picker.append(button);
+  });
+  const voice = document.getElementById('pipiVoice');
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition, listening = false;
+  voice.onclick = () => {
+    if (!Recognition) return showToast('当前浏览器不支持语音输入，可使用系统键盘听写');
+    if (listening) { recognition.stop(); return; }
+    recognition = new Recognition(); recognition.lang = 'zh-CN'; recognition.interimResults = false;
+    recognition.onresult = event => { input.value += event.results[0][0].transcript; input.focus(); };
+    recognition.onend = () => { listening = false; voice.textContent = '语音输入'; };
+    recognition.onerror = () => showToast('语音识别未成功，请检查麦克风权限或使用系统听写');
+    try { recognition.start(); listening = true; voice.textContent = '停止录音'; }
+    catch { showToast('暂时不能启动语音输入'); }
+  };
+});
 restoreAuthSession();

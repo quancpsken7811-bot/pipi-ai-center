@@ -1,8 +1,11 @@
 window.PIPI_API_CONFIG = {
-  // 正常访问时使用当前页面同源 API；仅在直接打开本地文件时回退到 8787。
-  baseUrl: /^https?:$/.test(window.location.protocol) ? window.location.origin : 'http://127.0.0.1:8787',
+  // 正常访问时使用当前页面同源 API；直接打开本地文件时也连接当前的本地服务端口。
+  baseUrl: /^https?:$/.test(window.location.protocol) ? window.location.origin : 'http://127.0.0.1:8791',
   // Codex 内嵌浏览器偶尔会暂时断开其中一个 loopback 地址；请求失败时依次尝试其余本机入口。
   fallbackBaseUrls: [
+    'http://127.0.0.1:8791',
+    'http://localhost:8791',
+    'http://[::1]:8791',
     'http://127.0.0.1:8787',
     'http://localhost:8787',
     'http://[::1]:8787'
@@ -40,7 +43,6 @@ window.PIPI_API_CONFIG = {
     coachSop: '/api/tools/coach/sop',
     coachMoments: '/api/tools/coach/moments',
     coachMomentsTemplate: '/api/tools/coach/moments/template',
-    coachMomentsImage: '/api/tools/coach/moments/image',
     records: '/api/generation-records',
     adminUsers: '/api/admin/users',
     adminStats: '/api/admin/stats',

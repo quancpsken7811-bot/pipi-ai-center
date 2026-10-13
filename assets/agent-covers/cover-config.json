@@ -7,7 +7,12 @@
     "education_marketing": "image-pipi-white-sea-jpg",
     "moments": "image-pipi-blue-sea-jpg",
     "xiaohongshu": "image-pipi-sunset-yellow-jpg",
-    "wechat_article": "image-pipi-arch-sea-jpg"
+    "wechat_article": "image-pipi-arch-sea-jpg",
+    "content_compliance": "image-feishu-pipi-lake-light-jpg",
+    "product_storyline": "image-feishu-pipi-lake-person-jpg",
+    "public_class_script": "image-feishu-pipi-garden-jpg",
+    "product_sop": "image-feishu-pipi-tea-room-jpg",
+    "student_case": "image-feishu-pipi-river-jpg"
   },
   "layouts": {
     "local_city": {
@@ -48,6 +53,31 @@
     "wechat_article": {
       "focus_x": 50,
       "focus_y": 63,
+      "zoom": 100
+    },
+    "content_compliance": {
+      "focus_x": 50,
+      "focus_y": 45,
+      "zoom": 100
+    },
+    "product_storyline": {
+      "focus_x": 50,
+      "focus_y": 36,
+      "zoom": 100
+    },
+    "public_class_script": {
+      "focus_x": 50,
+      "focus_y": 46,
+      "zoom": 100
+    },
+    "product_sop": {
+      "focus_x": 50,
+      "focus_y": 60,
+      "zoom": 100
+    },
+    "student_case": {
+      "focus_x": 50,
+      "focus_y": 55,
       "zoom": 100
     }
   }

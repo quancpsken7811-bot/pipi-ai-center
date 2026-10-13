@@ -8,3 +8,21 @@ data
 docs
 ops
 node_modules
+.tmp
+outputs
+skills
+assets/user-avatars
+# 已有 WebP 替代、且当前页面没有引用的历史大图，不进入生产镜像。
+assets/brand-typography.png
+assets/home-brand-banner.png
+assets/home-brand-clean.png
+assets/home-brand-orange-blend.png
+assets/home-brand-orange-left.png
+assets/home-brand-orange.png
+assets/home-teacher-cutout-v2.png
+assets/home-teacher-cutout.png
+assets/lemon-delivery-cover.png
+assets/pipi-avatar.png
+assets/pipi-teacher-heart.png
+assets/pipi-teacher-profile-web.png
+assets/pipi-teacher-profile.png

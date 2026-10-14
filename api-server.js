@@ -2914,15 +2914,25 @@ function normalizeCompetitorTrack(value) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 40);
 }
 
+const COMPETITOR_TRACK_ALIASES = {
+  'k12 英语': ['英语', '英文', '口语', '背单词', '词汇', '阅读', '语法', '英语启蒙'],
+  'k12 数学': ['数学', '奥数', '几何', '函数', '计算', '应用题'],
+  'k12 物理': ['物理', '力学', '电学', '实验'],
+  'k12 班课 / 1 对 1': ['班课', '一对一', '1对1', '小班', '线下机构', '校区', '补习'],
+  '刷题班 / 提分': ['刷题', '提分', '错题', '中考', '高考', '考试', '成绩'],
+  '教培机构直播变现': ['教培直播', '教育直播', '直播变现', '机构直播', '校长直播', '直播招生']
+};
+
 function competitorTrackScore(item, track) {
   const normalizedTrack = normalizeCompetitorTrack(track).toLowerCase();
   if (!normalizedTrack) return 0;
   const text = `${String(item?.title || '').toLowerCase()} ${String(item?.author || '').toLowerCase()}`;
   if (text.includes(normalizedTrack)) return 100;
-  const terms = normalizedTrack.split(/[\s,，、/]+/).filter((term) => term.length >= 2);
+  const aliases = COMPETITOR_TRACK_ALIASES[normalizedTrack] || [];
+  const terms = [...new Set([...normalizedTrack.split(/[\s,，、/]+/).filter((term) => term.length >= 2), ...aliases])];
   const matched = terms.filter((term) => text.includes(term)).length;
   if (!terms.length || !matched) return 0;
-  return Math.round(45 + (matched / terms.length) * 45);
+  return Math.round(55 + (matched / terms.length) * 40);
 }
 
 const COMPETITOR_TALKING_HEAD_SIGNALS = ['老师', '教师', '校长', '园长', '班主任', '讲给', '分享', '聊聊', '告诉你', '家长', '孩子', '学生', '怎么', '为什么', '误区', '方法', '建议', '招生'];

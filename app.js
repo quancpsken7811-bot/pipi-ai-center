@@ -3,7 +3,7 @@
 const DEFAULT_API_ENDPOINTS = {
   loginPassword: '/api/auth/login/password', logout: '/api/auth/logout', logoutOthers: '/api/auth/logout-others', register: '/api/auth/register', passwordResetRequest: '/api/auth/password-reset-request', loginSms: '/api/auth/login/sms', sendSms: '/api/auth/sms/send', me: '/api/me',
   personalProfile: '/api/user/profile', personalAvatar: '/api/user/avatar', personalPersona: '/api/user/persona', personalPersonaUpload: '/api/user/persona/upload', personalKnowledge: '/api/user/knowledge', personalKnowledgeUpload: '/api/user/knowledge/upload',
-  toolAvailability: '/api/tools/availability', pipiChat: '/api/tools/pipi-assistant/chat', salesSimulation: '/api/tools/sales-simulation/chat', salesMethodConfig: '/api/tools/sales-simulation/config', pipiConfig: '/api/tools/pipi-assistant/config', topics: '/api/tools/topics/generate', inspirationCapsules: '/api/inspiration-capsules', inspirationDraws: '/api/inspiration-capsules/draw', copywriting: '/api/tools/copywriting/generate', copywritingConfig: '/api/tools/copywriting/config', wechatLayout: '/api/tools/wechat-layout/analyze', competitor: '/api/tools/competitors/generate', competitorTrends: '/api/tools/competitors/trends', competitorQuota: '/api/tools/competitors/quota', competitorSearch: '/api/tools/competitors/search', competitorAccountDiagnosis: '/api/tools/competitors/account-diagnosis', competitorTranscript: '/api/tools/competitors/transcript', posterQuota: '/api/tools/posters/quota', posterGenerate: '/api/tools/posters/generate', coachSop: '/api/tools/coach/sop', coachMoments: '/api/tools/coach/moments', coachMomentsTemplate: '/api/tools/coach/moments/template', records: '/api/generation-records',
+  toolAvailability: '/api/tools/availability', pipiChat: '/api/tools/pipi-assistant/chat', salesSimulation: '/api/tools/sales-simulation/chat', salesMethodConfig: '/api/tools/sales-simulation/config', pipiConfig: '/api/tools/pipi-assistant/config', topics: '/api/tools/topics/generate', inspirationCapsules: '/api/inspiration-capsules', inspirationDraws: '/api/inspiration-capsules/draw', copywriting: '/api/tools/copywriting/generate', copywritingConfig: '/api/tools/copywriting/config', wechatLayout: '/api/tools/wechat-layout/analyze', competitor: '/api/tools/competitors/generate', competitorTrends: '/api/tools/competitors/trends', competitorQuota: '/api/tools/competitors/quota', competitorSearch: '/api/tools/competitors/search', competitorAccountDiagnosis: '/api/tools/competitors/account-diagnosis', competitorTranscript: '/api/tools/competitors/transcript', posterQuota: '/api/tools/posters/quota', posterHistory: '/api/tools/posters/history', posterGenerate: '/api/tools/posters/generate', coachSop: '/api/tools/coach/sop', coachMoments: '/api/tools/coach/moments', coachMomentsTemplate: '/api/tools/coach/moments/template', records: '/api/generation-records',
   adminUsers: '/api/admin/users', adminStats: '/api/admin/stats', adminPipiConfig: '/api/admin/pipi-assistant/config', adminPipiKnowledge: '/api/admin/pipi-assistant/knowledge', adminSalesConfig: '/api/admin/sales-simulation/config', adminSalesKnowledge: '/api/admin/sales-simulation/knowledge', adminSalesReports: '/api/admin/sales-simulation/reports', adminCoachToolbox: '/api/admin/coach-toolbox/config', adminCopywritingConfig: '/api/admin/copywriting/config', adminCopywritingAgents: '/api/admin/copywriting/agents', adminCopywritingCovers: '/api/admin/copywriting/covers', adminProviders: '/api/admin/ai/providers', adminImageProxyTest: '/api/admin/image-proxy/test', adminModels: '/api/admin/ai/models', adminRefreshModels: '/api/admin/ai/models/refresh', adminPrompts: '/api/admin/prompts', adminFeatures: '/api/admin/ai/features', adminUsage: '/api/admin/ai/usage', adminProviderUsage: '/api/admin/ai/provider-usage', adminCallLogs: '/api/admin/ai/call-logs', materialLibrary: '/api/material-library'
 };
 const DEFAULT_API_CONFIG = {
@@ -52,6 +52,7 @@ const API_REQUEST_TIMEOUTS = {
   competitorSearch: 135000,
   competitorTranscript: 240000,
   posterQuota: 15000,
+  posterHistory: 30000,
   posterGenerate: 255000,
   coachSop: 105000,
   coachMoments: 105000,
@@ -97,7 +98,7 @@ const state = {
   materialLibrary: { loaded: false, loading: false, items: [], filter: '全部', search: '' },
   competitorTrends: { loaded: false, loading: false, platforms: {}, items: [], meta: null, error: '' },
   competitorQuota: { loaded: false, loading: false, date: '', limit: 100, used: 0, reserved: 0, remaining: 100 },
-  poster: { quota: null, imageDataUrl: '', referenceImages: [] },
+  poster: { quota: null, imageDataUrl: '', referenceImages: [], history: [] },
   salesSession: null,
   salesAttachments: [],
   salesEmojiPickerOpen: false,
@@ -943,7 +944,7 @@ function setPage(page, { goingBack = false } = {}) {
   }
   if (page === 'topics') loadGachaCapsules();
   if (page === 'materials') loadMaterialLibrary();
-  if (page === 'poster') loadPosterQuota();
+  if (page === 'poster') { loadPosterQuota(); loadPosterHistory(); }
   if (page === 'coach') renderCoachMomentPoster();
   if (page === 'personal') loadPersonalCenter();
   if (page === 'admin') loadAdminConfig();
@@ -1017,6 +1018,27 @@ function renderPosterResult(imageDataUrl) {
   state.poster.imageDataUrl = imageDataUrl;
   result.innerHTML = `<img src="${imageDataUrl}" alt="AI 生成的教育图像" />`;
   download.classList.remove('hidden');
+}
+
+function renderPosterWaiting() {
+  $('posterResult').innerHTML = '<div class="poster-waiting"><img src="assets/pipi-stickers/thinking.png" alt="皮皮老师正在思考" /><strong>皮皮老师正在认真帮你排版…</strong><span>图片生成通常需要 1–3 分钟，请稍等一下，不要重复点击。</span></div>';
+  $('downloadPoster').classList.add('hidden');
+}
+
+function posterHistoryDate(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(date);
+}
+
+function renderPosterHistory() {
+  const history = state.poster.history || [];
+  $('posterHistory').innerHTML = history.length ? history.map((item) => `<button type="button" class="poster-history-item" data-poster-history-id="${escapeHtml(item.id)}"><img src="${item.image_data_url}" alt="历史生成图像" /><span>${escapeHtml(item.brief || '图像生成')}</span><small>${escapeHtml(posterHistoryDate(item.created_at))}</small></button>`).join('') : '<div class="empty-box">还没有生成过图像。</div>';
+}
+
+async function loadPosterHistory() {
+  const result = await apiRequest('posterHistory', {}, { method: 'GET' }).catch(() => null);
+  state.poster.history = result?.items || [];
+  renderPosterHistory();
 }
 
 function renderPosterReference() {
@@ -5898,9 +5920,11 @@ function bindEvents() {
     const hint = $('posterResultHint');
     button.disabled = true;
     hint.textContent = '正在排版生成，通常需要 1–3 分钟，请不要重复点击或关闭页面…';
+    renderPosterWaiting();
     try {
       const result = await apiRequest('posterGenerate', { brief, type: value('posterType'), size: value('posterSize'), reference_images: (state.poster.referenceImages || []).map((item) => ({ data_url: item.dataUrl, name: item.name })) }, { timeoutMs: 255000, retryCount: 0 });
       renderPosterResult(result.image_data_url);
+      await loadPosterHistory();
       state.poster.quota = result.quota || state.poster.quota;
       renderPosterQuota();
       hint.textContent = `生成完成 · ${result.model || '图片模型'} · 如有个别文字需要调整，修改左侧描述后可再次生成。`;
@@ -5910,6 +5934,12 @@ function bindEvents() {
     } finally {
       button.disabled = false;
     }
+  });
+  $('posterHistory').addEventListener('click', (event) => {
+    const item = state.poster.history.find((entry) => entry.id === event.target.closest('[data-poster-history-id]')?.dataset.posterHistoryId);
+    if (!item) return;
+    renderPosterResult(item.image_data_url);
+    $('posterResultHint').textContent = `正在查看 ${posterHistoryDate(item.created_at)} 生成的图像。`;
   });
   $('downloadPoster').addEventListener('click', () => {
     if (!state.poster.imageDataUrl) return;

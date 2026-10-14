@@ -85,6 +85,8 @@ const COPY_AGENT_COVER_CONFIG_PATH = path.join(COPY_AGENT_COVER_DIR, 'cover-conf
 const COACH_MOMENT_FIXED_TEMPLATE_PATH = path.join(APP_ROOT, 'assets', 'coach-moment-fixed-template.png');
 const COACH_MOMENT_LAYOUT_REFERENCE_PATH = path.join(APP_ROOT, 'assets', 'coach-moment-layout-reference.png');
 const USER_AVATAR_DIR = path.join(__dirname, 'assets', 'user-avatars');
+const POSTER_HISTORY_DIR = path.join(DATA_DIR, 'poster-history');
+const POSTER_HISTORY_LIMIT = 12;
 const PERSONAL_KNOWLEDGE_UPLOAD_DIR = path.join(DATA_DIR, 'personal-knowledge');
 const PERSONAL_KNOWLEDGE_MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const DOCUMENT_ATTACHMENT_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -627,6 +629,10 @@ function ensurePersonalCenterData(user) {
     user.personal_knowledge = [];
     changed = true;
   }
+  if (!Array.isArray(user.poster_history)) {
+    user.poster_history = [];
+    changed = true;
+  }
   if (!Array.isArray(user.point_ledger)) {
     user.point_ledger = [{ id: `welcome-${user.id}`, title: '账户初始积分', change: 100, created_at: user.opened_at || new Date().toISOString().slice(0, 10) }];
     changed = true;
@@ -670,7 +676,7 @@ const PIPI_GACHA_QUOTES = [
 ];
 
 function publicManagedUser(user) {
-  const { password, password_hash, auth_sessions, personal_knowledge, point_ledger, points_balance, profile, persona, material_library, ...safeUser } = user;
+  const { password, password_hash, auth_sessions, personal_knowledge, poster_history, point_ledger, points_balance, profile, persona, material_library, ...safeUser } = user;
   return {
     ...safeUser,
     status: effectiveStatus(user),
@@ -2002,6 +2008,37 @@ async function formatPosterOutput(imageDataUrl, size) {
   return `data:image/png;base64,${output.toString('base64')}`;
 }
 
+function posterHistoryDirectory(user) {
+  return path.join(POSTER_HISTORY_DIR, String(user.id));
+}
+
+function savePosterHistory(user, { imageDataUrl, brief, type, size }) {
+  ensurePersonalCenterData(user);
+  const matched = String(imageDataUrl || '').match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/i);
+  if (!matched) return;
+  const id = randomUUID();
+  const directory = posterHistoryDirectory(user);
+  const filePath = path.join(directory, `${id}.png`);
+  fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+  fs.writeFileSync(filePath, Buffer.from(matched[1], 'base64'), { mode: 0o600 });
+  user.poster_history.unshift({ id, file_name: `${id}.png`, created_at: new Date().toISOString(), brief: String(brief || '').slice(0, 160), type: String(type || ''), size: normalizePosterSize(size) });
+  const removed = user.poster_history.splice(POSTER_HISTORY_LIMIT);
+  removed.forEach((item) => {
+    const stale = path.join(directory, path.basename(String(item.file_name || '')));
+    if (fs.existsSync(stale)) fs.unlinkSync(stale);
+  });
+}
+
+function posterHistoryItems(user) {
+  ensurePersonalCenterData(user);
+  const directory = posterHistoryDirectory(user);
+  return user.poster_history.map((item) => {
+    const filePath = path.join(directory, path.basename(String(item.file_name || '')));
+    if (!item.file_name || !fs.existsSync(filePath)) return null;
+    return { id: item.id, created_at: item.created_at, brief: item.brief, type: item.type, size: item.size, image_data_url: `data:image/png;base64,${fs.readFileSync(filePath).toString('base64')}` };
+  }).filter(Boolean);
+}
+
 function studentPosterPrompt({ brief, type, size, user, referenceImageCount = 0 }) {
   const context = personalKnowledgeContext(user).slice(0, 6000);
   const referenceRules = referenceImageCount
@@ -2052,6 +2089,7 @@ async function createStudentPoster({ brief, type, size, referenceImages, user })
   if (!response.ok) throw new Error(providerFailureMessage('图片服务', response.status, payload?.error?.message || payload?.message || ''));
   const imageDataUrl = await formatPosterOutput(await imageDataUrlFromArkResult(payload?.data?.[0]), size);
   const latencyMs = Date.now() - started;
+  savePosterHistory(user, { imageDataUrl, brief, type, size });
   logCall({
     provider_code: 'image_proxy', provider_name: 'GPT 图片中转站', model_code: IMAGE_PROXY_MODEL,
     feature_code: 'student_poster', status: 'success', latency_ms: latencyMs,
@@ -4388,6 +4426,12 @@ async function route(req, res) {
       if (!user) return;
       if (!['coaching', 'admin'].includes(user.role)) return fail(res, 403, '图像生成仅对陪跑学员开放', 40302);
       return ok(res, posterQuotaFor(user));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/tools/posters/history') {
+      const user = requireUser(req, res);
+      if (!user) return;
+      if (!['coaching', 'admin'].includes(user.role)) return fail(res, 403, '图像生成仅对陪跑学员开放', 40302);
+      return ok(res, { items: posterHistoryItems(user) });
     }
     if (req.method === 'POST' && url.pathname === '/api/tools/posters/generate') {
       const user = requireUser(req, res);

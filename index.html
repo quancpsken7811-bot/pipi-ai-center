@@ -12,7 +12,7 @@
   <title>皮皮 AI 中台</title>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
   <link rel="preload" as="image" href="assets/pipi-teacher-profile-web.webp" type="image/webp" fetchpriority="high" />
-  <link rel="stylesheet" href="styles.css?v=20261014-entitlement-cohorts-01" />
+  <link rel="stylesheet" href="styles.css?v=20261014-poster-waiting-history-01" />
 </head>
 <body>
   <section id="loginPage" class="login-page">
@@ -601,6 +601,7 @@
           </form>
           <section class="poster-result-panel" aria-live="polite"><div class="panel-head"><div><h3>图像预览</h3><p id="posterResultHint">填写左侧内容后开始生成。每次成功生成会计入当天额度。</p></div><button class="secondary mini hidden" id="downloadPoster" type="button">下载图片</button></div><div id="posterResult" class="poster-result"><div class="empty-box">你的图像会显示在这里。</div></div></section>
         </section>
+        <section class="poster-history-panel"><div class="panel-head"><div><h3>最近生成</h3><p>仅你自己可见，保留最近 12 张；点击即可重新查看或下载。</p></div></div><div id="posterHistory" class="poster-history"><div class="empty-box">还没有生成过图像。</div></div></section>
       </section>
 
       <section id="coachPage" class="page hidden coach-page">
@@ -774,6 +775,6 @@
   <script src="vendor/lucide.min.js?v=20260804-01"></script>
   <script>window.lucide?.createIcons({ attrs: { 'aria-hidden': 'true', 'stroke-width': 1.8 } });</script>
   <script src="config.js?v=20260907-accumulation-01"></script>
-  <script src="app.js?v=20261014-entitlement-cohorts-01"></script>
+  <script src="app.js?v=20261014-poster-waiting-history-01"></script>
 </body>
 </html>

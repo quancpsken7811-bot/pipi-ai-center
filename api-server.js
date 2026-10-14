@@ -2,6 +2,7 @@ const http = require('http');
 const { createHash, createHmac, randomBytes, randomUUID, scryptSync, timingSafeEqual } = require('crypto');
 const { execFileSync } = require('child_process');
 const fs = require('fs');
+const sharp = require('sharp');
 const os = require('os');
 const path = require('path');
 const { decryptWechatVideoBuffer } = require('./wechat-video-decrypt');
@@ -1940,11 +1941,30 @@ function normalizePosterReferenceImage(value, name = '') {
 }
 
 function normalizePosterSize(value) {
-  return ['1024x1536', '1024x1024', '1536x1024'].includes(String(value || '')) ? String(value) : '1024x1536';
+  return ['3:4', '1:1', '4:3'].includes(String(value || '')) ? String(value) : '3:4';
 }
 
 function posterSizeLabel(size) {
-  return { '1024x1536': '2:3 竖版', '1024x1024': '1:1 方图', '1536x1024': '3:2 横版' }[size] || '2:3 竖版';
+  return { '3:4': '3:4 竖版', '1:1': '1:1 方图', '4:3': '4:3 横版' }[size] || '3:4 竖版';
+}
+
+function posterProviderSize(size) {
+  return { '3:4': '1024x1536', '1:1': '1024x1024', '4:3': '1536x1024' }[size] || '1024x1536';
+}
+
+function posterOutputDimensions(size) {
+  return { '3:4': { width: 1024, height: 1365 }, '1:1': { width: 1024, height: 1024 }, '4:3': { width: 1365, height: 1024 } }[size] || { width: 1024, height: 1365 };
+}
+
+async function formatPosterOutput(imageDataUrl, size) {
+  const matched = String(imageDataUrl || '').match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/i);
+  if (!matched) throw new Error('图片服务没有返回可处理的图片。');
+  const { width, height } = posterOutputDimensions(size);
+  const output = await sharp(Buffer.from(matched[2], 'base64'))
+    .resize(width, height, { fit: 'cover', position: 'centre' })
+    .png()
+    .toBuffer();
+  return `data:image/png;base64,${output.toString('base64')}`;
 }
 
 function studentPosterPrompt({ brief, type, size, user, hasReferenceImage = false }) {
@@ -1958,7 +1978,7 @@ function studentPosterPrompt({ brief, type, size, user, hasReferenceImage = fals
     ].join('\n')
     : '未上传参考图时，请基于图像类型做干净、专业、克制的教育 IP 视觉。';
   return [
-    `你是一名专业的中文教育 IP 海报设计师。请生成一张 ${posterSizeLabel(size)}（${size.replace('x', '×')}）高完成度教育宣传海报。`,
+    `你是一名专业的中文教育 IP 海报设计师。请生成一张 ${posterSizeLabel(size)} 高完成度教育宣传海报。最终会严格裁切成交付比例；所有标题、正文、人物和关键装饰都必须安排在画面中央的安全区内，不能贴近上下或左右边缘。`,
     `本次内容任务：${posterTypeInstruction(type)}。内容任务只决定信息优先级，不能覆盖视觉母版。`,
     `本次用户确认文案：${brief}`,
     context ? `以下是这位老师本人主动保存的资料，只能据此辅助理解其业务；不能编造未提供的头衔、成绩、资质、案例、联系方式或承诺：\n${context}` : '未提供老师资料时，不要虚构老师身份、服务成果或联系方式。',
@@ -1973,6 +1993,7 @@ async function createStudentPoster({ brief, type, size, referenceImage, user }) 
   if (!apiKey) throw new Error('图片服务暂未完成配置，请联系管理员。');
   const started = Date.now();
   const prompt = studentPosterPrompt({ brief, type, size, user, hasReferenceImage: Boolean(referenceImage) });
+  const providerSize = posterProviderSize(size);
   const request = referenceImage
     ? (() => {
       const matched = referenceImage.dataUrl.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/i);
@@ -1980,18 +2001,18 @@ async function createStudentPoster({ brief, type, size, referenceImage, user }) 
       const form = new FormData();
       form.set('model', IMAGE_PROXY_MODEL);
       form.set('prompt', prompt);
-      form.set('size', size);
+      form.set('size', providerSize);
       form.set('n', '1');
       form.set('image', new Blob([Buffer.from(matched[2], 'base64')], { type: matched[1] }), referenceImage.name);
       return { endpoint: `${IMAGE_PROXY_BASE_URL}/images/edits`, headers: { Authorization: `Bearer ${apiKey}` }, body: form };
     })()
-    : { endpoint: `${IMAGE_PROXY_BASE_URL}/images/generations`, headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: IMAGE_PROXY_MODEL, prompt, size, n: 1 }) };
+    : { endpoint: `${IMAGE_PROXY_BASE_URL}/images/generations`, headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: IMAGE_PROXY_MODEL, prompt, size: providerSize, n: 1 }) };
   const response = await fetch(request.endpoint, { method: 'POST', headers: request.headers, body: request.body, signal: AbortSignal.timeout(240000) });
   const raw = await response.text();
   let payload;
   try { payload = JSON.parse(raw); } catch { throw new Error('图片服务返回异常，请稍后重试。'); }
   if (!response.ok) throw new Error(providerFailureMessage('图片服务', response.status, payload?.error?.message || payload?.message || ''));
-  const imageDataUrl = await imageDataUrlFromArkResult(payload?.data?.[0]);
+  const imageDataUrl = await formatPosterOutput(await imageDataUrlFromArkResult(payload?.data?.[0]), size);
   const latencyMs = Date.now() - started;
   logCall({
     provider_code: 'image_proxy', provider_name: 'GPT 图片中转站', model_code: IMAGE_PROXY_MODEL,

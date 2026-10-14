@@ -592,6 +592,7 @@
         <section class="poster-workspace">
           <form class="poster-form" id="posterForm">
             <label>图像类型<select id="posterType"><option value="lead">招生引流</option><option value="course">课程 / 活动介绍</option><option value="teacher">老师介绍 / 信任背书</option><option value="pain_point">家长痛点 / 干货表达</option><option value="benefits">权益介绍 / 成交收口</option><option value="case">交付案例 / 学员反馈</option></select></label>
+            <label>图像尺寸<select id="posterSize"><option value="1024x1536">竖版海报（2:3）</option><option value="1024x1024">方图（1:1）</option><option value="1536x1024">横版（3:2）</option></select></label>
             <label>参考图（可选）<input id="posterReferenceImage" type="file" accept="image/jpeg,image/png,image/webp" hidden /><button class="secondary" id="selectPosterReferenceImage" type="button">上传参考图</button><span class="poster-reference-status" id="posterReferenceStatus">可上传 1 张 JPG、PNG 或 WebP。上传后会作为整张图的视觉母版。</span></label>
             <div id="posterReferencePreview" class="poster-reference-preview hidden"></div>
             <label>图像文案<textarea id="posterBrief" rows="8" maxlength="2400" placeholder="把这张图上需要表达的标题、内容、对象、时间、权益等一次写清楚。例如：主标题“让孩子敢开口说英语”；副标题“7 天沉浸式表达体验营”；适合 7-10 岁孩子；写清开营时间、上课方式和报名方式。"></textarea></label>
@@ -771,6 +772,6 @@
   <script src="vendor/lucide.min.js?v=20260804-01"></script>
   <script>window.lucide?.createIcons({ attrs: { 'aria-hidden': 'true', 'stroke-width': 1.8 } });</script>
   <script src="config.js?v=20260907-accumulation-01"></script>
-  <script src="app.js?v=20261014-reference-master-01"></script>
+  <script src="app.js?v=20261014-image-size-01"></script>
 </body>
 </html>

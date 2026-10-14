@@ -5831,7 +5831,7 @@ function bindEvents() {
     button.disabled = true;
     hint.textContent = '正在排版生成，通常需要 1–3 分钟，请不要重复点击或关闭页面…';
     try {
-      const result = await apiRequest('posterGenerate', { brief, type: value('posterType'), reference_image: state.poster.referenceImage?.dataUrl || '', reference_image_name: state.poster.referenceImage?.name || '' }, { timeoutMs: 255000, retryCount: 0 });
+      const result = await apiRequest('posterGenerate', { brief, type: value('posterType'), size: value('posterSize'), reference_image: state.poster.referenceImage?.dataUrl || '', reference_image_name: state.poster.referenceImage?.name || '' }, { timeoutMs: 255000, retryCount: 0 });
       renderPosterResult(result.image_data_url);
       state.poster.quota = result.quota || state.poster.quota;
       renderPosterQuota();

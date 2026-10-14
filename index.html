@@ -12,7 +12,7 @@
   <title>皮皮 AI 中台</title>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
   <link rel="preload" as="image" href="assets/pipi-teacher-profile-web.webp" type="image/webp" fetchpriority="high" />
-  <link rel="stylesheet" href="styles.css?v=20261014-ai-poster-01" />
+  <link rel="stylesheet" href="styles.css?v=20261014-image-generation-01" />
 </head>
 <body>
   <section id="loginPage" class="login-page">
@@ -90,7 +90,7 @@
         <button class="nav-item" data-page="product"><i data-lucide="package-open"></i><span>产品板块</span></button>
         <button class="nav-item" data-page="copy"><i data-lucide="sparkles"></i><span>智能体广场</span></button>
         <button class="nav-item" data-page="sales"><i data-lucide="messages-square"></i><span>销售模拟</span></button>
-        <button class="nav-item" data-page="poster"><i data-lucide="image"></i><span>AI 海报</span></button>
+        <button class="nav-item" data-page="poster"><i data-lucide="image"></i><span>图像生成</span></button>
         <button class="nav-item admin-only" data-page="coach"><i data-lucide="briefcase-business"></i><span>教练工具箱</span></button>
         <button class="nav-item admin-only" data-page="admin"><i data-lucide="settings-2"></i><span>后台配置</span></button>
       </nav>
@@ -586,17 +586,17 @@
 
       <section id="posterPage" class="page hidden poster-page">
         <header class="poster-hero">
-          <div><span class="eyebrow">PIPI POSTER STUDIO</span><h2>AI 海报</h2><p>把活动、课程或老师介绍写清楚，生成一张可继续迭代的竖版教育海报。会自动参考你已保存的个人人设和个人知识库。</p></div>
+          <div><span class="eyebrow">PIPI IMAGE GENERATION</span><h2>图像生成</h2><p>把活动、课程或老师介绍写清楚，生成一张可继续迭代的竖版教育图像。会自动参考你已保存的个人人设和个人知识库。</p></div>
           <div class="poster-quota-card"><span>今日可生成</span><strong id="posterQuotaValue">读取中…</strong><small id="posterQuotaHint">陪跑学员权益</small></div>
         </header>
         <section class="poster-workspace">
           <form class="poster-form" id="posterForm">
-            <label>这张海报想表达什么？<textarea id="posterBrief" rows="8" maxlength="2400" placeholder="例如：为小学英语秋季体验营做一张招生海报。主标题：让孩子敢开口说英语；副标题：7 天沉浸式表达体验营；适合 7-10 岁孩子；写清开营时间、上课方式和报名方式。整体要温暖、专业、让家长信任。"></textarea></label>
+            <label>这张图像想表达什么？<textarea id="posterBrief" rows="8" maxlength="2400" placeholder="例如：为小学英语秋季体验营做一张招生图。主标题：让孩子敢开口说英语；副标题：7 天沉浸式表达体验营；适合 7-10 岁孩子；写清开营时间、上课方式和报名方式。整体要温暖、专业、让家长信任。"></textarea></label>
             <label>视觉风格<select id="posterStyle"><option value="warm">温暖专业</option><option value="premium">轻奢质感</option><option value="fresh">清新教育</option><option value="academic">专业学院</option></select></label>
             <p class="poster-note">建议把标题、日期、对象和需要出现的文字一次写清楚。生成图里的少量文字偶有偏差时，可直接修改描述后重新生成。</p>
-            <button class="primary full" id="generatePoster" type="submit">生成海报</button>
+            <button class="primary full" id="generatePoster" type="submit">生成图像</button>
           </form>
-          <section class="poster-result-panel" aria-live="polite"><div class="panel-head"><div><h3>海报预览</h3><p id="posterResultHint">填写左侧内容后开始生成。每次成功生成会计入当天额度。</p></div><button class="secondary mini hidden" id="downloadPoster" type="button">下载图片</button></div><div id="posterResult" class="poster-result"><div class="empty-box">你的海报会显示在这里。</div></div></section>
+          <section class="poster-result-panel" aria-live="polite"><div class="panel-head"><div><h3>图像预览</h3><p id="posterResultHint">填写左侧内容后开始生成。每次成功生成会计入当天额度。</p></div><button class="secondary mini hidden" id="downloadPoster" type="button">下载图片</button></div><div id="posterResult" class="poster-result"><div class="empty-box">你的图像会显示在这里。</div></div></section>
         </section>
       </section>
 
@@ -769,6 +769,6 @@
   <script src="vendor/lucide.min.js?v=20260804-01"></script>
   <script>window.lucide?.createIcons({ attrs: { 'aria-hidden': 'true', 'stroke-width': 1.8 } });</script>
   <script src="config.js?v=20260907-accumulation-01"></script>
-  <script src="app.js?v=20261014-ai-poster-01"></script>
+  <script src="app.js?v=20261014-image-generation-01"></script>
 </body>
 </html>

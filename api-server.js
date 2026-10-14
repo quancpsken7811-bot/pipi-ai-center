@@ -1960,7 +1960,7 @@ async function createStudentPoster({ brief, style, user }) {
     feature_code: 'student_poster', status: 'success', latency_ms: latencyMs,
     usage: payload?.usage || {}, user_id: user?.id, user_name: user?.name
   });
-  saveRecord('AI 海报', `${user.name || '老师'}的海报`, `海报主题：${brief.slice(0, 240)}`, { model: IMAGE_PROXY_MODEL, provider: 'image_proxy', user_id: user.id, user_name: user.name, user_role: user.role });
+  saveRecord('图像生成', `${user.name || '老师'}的图像`, `图像主题：${brief.slice(0, 240)}`, { model: IMAGE_PROXY_MODEL, provider: 'image_proxy', user_id: user.id, user_name: user.name, user_role: user.role });
   return { imageDataUrl, model: IMAGE_PROXY_MODEL, provider: 'image_proxy', latencyMs };
 }
 
@@ -4289,18 +4289,18 @@ async function route(req, res) {
     if (req.method === 'GET' && url.pathname === '/api/tools/posters/quota') {
       const user = requireUser(req, res);
       if (!user) return;
-      if (!['coaching', 'admin'].includes(user.role)) return fail(res, 403, 'AI 海报仅对陪跑学员开放', 40302);
+      if (!['coaching', 'admin'].includes(user.role)) return fail(res, 403, '图像生成仅对陪跑学员开放', 40302);
       return ok(res, posterQuotaFor(user));
     }
     if (req.method === 'POST' && url.pathname === '/api/tools/posters/generate') {
       const user = requireUser(req, res);
       if (!user) return;
-      if (!['coaching', 'admin'].includes(user.role)) return fail(res, 403, 'AI 海报仅对陪跑学员开放', 40302);
-      if (!IMAGE_GENERATION_ENABLED) return fail(res, 410, 'AI 海报暂未开放，请联系管理员完成图片服务配置。', 41001);
+      if (!['coaching', 'admin'].includes(user.role)) return fail(res, 403, '图像生成仅对陪跑学员开放', 40302);
+      if (!IMAGE_GENERATION_ENABLED) return fail(res, 410, '图像生成功能暂未开放，请联系管理员完成图片服务配置。', 41001);
       const brief = String(body.brief || '').trim().slice(0, 2400);
       if (!brief) return fail(res, 400, '请填写海报想表达的内容', 40001);
       const reservation = reservePosterQuota(user);
-      if (!reservation.granted) return fail(res, 429, `今日 AI 海报额度已用完（每天 ${POSTER_DAILY_LIMIT} 张），明天北京时间 00:00 后会自动恢复。`, 42903);
+      if (!reservation.granted) return fail(res, 429, `今日图像生成额度已用完（每天 ${POSTER_DAILY_LIMIT} 张），明天北京时间 00:00 后会自动恢复。`, 42903);
       try {
         const result = await createStudentPoster({ brief, style: String(body.style || 'warm').slice(0, 40), user });
         const quota = finalizePosterQuota(user, reservation, true);

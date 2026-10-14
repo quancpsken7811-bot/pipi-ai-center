@@ -156,7 +156,7 @@ const pages = {
   wechat: '公众号',
   competitor: '找竞品',
   sales: '销售模拟',
-  poster: 'AI 海报',
+  poster: '图像生成',
   coach: '教练工具箱',
   admin: '后台配置'
 };
@@ -168,7 +168,7 @@ const tools = [
   { page: 'wechat', icon: '刊', title: '公众号', desc: '独立完成公众号文案与视觉排版，生成可复制的长文成品。', roles: ['coaching', 'admin'] },
   { page: 'competitor', icon: '竞', title: '找竞品', desc: '搜索教育爆款内容，参考表达结构并带入智能体创作。', roles: ['training', 'coaching', 'admin'] },
   { page: 'sales', icon: '销', title: '销售模拟', desc: '选择家长类型，练习真实销售沟通和成交推进。', roles: ['training', 'coaching', 'admin'] },
-  { page: 'poster', icon: '图', title: 'AI 海报', desc: '把课程、活动和老师介绍变成可发布的竖版教育海报。', roles: ['coaching', 'admin'] },
+  { page: 'poster', icon: '图', title: '图像生成', desc: '把课程、活动和老师介绍变成可发布的竖版教育图像。', roles: ['coaching', 'admin'] },
   { page: 'coach', icon: '教', title: '教练工具箱', desc: '沉淀交付 SOP，并快速产出交付朋友圈和分享图。', roles: ['admin'] }
 ];
 
@@ -1001,12 +1001,12 @@ function renderPosterResult(imageDataUrl) {
   const result = $('posterResult');
   const download = $('downloadPoster');
   if (!imageDataUrl) {
-    result.innerHTML = '<div class="empty-box">你的海报会显示在这里。</div>';
+    result.innerHTML = '<div class="empty-box">你的图像会显示在这里。</div>';
     download.classList.add('hidden');
     return;
   }
   state.poster.imageDataUrl = imageDataUrl;
-  result.innerHTML = `<img src="${imageDataUrl}" alt="AI 生成的教育海报" />`;
+  result.innerHTML = `<img src="${imageDataUrl}" alt="AI 生成的教育图像" />`;
   download.classList.remove('hidden');
 }
 
@@ -5810,7 +5810,7 @@ function bindEvents() {
   $('posterForm').addEventListener('submit', async (event) => {
     event.preventDefault();
     const brief = value('posterBrief');
-    if (!brief) return alert('请先写清楚这张海报要表达的内容。');
+    if (!brief) return alert('请先写清楚这张图像要表达的内容。');
     const button = $('generatePoster');
     const hint = $('posterResultHint');
     button.disabled = true;
@@ -5832,7 +5832,7 @@ function bindEvents() {
     if (!state.poster.imageDataUrl) return;
     const link = document.createElement('a');
     link.href = state.poster.imageDataUrl;
-    link.download = `皮皮AI海报-${new Date().toISOString().slice(0, 10)}.png`;
+    link.download = `皮皮图像生成-${new Date().toISOString().slice(0, 10)}.png`;
     link.click();
   });
   $('addPrompt').addEventListener('click', async () => {

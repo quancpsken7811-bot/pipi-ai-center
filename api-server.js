@@ -3496,6 +3496,16 @@ function finalizeCompetitorQuota(user, reservation, actualCount) {
 
 function posterQuotaFor(user) {
   const date = localDateKey();
+  if (user?.role === 'admin') {
+    return {
+      date,
+      limit: null,
+      used: 0,
+      reserved: 0,
+      remaining: null,
+      unlimited: true
+    };
+  }
   const key = `${date}:${user.id}`;
   const used = Math.max(0, Number(posterDailyUsage[key]?.used || 0));
   const reserved = Math.max(0, Number(posterReservations.get(key) || 0));
@@ -3511,6 +3521,7 @@ function posterQuotaFor(user) {
 
 function reservePosterQuota(user) {
   const quota = posterQuotaFor(user);
+  if (quota.unlimited) return { ...quota, granted: true, key: null };
   const key = `${quota.date}:${user.id}`;
   if (quota.remaining <= 0) return { ...quota, granted: false, key };
   posterReservations.set(key, quota.reserved + 1);
@@ -3519,6 +3530,7 @@ function reservePosterQuota(user) {
 
 function finalizePosterQuota(user, reservation, successful) {
   if (!reservation?.granted) return posterQuotaFor(user);
+  if (reservation.unlimited) return posterQuotaFor(user);
   const reserved = Math.max(0, Number(posterReservations.get(reservation.key) || 0) - 1);
   if (reserved) posterReservations.set(reservation.key, reserved);
   else posterReservations.delete(reservation.key);

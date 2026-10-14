@@ -988,7 +988,7 @@ function renderPosterQuota(quota = state.poster.quota) {
   }
   if (quota.unlimited) {
     valueNode.textContent = '不限张数';
-    hintNode.textContent = '管理员测试权限';
+    hintNode.textContent = '管理员权限 · 不限张数';
     return;
   }
   valueNode.textContent = `${quota.remaining} / ${quota.limit} 张`;

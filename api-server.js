@@ -3363,38 +3363,35 @@ function posterQuotaFor(user) {
   const key = `${date}:${user.id}`;
   const used = Math.max(0, Number(posterDailyUsage[key]?.used || 0));
   const reserved = Math.max(0, Number(posterReservations.get(key) || 0));
-  const unlimited = user.role === 'admin';
   return {
     date,
-    limit: unlimited ? null : POSTER_DAILY_LIMIT,
+    limit: POSTER_DAILY_LIMIT,
     used,
     reserved,
-    remaining: unlimited ? null : Math.max(0, POSTER_DAILY_LIMIT - used - reserved),
-    unlimited
+    remaining: Math.max(0, POSTER_DAILY_LIMIT - used - reserved),
+    unlimited: false
   };
 }
 
 function reservePosterQuota(user) {
   const quota = posterQuotaFor(user);
   const key = `${quota.date}:${user.id}`;
-  if (!quota.unlimited && quota.remaining <= 0) return { ...quota, granted: false, key };
-  if (!quota.unlimited) posterReservations.set(key, quota.reserved + 1);
+  if (quota.remaining <= 0) return { ...quota, granted: false, key };
+  posterReservations.set(key, quota.reserved + 1);
   return { ...quota, granted: true, key };
 }
 
 function finalizePosterQuota(user, reservation, successful) {
   if (!reservation?.granted) return posterQuotaFor(user);
-  if (!reservation.unlimited) {
-    const reserved = Math.max(0, Number(posterReservations.get(reservation.key) || 0) - 1);
-    if (reserved) posterReservations.set(reservation.key, reserved);
-    else posterReservations.delete(reservation.key);
-    if (successful) {
-      const current = posterDailyUsage[reservation.key] || { used: 0, updated_at: '' };
-      posterDailyUsage[reservation.key] = {
-        used: Math.min(POSTER_DAILY_LIMIT, Number(current.used || 0) + 1),
-        updated_at: new Date().toISOString()
-      };
-    }
+  const reserved = Math.max(0, Number(posterReservations.get(reservation.key) || 0) - 1);
+  if (reserved) posterReservations.set(reservation.key, reserved);
+  else posterReservations.delete(reservation.key);
+  if (successful) {
+    const current = posterDailyUsage[reservation.key] || { used: 0, updated_at: '' };
+    posterDailyUsage[reservation.key] = {
+      used: Math.min(POSTER_DAILY_LIMIT, Number(current.used || 0) + 1),
+      updated_at: new Date().toISOString()
+    };
   }
   const keepAfter = addDaysToDateKey(localDateKey(), -8);
   Object.keys(posterDailyUsage).forEach((key) => {

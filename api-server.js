@@ -87,6 +87,7 @@ const COACH_MOMENT_LAYOUT_REFERENCE_PATH = path.join(APP_ROOT, 'assets', 'coach-
 const USER_AVATAR_DIR = path.join(__dirname, 'assets', 'user-avatars');
 const POSTER_HISTORY_DIR = path.join(DATA_DIR, 'poster-history');
 const POSTER_HISTORY_LIMIT = 12;
+const POSTER_GENERATION_TIMEOUT_MS = 480000;
 const PERSONAL_KNOWLEDGE_UPLOAD_DIR = path.join(DATA_DIR, 'personal-knowledge');
 const PERSONAL_KNOWLEDGE_MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const DOCUMENT_ATTACHMENT_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -2082,7 +2083,7 @@ async function createStudentPoster({ brief, type, size, referenceImages, user })
       return { endpoint: `${IMAGE_PROXY_BASE_URL}/images/edits`, headers: { Authorization: `Bearer ${apiKey}` }, body: form };
     })()
     : { endpoint: `${IMAGE_PROXY_BASE_URL}/images/generations`, headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: IMAGE_PROXY_MODEL, prompt, size: providerSize, n: 1 }) };
-  const response = await fetch(request.endpoint, { method: 'POST', headers: request.headers, body: request.body, signal: AbortSignal.timeout(240000) });
+  const response = await fetch(request.endpoint, { method: 'POST', headers: request.headers, body: request.body, signal: AbortSignal.timeout(POSTER_GENERATION_TIMEOUT_MS) });
   const raw = await response.text();
   let payload;
   try { payload = JSON.parse(raw); } catch { throw new Error('图片服务返回异常，请稍后重试。'); }

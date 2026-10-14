@@ -53,7 +53,7 @@ const API_REQUEST_TIMEOUTS = {
   competitorTranscript: 240000,
   posterQuota: 15000,
   posterHistory: 30000,
-  posterGenerate: 255000,
+  posterGenerate: 510000,
   coachSop: 105000,
   coachMoments: 105000,
   records: 15000,
@@ -1021,7 +1021,7 @@ function renderPosterResult(imageDataUrl) {
 }
 
 function renderPosterWaiting() {
-  $('posterResult').innerHTML = '<div class="poster-waiting"><img src="assets/pipi-stickers/thinking.png" alt="皮皮老师正在思考" /><strong>皮皮老师正在认真帮你排版…</strong><span>图片生成通常需要 1–3 分钟，请稍等一下，不要重复点击。</span></div>';
+  $('posterResult').innerHTML = '<div class="poster-waiting"><img src="assets/pipi-stickers/thinking.png" alt="皮皮老师正在思考" /><strong>皮皮老师正在认真帮你排版…</strong><span>多图参考生成通常需要 1–5 分钟，请稍等一下，不要重复点击。</span></div>';
   $('downloadPoster').classList.add('hidden');
 }
 
@@ -5919,7 +5919,7 @@ function bindEvents() {
     const button = $('generatePoster');
     const hint = $('posterResultHint');
     button.disabled = true;
-    hint.textContent = '正在排版生成，通常需要 1–3 分钟，请不要重复点击或关闭页面…';
+    hint.textContent = '正在排版生成，通常需要 1–5 分钟，请不要重复点击或关闭页面…';
     renderPosterWaiting();
     try {
       const result = await apiRequest('posterGenerate', { brief, type: value('posterType'), size: value('posterSize'), reference_images: (state.poster.referenceImages || []).map((item) => ({ data_url: item.dataUrl, name: item.name })) }, { timeoutMs: 255000, retryCount: 0 });

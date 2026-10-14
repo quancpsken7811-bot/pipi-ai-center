@@ -515,6 +515,35 @@ const managedUsers = [
   ] : [])
 ];
 
+const ENTITLEMENT_COHORTS = Object.freeze({
+  coaching_1: { code: 'coaching_1', label: '陪跑一期', role: 'coaching', paid_product: '陪跑服务·第一期', expires_at: '2027-01-01' },
+  coaching_2: { code: 'coaching_2', label: '陪跑二期', role: 'coaching', paid_product: '陪跑服务·第二期', expires_at: '2027-05-01' },
+  coaching_3: { code: 'coaching_3', label: '陪跑三期', role: 'coaching', paid_product: '陪跑服务·第三期', expires_at: '2027-07-01' },
+  coaching_4: { code: 'coaching_4', label: '陪跑四期', role: 'coaching', paid_product: '陪跑服务·第四期', expires_at: '2027-08-01' },
+  coaching_5: { code: 'coaching_5', label: '陪跑五期', role: 'coaching', paid_product: '陪跑服务·第五期', expires_at: '2027-10-01' },
+  training_100: { code: 'training_100', label: '训练营（100 天）', role: 'training', paid_product: '训练营（100 天）', duration_days: 100 }
+});
+
+function entitlementCohort(code) {
+  return ENTITLEMENT_COHORTS[String(code || '')] || null;
+}
+
+function applyEntitlementCohort(user, code, openedAt = user.opened_at || localDateKey()) {
+  const cohort = entitlementCohort(code);
+  if (!cohort) {
+    user.entitlement_cohort = '';
+    return false;
+  }
+  user.entitlement_cohort = cohort.code;
+  user.role = cohort.role;
+  user.roleName = roleMeta[cohort.role].name;
+  user.enabled_features = [...roleMeta[cohort.role].features];
+  user.paid_product = cohort.paid_product;
+  // 有效期当天仍可用，所以训练营从开通日算第 1 天时，到期日是第 100 天。
+  user.expires_at = cohort.duration_days ? addDaysToDateKey(openedAt, cohort.duration_days - 1) : cohort.expires_at;
+  return true;
+}
+
 function replaceArray(target, source) {
   if (!Array.isArray(source)) return;
   target.splice(0, target.length, ...source);
@@ -5113,7 +5142,10 @@ async function route(req, res) {
     }
     if (req.method === 'POST' && url.pathname === '/api/admin/users') {
       if (!requireAdmin(req, res)) return;
-      const role = body.role || 'training';
+      const selectedCohort = String(body.entitlement_cohort || '');
+      const cohort = entitlementCohort(selectedCohort);
+      if (selectedCohort && !cohort) return fail(res, 400, '权益批次不合法', 40001);
+      const role = cohort?.role || body.role || 'training';
       const phone = String(body.phone || '').trim();
       const name = String(body.name || '').trim();
       const password = String(body.password || '');
@@ -5138,6 +5170,7 @@ async function route(req, res) {
         remark: body.remark || '',
         enabled_features: roleMeta[role].features
       };
+      if (cohort) applyEntitlementCohort(item, cohort.code, item.opened_at);
       ensurePersonalCenterData(item);
       managedUsers.push(item);
       return ok(res, publicManagedUser(item));
@@ -5162,6 +5195,7 @@ async function route(req, res) {
       const user = managedUsers.find((item) => String(item.id) === url.pathname.split('/').pop());
       if (!user) return fail(res, 404, '用户不存在', 40400);
       if (body.role && !roleMeta[body.role]) return fail(res, 400, '角色不合法', 40001);
+      if (body.entitlement_cohort !== undefined && body.entitlement_cohort && !entitlementCohort(body.entitlement_cohort)) return fail(res, 400, '权益批次不合法', 40001);
       const nextPhone = body.phone !== undefined ? String(body.phone).trim() : user.phone;
       if (body.phone !== undefined && (!/^1\d{10}$/.test(nextPhone) || managedUsers.some((item) => item.id !== user.id && (item.phone === nextPhone || item.account === nextPhone)))) return fail(res, 400, '手机号格式错误或已被使用', 40001);
       if (body.status !== undefined && !['active', 'disabled'].includes(body.status)) return fail(res, 400, '账号状态不合法', 40001);
@@ -5169,8 +5203,12 @@ async function route(req, res) {
       if (body.extend_days !== undefined && (!Number.isInteger(Number(body.extend_days)) || Number(body.extend_days) < 1 || Number(body.extend_days) > 3650)) return fail(res, 400, '续期天数需为 1 到 3650 天之间的整数', 40001);
       if (body.enabled_features !== undefined && (!Array.isArray(body.enabled_features) || body.enabled_features.some((item) => !['pipi', 'topics', 'copy', 'competitor', 'sales', 'coach', 'history'].includes(item)))) return fail(res, 400, '功能权限不合法', 40001);
       if (body.new_password !== undefined && String(body.new_password).length < 8) return fail(res, 400, '新密码至少需要 8 位', 40001);
+      const selectedCohort = body.entitlement_cohort === undefined ? null : String(body.entitlement_cohort || '');
+      const hasCohort = Boolean(selectedCohort && entitlementCohort(selectedCohort));
       const allowed = ['name', 'phone', 'role', 'status', 'paid_product', 'expires_at', 'remark'];
       allowed.forEach((key) => { if (body[key] !== undefined) user[key] = body[key]; });
+      if (hasCohort) applyEntitlementCohort(user, selectedCohort, user.opened_at || localDateKey());
+      else if (body.entitlement_cohort !== undefined) user.entitlement_cohort = '';
       if (body.extend_days !== undefined && user.role !== 'admin') {
         const baseDate = user.expires_at && user.expires_at >= localDateKey() ? user.expires_at : localDateKey();
         user.expires_at = addDaysToDateKey(baseDate, Number(body.extend_days));
@@ -5179,6 +5217,7 @@ async function route(req, res) {
       if (body.role) {
         user.roleName = roleMeta[body.role].name;
         user.enabled_features = roleMeta[body.role].features;
+        if (!hasCohort) user.entitlement_cohort = '';
       }
       if (body.enabled_features !== undefined && user.role !== 'admin') user.enabled_features = [...new Set(body.enabled_features)];
       if (body.new_password !== undefined) {

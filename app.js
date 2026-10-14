@@ -64,6 +64,14 @@ const demoUsers = {
   coach: { id: 2, account: 'coach', phone: '13800138001', password: '123456', name: '王老师', role: 'coaching', roleName: '陪跑学员' },
   train: { id: 3, account: 'train', phone: '13800138002', password: '123456', name: '李老师', role: 'training', roleName: '训练营学员' }
 };
+const ENTITLEMENT_COHORTS = [
+  { code: 'coaching_1', label: '陪跑一期', role: 'coaching', product: '陪跑服务·第一期', expiresAt: '2027-01-01' },
+  { code: 'coaching_2', label: '陪跑二期', role: 'coaching', product: '陪跑服务·第二期', expiresAt: '2027-05-01' },
+  { code: 'coaching_3', label: '陪跑三期', role: 'coaching', product: '陪跑服务·第三期', expiresAt: '2027-07-01' },
+  { code: 'coaching_4', label: '陪跑四期', role: 'coaching', product: '陪跑服务·第四期', expiresAt: '2027-08-01' },
+  { code: 'coaching_5', label: '陪跑五期', role: 'coaching', product: '陪跑服务·第五期', expiresAt: '2027-10-01' },
+  { code: 'training_100', label: '训练营（100 天）', role: 'training', product: '训练营（100 天）' }
+];
 const AUTH_STORAGE_KEY = 'pipi-ai-center-auth';
 
 const state = {
@@ -99,6 +107,7 @@ const state = {
   loginMode: 'password',
   apiMode: API_CONFIG.endpoints ? 'api' : 'mock',
   adminModule: 'overview',
+  adminUserFilters: { cohort: 'all', status: 'all', search: '' },
   usageDateFilter: { preset: '30d', startDate: '', endDate: '' },
   modelManagementTab: 'providers',
   selectedPromptId: null,
@@ -2079,29 +2088,78 @@ function statusLabel(status) {
   return status === 'active' ? '启用中' : status === 'expired' ? '已到期' : '已禁用';
 }
 
+function cohortOptionMarkup(selected = '', { includeAll = false, includeCustom = false } = {}) {
+  const options = [includeAll ? '<option value="all">全部权益批次</option>' : '', includeCustom ? '<option value="">未归类 / 自定义</option>' : ''];
+  options.push(...ENTITLEMENT_COHORTS.map((item) => `<option value="${item.code}" ${item.code === selected ? 'selected' : ''}>${item.label}</option>`));
+  return options.join('');
+}
+
+function cohortInfo(code) {
+  return ENTITLEMENT_COHORTS.find((item) => item.code === code) || null;
+}
+
+function clientDateKey() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+}
+
+function addClientDays(dateKey, days) {
+  const [year, month, day] = String(dateKey).split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function cohortExpiry(cohort, openedAt = clientDateKey()) {
+  return cohort?.code === 'training_100' ? addClientDays(openedAt, 99) : cohort?.expiresAt || '';
+}
+
+function syncNewUserCohort() {
+  const cohort = cohortInfo($('newUserCohort').value);
+  if (!cohort) return;
+  $('newUserRole').value = cohort.role;
+  $('newUserProduct').value = cohort.product;
+  $('newUserExpires').value = cohortExpiry(cohort);
+}
+
+function isExpiringSoon(item) {
+  if (!item.expires_at || item.status !== 'active') return false;
+  const days = Math.round((Date.parse(`${item.expires_at}T00:00:00Z`) - Date.parse(`${clientDateKey()}T00:00:00Z`)) / 86400000);
+  return days >= 0 && days <= 7;
+}
+
 function renderAdminUsers() {
   const users = state.adminConfig.users || [];
+  const filters = state.adminUserFilters;
   const count = (role) => users.filter((item) => item.role === role).length;
-  $('adminUserTotal').textContent = `${users.length} 个账号`;
+  const filteredUsers = users.filter((item) => {
+    const text = `${item.name || ''} ${item.phone || ''} ${item.account || ''}`.toLowerCase();
+    if (filters.cohort !== 'all' && (item.entitlement_cohort || '') !== filters.cohort) return false;
+    if (filters.status === 'expiring' ? !isExpiringSoon(item) : filters.status !== 'all' && item.status !== filters.status) return false;
+    return !filters.search || text.includes(filters.search.toLowerCase());
+  });
+  $('adminUserTotal').textContent = `${filteredUsers.length} / ${users.length} 个账号`;
   $('userStats').innerHTML = [
     ['管理员', count('admin')],
     ['陪跑学员', count('coaching')],
     ['训练营学员', count('training')]
   ].map(([label, number]) => `<div class="user-stat"><span>${label}</span><strong>${number}</strong></div>`).join('');
+  const cohortFilter = $('adminUserCohortFilter');
+  if (cohortFilter) cohortFilter.innerHTML = cohortOptionMarkup(filters.cohort, { includeAll: true });
   const pendingResets = state.adminConfig.passwordResetRequests || [];
-  $('userList').innerHTML = users.length ? users.map((item) => {
+  $('userList').innerHTML = filteredUsers.length ? filteredUsers.map((item) => {
     const features = Array.isArray(item.enabled_features) ? item.enabled_features : [];
     const hasPendingReset = pendingResets.some((request) => String(request.user_id) === String(item.id));
     const accessLevel = features.length === 0 ? 'pending' : item.role === 'coaching' ? 'coaching' : 'training';
     return `
     <div class="user-row">
       <div class="user-main"><strong>${escapeHtml(item.name)}</strong><small>账号：${escapeHtml(item.account)}${item.phone ? ` · 手机：${escapeHtml(item.phone)}` : ''}</small><small>${escapeHtml(item.paid_product || '未填写服务')}</small></div>
+      ${item.role === 'admin' ? '<span class="user-lock">管理员</span>' : `<select data-user-cohort="${item.id}" aria-label="${escapeHtml(item.name)}的权益批次">${cohortOptionMarkup(item.entitlement_cohort || '', { includeCustom: true })}</select>`}
       ${item.role === 'admin' ? `<span class="role-tag admin">管理员</span>` : `<select class="user-role-select" data-user-access="${item.id}"><option value="pending" ${accessLevel === 'pending' ? 'selected' : ''}>待开通</option><option value="training" ${accessLevel === 'training' ? 'selected' : ''}>训练营服务</option><option value="coaching" ${accessLevel === 'coaching' ? 'selected' : ''}>陪跑服务</option></select>`}
       <span class="status-tag ${item.status}">${statusLabel(item.status)}</span>
       <div class="user-meta"><small>开通 ${escapeHtml(item.opened_at || '-')}</small>${item.role === 'admin' ? '<strong>永久有效</strong>' : `<label>到期 <input type="date" value="${escapeHtml(item.expires_at || '')}" data-user-expires="${item.id}" /></label>`}</div>
       ${item.role === 'admin' ? '<span class="user-lock">系统账号</span>' : `<div class="user-access-controls"><div class="user-reset-control"><input type="password" data-user-new-password="${item.id}" autocomplete="new-password" placeholder="设置临时密码（至少 8 位）" />${hasPendingReset ? '<small>该学员已提交密码重置申请</small>' : ''}<button class="secondary mini" data-user-reset="${item.id}">重置密码</button></div><div class="row-actions"><button class="secondary mini" data-user-save="${item.id}">保存服务状态</button><button class="secondary mini" data-user-extend-100="${item.id}">续期 100 天</button><button class="pill-button ${item.status === 'active' ? 'on' : ''}" data-user-toggle="${item.id}" data-next-status="${item.status === 'active' ? 'disabled' : 'active'}">${item.status === 'active' ? '禁用账号' : '启用账号'}</button><button class="secondary mini danger-button" data-user-delete="${item.id}" data-user-account="${escapeHtml(item.account)}">删除账号</button></div></div>`}
     </div>`;
-  }).join('') : '<div class="empty-box">暂无已开通账号</div>';
+  }).join('') : '<div class="empty-box">没有符合当前筛选条件的账号</div>';
 }
 
 function renderPipiAssistantConfig() {
@@ -5795,14 +5853,21 @@ function bindEvents() {
         phone,
         password,
         role: value('newUserRole'),
+        entitlement_cohort: value('newUserCohort'),
         paid_product: value('newUserProduct'),
         expires_at: value('newUserExpires')
       });
       ['newUserName', 'newUserPhone', 'newUserPassword', 'newUserProduct', 'newUserExpires'].forEach((id) => { $(id).value = ''; });
+      $('newUserCohort').value = '';
     } catch (error) {
       alert(error.message);
     }
   });
+  $('newUserCohort').innerHTML = `<option value="">手动设置 / 自定义</option>${cohortOptionMarkup()}`;
+  $('newUserCohort').addEventListener('change', syncNewUserCohort);
+  $('adminUserCohortFilter').addEventListener('change', (event) => { state.adminUserFilters.cohort = event.target.value; renderAdminUsers(); });
+  $('adminUserStatusFilter').addEventListener('change', (event) => { state.adminUserFilters.status = event.target.value; renderAdminUsers(); });
+  $('adminUserSearch').addEventListener('input', (event) => { state.adminUserFilters.search = event.target.value.trim(); renderAdminUsers(); });
   $('refreshSiliconModels').addEventListener('click', () => refreshProviderModels('siliconflow'));
   $('refreshArkModels').addEventListener('click', () => alert('Ark Plan 已接入 OpenAI-compatible Plan 接口。文案智能体当前展示为 Doubao Seed 2.1，实际调用 Plan 可用入口 ark-code-latest；Ark Plan 不使用 /models 自动探测。'));
   $('runImageProxyTest').addEventListener('click', async () => {
@@ -5900,6 +5965,17 @@ function bindEvents() {
       alert(error.message);
     }
   });
+  $('adminPage').addEventListener('change', async (event) => {
+    const cohortInput = event.target.closest('[data-user-cohort]');
+    if (!cohortInput || !cohortInput.value) return;
+    try {
+      await patchAdmin(`/api/admin/users/${cohortInput.dataset.userCohort}`, { entitlement_cohort: cohortInput.value });
+      showToast('权益批次已同步，身份、产品和到期日已自动更新');
+    } catch (error) {
+      alert(error.message || '权益批次更新失败，请重试。');
+      await loadAdminConfig();
+    }
+  });
   $('adminPage').addEventListener('click', async (event) => {
     const moduleButton = event.target.closest('[data-admin-module]');
     const modelManagementTabButton = event.target.closest('[data-model-management-tab]');
@@ -5970,10 +6046,11 @@ function bindEvents() {
       const userId = userSaveButton.dataset.userSave;
       const accessInput = document.querySelector(`[data-user-access="${userId}"]`);
       const expiresInput = document.querySelector(`[data-user-expires="${userId}"]`);
+      const cohortInput = document.querySelector(`[data-user-cohort="${userId}"]`);
       const access = accessInput?.value || 'pending';
       try {
         await patchAdmin(`/api/admin/users/${userId}`, {
-          ...(access === 'pending' ? { enabled_features: [], paid_product: '自助注册（待开通）' } : { role: access }),
+          ...(access === 'pending' ? { enabled_features: [], paid_product: '自助注册（待开通）', entitlement_cohort: '' } : { role: access, entitlement_cohort: cohortInput?.value || '' }),
           expires_at: expiresInput?.value || ''
         });
         showToast('账号服务状态已保存');

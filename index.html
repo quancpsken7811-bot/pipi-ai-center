@@ -12,7 +12,7 @@
   <title>皮皮 AI 中台</title>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
   <link rel="preload" as="image" href="assets/pipi-teacher-profile-web.webp" type="image/webp" fetchpriority="high" />
-  <link rel="stylesheet" href="styles.css?v=20261014-multi-reference-01" />
+  <link rel="stylesheet" href="styles.css?v=20261014-entitlement-cohorts-01" />
 </head>
 <body>
   <section id="loginPage" class="login-page">
@@ -669,18 +669,20 @@
 
         <section class="admin-module hidden" id="adminModule-users">
           <section class="panel">
-            <div class="panel-head"><div><h3>用户与权限</h3><p>自助注册账号默认没有 AI 权限；你在这里按学员购买的服务开通权限、设置到期日，也可一键续期 100 天。</p></div><span class="admin-count" id="adminUserTotal">0 个账号</span></div>
+            <div class="panel-head"><div><h3>用户与权限</h3><p>选择权益批次后，身份、产品与到期日会自动同步；训练营按开通当天算第 1 天，自动到第 100 天。</p></div><span class="admin-count" id="adminUserTotal">0 个账号</span></div>
             <div class="user-stats" id="userStats"></div>
             <div class="admin-form user-form">
               <input id="newUserName" placeholder="学员姓名" />
               <input id="newUserPhone" placeholder="手机号，例如 13800138000" />
               <input id="newUserPassword" type="password" autocomplete="new-password" placeholder="初始密码，至少 8 位" />
+              <select id="newUserCohort" aria-label="权益批次"></select>
               <select id="newUserRole"><option value="coaching">陪跑学员</option><option value="training">训练营学员</option><option value="admin">管理员</option></select>
               <input id="newUserProduct" placeholder="付费产品，例如 陪跑服务 / 训练营" />
               <input id="newUserExpires" type="date" aria-label="到期日期" />
               <button class="primary" id="addUser">开通账号</button>
             </div>
-            <p class="form-note">开通账号时请设置初始密码；请通过安全渠道单独告知学员。</p>
+            <p class="form-note">开通账号时请设置初始密码；陪跑一期至五期会按固定日期到期，训练营会自动计算 100 天。请通过安全渠道单独告知学员。</p>
+            <div class="user-filter-bar"><select id="adminUserCohortFilter" aria-label="按权益批次筛选"></select><select id="adminUserStatusFilter" aria-label="按账号状态筛选"><option value="all">全部状态</option><option value="active">使用中</option><option value="expiring">7 天内到期</option><option value="expired">已到期</option><option value="disabled">已禁用</option></select><input id="adminUserSearch" placeholder="搜索姓名或手机号" /></div>
             <div id="userList" class="user-list"></div>
           </section>
         </section>
@@ -772,6 +774,6 @@
   <script src="vendor/lucide.min.js?v=20260804-01"></script>
   <script>window.lucide?.createIcons({ attrs: { 'aria-hidden': 'true', 'stroke-width': 1.8 } });</script>
   <script src="config.js?v=20260907-accumulation-01"></script>
-  <script src="app.js?v=20261014-multi-reference-01"></script>
+  <script src="app.js?v=20261014-entitlement-cohorts-01"></script>
 </body>
 </html>

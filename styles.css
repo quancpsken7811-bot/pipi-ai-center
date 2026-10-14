@@ -1547,11 +1547,13 @@ select:required:invalid option { color: var(--ink); }
 .user-stat span, .user-stat strong { display: block; }
 .user-stat span { color: var(--muted); font-size: 11px; }
 .user-stat strong { margin-top: 7px; color: var(--green); font-size: 22px; }
-.user-form { grid-template-columns: repeat(5, minmax(0, 1fr)) auto; align-items: center; }
+.user-form { grid-template-columns: repeat(6, minmax(0, 1fr)) auto; align-items: center; }
 .user-form input, .user-form select { margin-top: 0; min-width: 0; }
 .form-note { margin-top: 10px; color: var(--muted); font-size: 11px; }
+.user-filter-bar { display: grid; grid-template-columns: 180px 140px minmax(180px, 1fr); gap: 9px; margin-top: 16px; }
+.user-filter-bar select, .user-filter-bar input { margin: 0; }
 .user-list { margin-top: 18px; }
-.user-row { display: grid; grid-template-columns: minmax(150px, 1.5fr) 100px 82px minmax(120px, .9fr) auto; gap: 12px; align-items: center; border-top: 1px solid var(--line); padding: 13px 0; }
+.user-row { display: grid; grid-template-columns: minmax(150px, 1.5fr) 128px 100px 82px minmax(120px, .9fr) auto; gap: 12px; align-items: center; border-top: 1px solid var(--line); padding: 13px 0; }
 .user-access-controls { display: grid; gap: 8px; justify-items: end; }
 .user-reset-control { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
 .user-reset-control input { width: 160px; margin: 0; padding: 6px 8px; font-size: 11px; }
@@ -1679,7 +1681,7 @@ select:required:invalid option { color: var(--ink); }
   .admin-command-center { grid-template-columns: 1fr; }
   .admin-command-metrics { justify-content: space-between; }
   .quick-start-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .prompt-manager, .feature-edit, .admin-form.two-col, .user-form, .assistant-config-grid, .agent-cover-config-item, .agent-cover-upload, .copywriting-prompt-form, .copy-agent-form-grid, .copy-agent-create-card .copy-agent-form-grid, .coach-tool-workspace { grid-template-columns: 1fr; }
+  .prompt-manager, .feature-edit, .admin-form.two-col, .user-form, .user-filter-bar, .assistant-config-grid, .agent-cover-config-item, .agent-cover-upload, .copywriting-prompt-form, .copy-agent-form-grid, .copy-agent-create-card .copy-agent-form-grid, .coach-tool-workspace { grid-template-columns: 1fr; }
   .user-row { grid-template-columns: 1fr 1fr; }
 .user-meta { grid-column: 1 / -1; }
 .user-meta label { display: block; color: var(--muted); font-size: 10px; }

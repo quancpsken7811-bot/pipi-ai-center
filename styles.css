@@ -782,6 +782,23 @@ select:required:invalid option { color: var(--ink); }
 }
 
 .coach-page { max-width: 1440px; }
+.poster-page { max-width: 1240px; }
+.poster-hero { display: flex; align-items: stretch; justify-content: space-between; gap: 24px; border: 1px solid #e5d8cc; border-radius: 16px; background: linear-gradient(118deg, #fff9f3, #f8f5ef); padding: 30px 32px; }
+.poster-hero h2 { margin-top: 8px; color: #422c20; font-size: 30px; letter-spacing: -.04em; }
+.poster-hero p { max-width: 720px; margin-top: 10px; color: #7d7068; font-size: 13px; line-height: 1.75; }
+.poster-quota-card { display: grid; align-content: center; min-width: 148px; border: 1px solid #ead7c7; border-radius: 14px; background: rgba(255,255,255,.78); padding: 16px 18px; }
+.poster-quota-card span, .poster-quota-card small { color: #947e70; font-size: 11px; }
+.poster-quota-card strong { margin: 4px 0; color: #a9572d; font-size: 21px; }
+.poster-workspace { display: grid; grid-template-columns: minmax(270px, .75fr) minmax(0, 1.25fr); gap: 20px; margin-top: 20px; }
+.poster-form, .poster-result-panel { border: 1px solid #e5ded5; border-radius: 16px; background: #fff; padding: 22px; box-shadow: 0 12px 30px rgba(77, 53, 38, .045); }
+.poster-form label { display: grid; gap: 7px; margin-bottom: 16px; color: #5e4d43; font-size: 12px; font-weight: 800; }
+.poster-form textarea { min-height: 190px; }
+.poster-note { margin: -2px 0 16px; color: #9a8b81; font-size: 11px; line-height: 1.65; }
+.poster-result-panel { min-width: 0; }
+.poster-result-panel .panel-head { align-items: flex-start; }
+.poster-result-panel .panel-head p { margin-top: 4px; color: #998e85; font-size: 11px; line-height: 1.55; }
+.poster-result { display: grid; min-height: 500px; place-items: center; margin-top: 16px; border: 1px dashed #dfcbbb; border-radius: 12px; background: radial-gradient(circle at 50% 40%, #fffdf9 0, #fbf7f2 64%, #f6efe8 100%); overflow: hidden; }
+.poster-result img { display: block; width: min(100%, 520px); max-height: 720px; object-fit: contain; }
 .coach-hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; border: 1px solid #e5d8cc; border-radius: 16px; background: linear-gradient(118deg, #fff9f3, #f8f5ef); padding: 30px 32px; }
 .coach-hero h2 { margin-top: 8px; color: #422c20; font-size: 30px; letter-spacing: -.04em; }
 .coach-hero p { max-width: 720px; margin-top: 10px; color: #7d7068; font-size: 13px; line-height: 1.75; }
@@ -1621,6 +1638,7 @@ select:required:invalid option { color: var(--ink); }
 .personal-empty-note { margin-top: 18px; color: var(--muted); font-size: 13px; }
 
 @media (max-width: 980px) {
+  .poster-workspace { grid-template-columns: 1fr; }
   .wechat-layout-header { align-items: flex-start; flex-direction: column; }
   .wechat-layout-actions { justify-content: flex-start; }
   .wechat-layout-grid { grid-template-columns: 320px minmax(560px, 1fr); height: calc(100vh - 154px); overflow-x: auto; }
@@ -2393,6 +2411,8 @@ select:required:invalid option { color: var(--ink); }
   .materials-workspace { grid-template-columns: 1fr; }
 }
 @media (max-width: 720px) {
+  .poster-hero { display: grid; padding: 22px 18px; }
+  .poster-quota-card { min-width: 0; }
   .traffic-flow-steps { grid-template-columns: 1fr; gap: 7px; }
   .traffic-flow-arrow { transform: rotate(90deg); }
   .traffic-flow-step { min-height: 118px; }

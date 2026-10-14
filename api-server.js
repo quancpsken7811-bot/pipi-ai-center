@@ -33,7 +33,7 @@ const INVENTORY_PATH = process.env.PIPI_API_INVENTORY || '/Users/lemon/Documents
 const SILICONFLOW_BASE_URL = process.env.SILICONFLOW_BASE_URL || 'https://api.siliconflow.cn/v1';
 const ARK_PLAN_BASE_URL = process.env.ARK_PLAN_BASE_URL || 'https://ark.cn-beijing.volces.com/api/plan/v3';
 const ARK_IMAGE_BASE_URL = process.env.ARK_IMAGE_BASE_URL || 'https://ark.cn-beijing.volces.com/api/v3';
-// GPT 图片中转站仅用于管理员的本地测试台。上线给学员前必须另行配置额度与权限。
+// GPT 图片中转站仅在服务端调用；密钥绝不进入浏览器或仓库。
 const IMAGE_PROXY_BASE_URL = String(process.env.IMAGE_PROXY_BASE_URL || 'https://apiclaude.cc/v1').replace(/\/$/, '');
 const IMAGE_PROXY_MODEL = String(process.env.IMAGE_PROXY_MODEL || 'gpt-image-2').trim();
 // 图片理解与图片生成是两种独立能力。只有明确配置视觉理解模型后，才允许把图片素材交给 AI，避免文字模型“看不到图却假装看过”。
@@ -41,9 +41,10 @@ const ARK_VISION_BASE_URL = process.env.ARK_VISION_BASE_URL || ARK_PLAN_BASE_URL
 // 本地中台默认使用已接入的火山方舟视觉模型；仍可通过环境变量替换为你账户中
 // 其他已开通的视觉 Endpoint ID。API Key 始终从运行环境或本地 API 清单读取。
 const PIPI_VISION_MODEL = String(process.env.PIPI_VISION_MODEL || 'doubao-seed-2-1-turbo-260628').trim();
-// 生图目前未对中台开放。明确关闭所有图片生成入口，避免测试或误操作产生额外费用。
+// 默认关闭；生产环境须同时显式开启并配置服务端密钥，才会向图片中转站发起请求。
 // 这不影响图片理解（PIPI_VISION_MODEL）以及文字类智能体。
-const IMAGE_GENERATION_ENABLED = false;
+const IMAGE_GENERATION_ENABLED = process.env.IMAGE_GENERATION_ENABLED === 'true';
+const POSTER_DAILY_LIMIT = 5;
 const COACH_MOMENTS_IMAGE_MODEL = '';
 const COACH_MOMENTS_IMAGE_FALLBACK_MODEL = '';
 const VOLC_BILLING_ENDPOINT = process.env.VOLC_BILLING_ENDPOINT || 'https://open.volcengineapi.com';
@@ -404,6 +405,8 @@ const passwordResetRequests = [];
 const registrationAttempts = new Map();
 const competitorSearchDailyUsage = {};
 const competitorSearchReservations = new Map();
+const posterDailyUsage = {};
+const posterReservations = new Map();
 let tikhubAccountUsageCache = { expires_at: 0, value: null };
 let volcBillingAccountUsageCache = { expires_at: 0, value: null };
 const providerConfigs = [
@@ -652,6 +655,7 @@ function loadPersistentState() {
     replaceArray(callLogs, saved.callLogs);
     replaceArray(passwordResetRequests, saved.passwordResetRequests);
     if (saved.competitorSearchDailyUsage && typeof saved.competitorSearchDailyUsage === 'object') Object.assign(competitorSearchDailyUsage, saved.competitorSearchDailyUsage);
+    if (saved.posterDailyUsage && typeof saved.posterDailyUsage === 'object') Object.assign(posterDailyUsage, saved.posterDailyUsage);
     replaceArray(providerConfigs, saved.providerConfigs);
     replaceArray(modelConfigs, saved.modelConfigs);
     replaceArray(copyAgentConfigs, saved.copyAgentConfigs);
@@ -676,6 +680,7 @@ function savePersistentState() {
     callLogs,
     passwordResetRequests,
     competitorSearchDailyUsage,
+    posterDailyUsage,
     providerConfigs,
     modelConfigs,
     copyAgentConfigs,
@@ -1910,6 +1915,53 @@ async function createImageProxyTest({ prompt, user }) {
     usage: payload?.usage || {}, user_id: user?.id, user_name: user?.name
   });
   return { imageDataUrl, model: IMAGE_PROXY_MODEL, provider: 'image_proxy', latencyMs: Date.now() - started };
+}
+
+function posterStyleInstruction(style) {
+  const styles = {
+    premium: '轻奢高级、奶油白与香槟金、克制的金属质感、留白清晰。',
+    fresh: '清新明亮、奶油白与浅绿色、亲和但不幼稚、适合教育老师。',
+    academic: '专业学院风、深蓝与米白、秩序感强、沉稳可信。',
+    warm: '温暖专业、米白与暖棕、真实可信、有教育感。'
+  };
+  return styles[String(style || '')] || styles.warm;
+}
+
+function studentPosterPrompt({ brief, style, user }) {
+  const context = personalKnowledgeContext(user).slice(0, 6000);
+  return [
+    '你是一名专业的中文教育 IP 海报设计师。请生成一张 2:3 竖版（1024×1536）高完成度教育宣传海报。',
+    `视觉方向：${posterStyleInstruction(style)}`,
+    `本次海报需求：${brief}`,
+    context ? `以下是这位老师本人主动保存的资料，只能据此辅助理解其业务；不能编造未提供的头衔、成绩、资质、案例、联系方式或承诺：\n${context}` : '未提供老师资料时，不要虚构老师身份、服务成果或联系方式。',
+    '版式要求：层级清楚、适合手机传播、画面干净、信息块有呼吸感。若需求中包含标题、日期、课程名或其他文案，请尽可能准确呈现简体中文；不要使用乱码、假字或英文占位文字。',
+    '只生成最终海报图，不要输出解释、设计说明或额外文字。'
+  ].join('\n\n');
+}
+
+async function createStudentPoster({ brief, style, user }) {
+  const apiKey = readInventory()['image-proxy-apikey'];
+  if (!apiKey) throw new Error('图片服务暂未完成配置，请联系管理员。');
+  const started = Date.now();
+  const response = await fetch(`${IMAGE_PROXY_BASE_URL}/images/generations`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: IMAGE_PROXY_MODEL, prompt: studentPosterPrompt({ brief, style, user }), size: '1024x1536', n: 1 }),
+    signal: AbortSignal.timeout(240000)
+  });
+  const raw = await response.text();
+  let payload;
+  try { payload = JSON.parse(raw); } catch { throw new Error('图片服务返回异常，请稍后重试。'); }
+  if (!response.ok) throw new Error(providerFailureMessage('图片服务', response.status, payload?.error?.message || payload?.message || ''));
+  const imageDataUrl = await imageDataUrlFromArkResult(payload?.data?.[0]);
+  const latencyMs = Date.now() - started;
+  logCall({
+    provider_code: 'image_proxy', provider_name: 'GPT 图片中转站', model_code: IMAGE_PROXY_MODEL,
+    feature_code: 'student_poster', status: 'success', latency_ms: latencyMs,
+    usage: payload?.usage || {}, user_id: user?.id, user_name: user?.name
+  });
+  saveRecord('AI 海报', `${user.name || '老师'}的海报`, `海报主题：${brief.slice(0, 240)}`, { model: IMAGE_PROXY_MODEL, provider: 'image_proxy', user_id: user.id, user_name: user.name, user_role: user.role });
+  return { imageDataUrl, model: IMAGE_PROXY_MODEL, provider: 'image_proxy', latencyMs };
 }
 
 function providerKeyFor(providerCode) {
@@ -3306,6 +3358,51 @@ function finalizeCompetitorQuota(user, reservation, actualCount) {
   return competitorQuotaFor(user);
 }
 
+function posterQuotaFor(user) {
+  const date = localDateKey();
+  const key = `${date}:${user.id}`;
+  const used = Math.max(0, Number(posterDailyUsage[key]?.used || 0));
+  const reserved = Math.max(0, Number(posterReservations.get(key) || 0));
+  const unlimited = user.role === 'admin';
+  return {
+    date,
+    limit: unlimited ? null : POSTER_DAILY_LIMIT,
+    used,
+    reserved,
+    remaining: unlimited ? null : Math.max(0, POSTER_DAILY_LIMIT - used - reserved),
+    unlimited
+  };
+}
+
+function reservePosterQuota(user) {
+  const quota = posterQuotaFor(user);
+  const key = `${quota.date}:${user.id}`;
+  if (!quota.unlimited && quota.remaining <= 0) return { ...quota, granted: false, key };
+  if (!quota.unlimited) posterReservations.set(key, quota.reserved + 1);
+  return { ...quota, granted: true, key };
+}
+
+function finalizePosterQuota(user, reservation, successful) {
+  if (!reservation?.granted) return posterQuotaFor(user);
+  if (!reservation.unlimited) {
+    const reserved = Math.max(0, Number(posterReservations.get(reservation.key) || 0) - 1);
+    if (reserved) posterReservations.set(reservation.key, reserved);
+    else posterReservations.delete(reservation.key);
+    if (successful) {
+      const current = posterDailyUsage[reservation.key] || { used: 0, updated_at: '' };
+      posterDailyUsage[reservation.key] = {
+        used: Math.min(POSTER_DAILY_LIMIT, Number(current.used || 0) + 1),
+        updated_at: new Date().toISOString()
+      };
+    }
+  }
+  const keepAfter = addDaysToDateKey(localDateKey(), -8);
+  Object.keys(posterDailyUsage).forEach((key) => {
+    if (key.slice(0, 10) < keepAfter) delete posterDailyUsage[key];
+  });
+  return posterQuotaFor(user);
+}
+
 function findNestedSearchValue(payload, keys) {
   let found = '';
   const scan = (value, depth = 0) => {
@@ -4191,6 +4288,31 @@ async function route(req, res) {
       const user = authenticatedUser(req);
       if (!user) return fail(res, 401, '登录状态已失效，请重新登录', 40101);
       return ok(res, toolAvailabilityFor(user));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/tools/posters/quota') {
+      const user = requireUser(req, res);
+      if (!user) return;
+      if (!['coaching', 'admin'].includes(user.role)) return fail(res, 403, 'AI 海报仅对陪跑学员开放', 40302);
+      return ok(res, posterQuotaFor(user));
+    }
+    if (req.method === 'POST' && url.pathname === '/api/tools/posters/generate') {
+      const user = requireUser(req, res);
+      if (!user) return;
+      if (!['coaching', 'admin'].includes(user.role)) return fail(res, 403, 'AI 海报仅对陪跑学员开放', 40302);
+      if (!IMAGE_GENERATION_ENABLED) return fail(res, 410, 'AI 海报暂未开放，请联系管理员完成图片服务配置。', 41001);
+      const brief = String(body.brief || '').trim().slice(0, 2400);
+      if (!brief) return fail(res, 400, '请填写海报想表达的内容', 40001);
+      const reservation = reservePosterQuota(user);
+      if (!reservation.granted) return fail(res, 429, `今日 AI 海报额度已用完（每天 ${POSTER_DAILY_LIMIT} 张），明天北京时间 00:00 后会自动恢复。`, 42903);
+      try {
+        const result = await createStudentPoster({ brief, style: String(body.style || 'warm').slice(0, 40), user });
+        const quota = finalizePosterQuota(user, reservation, true);
+        return ok(res, { image_data_url: result.imageDataUrl, model: result.model, provider: result.provider, latency_ms: result.latencyMs, quota });
+      } catch (error) {
+        finalizePosterQuota(user, reservation, false);
+        logCall({ provider_code: 'image_proxy', provider_name: 'GPT 图片中转站', model_code: IMAGE_PROXY_MODEL, feature_code: 'student_poster', status: 'failed', latency_ms: 0, error_message: error.message, usage: {}, user_id: user.id, user_name: user.name });
+        return fail(res, 502, `海报生成失败：${error.message}`, 50201);
+      }
     }
     if (req.method === 'POST' && url.pathname === '/api/auth/sms/send') {
       return fail(res, 501, '验证码登录尚未接入，请使用账号密码登录', 50100);

@@ -3342,7 +3342,9 @@ function extractDouyinCompetitorItems(payload, keyword) {
       const playUrl = externalUrls(video.play_addr || video.playAddr || value.play_addr)[0] || '';
       const author = aweme.author || value.author || {};
       const statistics = normalizeCompetitorStatistics(aweme.statistics, value.statistics);
-      if (id && playUrl && !seen.has(id)) {
+      // 搜索接口并非每条公开内容都会提供直连播放地址，尤其是图文内容或受平台保护的内容。
+      // 只要有内容 ID 就保留，前端仍可通过原内容链接打开，避免把一整类搜索结果误判为不存在。
+      if (id && !seen.has(id)) {
         seen.add(id);
         items.push(withCompetitorChannel({
           id,

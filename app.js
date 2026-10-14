@@ -4507,15 +4507,15 @@ function renderCompetitorQuota() {
   const quotaLabel = $('competitorQuotaStatus');
   const searchButton = $('competitorSearchButton');
   const resultCount = $('competitorResultCount');
-  const channelSelect = $('competitorChannel');
-  if (!quotaLabel || !searchButton || !resultCount || !channelSelect) return;
+  const trackInput = $('competitorTrack');
+  if (!quotaLabel || !searchButton || !resultCount) return;
   const quota = state.competitorQuota;
   if (quota.loading && !quota.loaded) quotaLabel.textContent = '正在读取今日额度…';
   else quotaLabel.textContent = `今日已用 ${Number(quota.used || 0)} / ${Number(quota.limit || 100)} 条 · 剩余 ${Number(quota.remaining ?? 100)} 条`;
   const exhausted = quota.loaded && Number(quota.remaining) <= 0;
   searchButton.disabled = exhausted || Boolean(state.competitorFinder.loading);
   resultCount.disabled = exhausted || Boolean(state.competitorFinder.loading);
-  channelSelect.disabled = exhausted || Boolean(state.competitorFinder.loading);
+  if (trackInput) trackInput.disabled = exhausted || Boolean(state.competitorFinder.loading);
   if (exhausted) searchButton.textContent = '今日额度已用完';
   else if (!state.competitorFinder.loading) searchButton.textContent = '开始搜索';
 }
@@ -4538,15 +4538,14 @@ function renderCompetitorFinder() {
   if (!container || !status) return;
   const finder = state.competitorFinder;
   if (finder.loading) {
-    container.innerHTML = `<div class="competitor-empty"><strong>正在搜索${escapeHtml(finder.channelLabel || '抖音')}教育精品内容…</strong><span>正在为你筛选更匹配的内容，请稍候。</span></div>`;
+    container.innerHTML = `<div class="competitor-empty"><strong>正在搜索${escapeHtml(finder.channelLabel || '抖音')}全量内容…</strong><span>正在按你的关键词${finder.track ? `和赛道“${escapeHtml(finder.track)}”` : ''}整理结果，请稍候。</span></div>`;
     return;
   }
   if (!finder.items.length) {
-    container.innerHTML = '<div class="competitor-empty"><strong>还没有搜索结果</strong><span>可从上方教育热搜开始，或输入一个更具体的教育关键词。</span></div>';
+    container.innerHTML = '<div class="competitor-empty"><strong>还没有搜索结果</strong><span>换一个更具体的关键词试试；赛道筛选可留空，避免把结果筛得过窄。</span></div>';
     return;
   }
-  const strictLabel = finder.teacherUsableOnly ? '已排除图文轮播、混剪和搬运内容' : '已按教育相关性排序';
-  status.textContent = `已从${finder.channelLabel || '抖音'}找到 ${finder.items.length} 条“${finder.keyword}”外部内容；优先保留可拍的${finder.contentFormLabel || '老师口播 / 真实 Vlog'}，${strictLabel}。`;
+  status.textContent = `已从${finder.channelLabel || '抖音'}找到 ${finder.items.length} 条“${finder.keyword}”原始搜索结果${finder.track ? `；已按“${finder.track}”赛道优先排序` : ''}。`;
   container.innerHTML = finder.items.map((item) => {
     const transcript = finder.transcripts[item.id];
     const sourceUrl = item.source_url || item.sourceUrl || '';
@@ -4613,42 +4612,41 @@ async function searchCompetitorFinder(keyword = value('competitorSearchInput'), 
   const normalizedKeyword = String(keyword || '').trim();
   const searchSource = options.source === 'trend' ? 'trend' : 'manual';
   const requestedCount = [5, 10, 20].includes(Number(value('competitorResultCount'))) ? Number(value('competitorResultCount')) : 10;
-  const requestedChannel = ['douyin', 'wechat_channels', 'xiaohongshu'].includes(options.channel) ? options.channel : value('competitorChannel');
-  const channel = ['douyin', 'wechat_channels', 'xiaohongshu'].includes(requestedChannel) ? requestedChannel : 'douyin';
-  const channelLabels = { douyin: '抖音', wechat_channels: '视频号', xiaohongshu: '小红书' };
-  const channelLabel = channelLabels[channel];
-  if ($('competitorChannel')) $('competitorChannel').value = channel;
+  const channel = 'douyin';
+  const channelLabel = '抖音';
+  const track = String(value('competitorTrack') || '').trim();
   if (!normalizedKeyword) {
     $('competitorSearchInput')?.focus();
     return;
   }
-  // 面向学员只保留关键词搜索；教育 IP 的筛选偏好统一由系统默认执行。
+  // 搜索入口不再预设教育相关性或内容形式：先拿到抖音原始搜索结果，再按可选赛道排序。
   const audience = 'parents';
   const intent = 'professional';
-  const contentForm = 'talking_or_vlog';
-  const contentFormLabels = { talking_or_vlog: '老师口播 / 真实 Vlog', talking_head: '老师口播', vlog: '真实 Vlog', all: '教育视频' };
-  const teacherUsableOnly = true;
-  state.competitorFinder = { keyword: normalizedKeyword, requestedCount, channel, channelLabel, audience, intent, contentForm, contentFormLabel: contentFormLabels[contentForm], teacherUsableOnly, source: searchSource, loading: true, items: [], transcripts: {} };
+  const contentForm = 'all';
+  const contentFormLabels = { all: '抖音内容' };
+  const teacherUsableOnly = false;
+  state.competitorFinder = { keyword: normalizedKeyword, track, requestedCount, channel, channelLabel, audience, intent, contentForm, contentFormLabel: contentFormLabels[contentForm], teacherUsableOnly, source: searchSource, loading: true, items: [], transcripts: {} };
   $('competitorRadar')?.classList.add('searching');
   if ($('competitorRadarStatus')) $('competitorRadarStatus').textContent = '● 正在扫描';
   if ($('competitorRadarKeyword')) $('competitorRadarKeyword').textContent = normalizedKeyword;
   if ($('competitorRadarReadout')) $('competitorRadarReadout').textContent = '匹配竞品信号';
   $('competitorSearchInput').value = normalizedKeyword;
-  $('competitorSearchStatus').textContent = `正在按${channelLabel}原始搜索结果筛选 ${requestedCount} 条可拍的${contentFormLabels[contentForm]}内容…`;
+  $('competitorSearchStatus').textContent = `正在搜索抖音“${normalizedKeyword}”的全量原始结果${track ? `，并按“${track}”赛道排序` : ''}…`;
   renderCompetitorQuota();
   renderCompetitorFinder();
   try {
-    const result = await apiRequest('competitorSearch', { keyword: normalizedKeyword, channel, limit: requestedCount, source: searchSource, audience, intent, content_form: contentForm, teacher_usable_only: teacherUsableOnly, minimum_score: 60 });
+    const result = await apiRequest('competitorSearch', { keyword: normalizedKeyword, track, channel, limit: requestedCount, source: searchSource, audience, intent, content_form: contentForm, teacher_usable_only: teacherUsableOnly, full_douyin: true });
     state.competitorFinder.items = Array.isArray(result?.items) ? result.items : [];
     state.competitorFinder.searchKeyword = result?.search_keyword || normalizedKeyword;
     state.competitorFinder.channel = result?.channel || channel;
     state.competitorFinder.channelLabel = result?.channel_label || channelLabel;
+    state.competitorFinder.track = result?.track || track;
     state.competitorFinder.contentForm = result?.content_form || contentForm;
     state.competitorFinder.contentFormLabel = contentFormLabels[state.competitorFinder.contentForm] || contentFormLabels.talking_or_vlog;
     state.competitorFinder.teacherUsableOnly = result?.teacher_usable_only !== false;
     if (result?.quota) state.competitorQuota = { ...state.competitorQuota, ...result.quota, loaded: true, loading: false };
     competitorRadarSignalWords = Array.from(new Set([normalizedKeyword, ...state.competitorFinder.items.slice(0, 4).map((item) => item.author), '高赞内容', '高收藏', '同赛道账号', '口播结构'].map((item) => String(item || '').trim().slice(0, 10)).filter(Boolean))).slice(0, 10);
-    if (!state.competitorFinder.items.length) $('competitorSearchStatus').textContent = `${channelLabel}本次确实没有返回与“${result?.search_keyword || normalizedKeyword}”相关的教育内容。请检查关键词是否过长、过于冷门，或换成具体学科和人群。`;
+    if (!state.competitorFinder.items.length) $('competitorSearchStatus').textContent = `${channelLabel}本次没有返回“${result?.search_keyword || normalizedKeyword}”的公开结果。请换一个更具体或更常见的关键词；赛道筛选可先留空。`;
   } catch (error) {
     $('competitorSearchStatus').textContent = `搜索失败：${error.message}`;
   } finally {

@@ -546,18 +546,18 @@
         <section class="competitor-native">
           <section class="competitor-hero">
             <div class="competitor-hero-copy">
-              <span class="eyebrow">教育赛道热点 · 内容情报</span>
-              <h2>先看行业在讲什么，<br /><em>再决定自己拍什么。</em></h2>
-              <p>从一个教育关键词开始，找到相关竞品、爆款视频和可以转成自己内容的结构。</p>
-              <div class="competitor-search-bar"><span>⌕</span><input id="competitorSearchInput" type="search" value="教育" maxlength="40" placeholder="搜索教育赛道关键词" /><button class="primary" id="competitorSearchButton">开始搜索</button></div>
-              <div class="competitor-search-preferences"><div><label>搜索渠道 <select id="competitorChannel" aria-label="搜索渠道"><option value="douyin" selected>抖音</option><option value="wechat_channels">视频号</option><option value="xiaohongshu">小红书</option></select></label><label>每次搜索 <select id="competitorResultCount" aria-label="每次搜索视频数量"><option value="5">5 条</option><option value="10" selected>10 条</option><option value="20">20 条</option></select></label></div><strong id="competitorQuotaStatus">今日已用 0 / 100 条 · 剩余 100 条</strong></div>
+              <span class="eyebrow">抖音全量搜索 · 内容情报</span>
+              <h2>先搜全量抖音，<br /><em>再按自己的赛道看内容。</em></h2>
+              <p>搜索不会预设教育范围；输入你想看的关键词，再按自己的赛道聚焦结果。</p>
+              <div class="competitor-search-bar"><span>⌕</span><input id="competitorSearchInput" type="search" maxlength="40" placeholder="例如：背单词、孩子磨蹭、个人成长" /><button class="primary" id="competitorSearchButton">搜索抖音</button></div>
+              <div class="competitor-search-preferences"><div><label>我的赛道 <input id="competitorTrack" list="competitorTrackOptions" maxlength="40" placeholder="可选，例如：少儿英语、家庭教育" /></label><datalist id="competitorTrackOptions"><option value="少儿英语"></option><option value="学科教育"></option><option value="素质教育"></option><option value="家庭教育"></option><option value="幼儿园 / 托育"></option><option value="教培运营 / 校长"></option><option value="成人教育 / 职业培训"></option></datalist><label>每次搜索 <select id="competitorResultCount" aria-label="每次搜索视频数量"><option value="5">5 条</option><option value="10" selected>10 条</option><option value="20">20 条</option></select></label></div><strong id="competitorQuotaStatus">今日已用 0 / 100 条 · 剩余 100 条</strong></div>
             </div>
             <aside class="competitor-radar" id="competitorRadar" aria-label="教育内容信号雷达"><div class="competitor-radar-head"><span class="eyebrow">CONTENT SIGNAL RADAR</span><span id="competitorRadarStatus">● 雷达待命</span></div><div class="competitor-radar-stage"><canvas id="competitorRadarCanvas" aria-hidden="true"></canvas><b>PIPI<br /><strong>SCAN</strong></b><span>账号</span><span>爆款</span><span>文案</span><span>选题</span></div><div class="competitor-radar-foot"><span id="competitorRadarKeyword">教育内容信号</span><strong id="competitorRadarReadout">持续扫描中</strong></div></aside>
           </section>
           <section class="competitor-profile-strip"><div><span class="eyebrow">我的业务画像 · 可选</span><strong>还没有填写，先用一句话描述你的业务吧</strong></div><button class="secondary">编辑一句话 ↗</button></section>
           <section class="competitor-hot-section"><div class="competitor-section-head"><div><span class="eyebrow">DOUYIN SEARCH DISCOVERY</span><h3>抖音搜索词根双榜</h3><p>榜一看全站高搜索词根，不限类目；榜二读取教育定向搜索榜，再筛出教育相关高搜索词。用于找内容切口，不等于竞品推荐。</p></div><span id="competitorTrendMeta">进入页面后自动联网更新</span></div><div class="competitor-hot-ranking dynamic" id="competitorHotRanking"><div class="competitor-trend-state"><strong>等待读取抖音搜索词根双榜</strong><span>将读取抖音全站搜索榜与教育定向搜索榜。</span></div></div></section>
           <header class="competitor-native-head"><div><span class="eyebrow">SEARCH RESULTS</span><h2>搜索结果</h2></div></header>
-          <p id="competitorSearchStatus" class="competitor-search-status">输入教育关键词后搜索，打开原内容后可自行查看视频表达与内容结构。</p>
+          <p id="competitorSearchStatus" class="competitor-search-status">输入关键词搜索抖音全量内容；“我的赛道”可选填，用来优先呈现更贴近你业务的结果。</p>
           <div id="competitorSearchResults" class="competitor-video-grid"></div>
           <section class="competitor-account-diagnosis-section" aria-labelledby="competitorAccountDiagnosisTitle"><header><span class="eyebrow">ACCOUNT DIAGNOSIS</span><h2 id="competitorAccountDiagnosisTitle">账号诊断</h2><p>粘贴公开抖音主页链接，读取该账号最热 20 条作品，按 PP 老师内容方法论诊断。</p></header><div class="competitor-account-diagnosis"><div class="competitor-account-form"><input id="competitorAccountUrl" type="url" placeholder="粘贴含 sec_user_id 的抖音主页链接" /><button class="secondary" id="competitorAccountDiagnoseButton" type="button">诊断账号</button></div><div id="competitorAccountDiagnosisResult" class="competitor-account-result" aria-live="polite"></div></div></section>
         </section>
@@ -775,6 +775,6 @@
   <script src="vendor/lucide.min.js?v=20260804-01"></script>
   <script>window.lucide?.createIcons({ attrs: { 'aria-hidden': 'true', 'stroke-width': 1.8 } });</script>
   <script src="config.js?v=20260907-accumulation-01"></script>
-  <script src="app.js?v=20261014-admin-poster-unlimited-01"></script>
+  <script src="app.js?v=20261014-douyin-full-search-01"></script>
 </body>
 </html>

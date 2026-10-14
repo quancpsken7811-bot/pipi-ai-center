@@ -2910,6 +2910,21 @@ function normalizeCompetitorContentForm(value) {
   return ['talking_or_vlog', 'talking_head', 'vlog', 'all'].includes(value) ? value : 'talking_or_vlog';
 }
 
+function normalizeCompetitorTrack(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+}
+
+function competitorTrackScore(item, track) {
+  const normalizedTrack = normalizeCompetitorTrack(track).toLowerCase();
+  if (!normalizedTrack) return 0;
+  const text = `${String(item?.title || '').toLowerCase()} ${String(item?.author || '').toLowerCase()}`;
+  if (text.includes(normalizedTrack)) return 100;
+  const terms = normalizedTrack.split(/[\s,，、/]+/).filter((term) => term.length >= 2);
+  const matched = terms.filter((term) => text.includes(term)).length;
+  if (!terms.length || !matched) return 0;
+  return Math.round(45 + (matched / terms.length) * 45);
+}
+
 const COMPETITOR_TALKING_HEAD_SIGNALS = ['老师', '教师', '校长', '园长', '班主任', '讲给', '分享', '聊聊', '告诉你', '家长', '孩子', '学生', '怎么', '为什么', '误区', '方法', '建议', '招生'];
 const COMPETITOR_VLOG_SIGNALS = ['vlog', '日常', '一天', '上课', '下课', '备课', '课堂', '校区', '工作室', '教研', '带班', '接娃', '开会', '探校', '老师的'];
 const COMPETITOR_UNSHOOTABLE_SIGNALS = ['图文', '图片', '轮播', '动画', '动漫', '电影', '电视剧', '影视', '混剪', '剪辑', '素材', '新闻', '搬运', 'ai 生成', 'ai生成'];
@@ -3735,6 +3750,7 @@ async function transcribeWechatCompetitorVideo(source, user) {
 
 async function searchCompetitorVideos(input, user) {
   const keyword = String(input.keyword || '教育').trim().slice(0, 40) || '教育';
+  const track = normalizeCompetitorTrack(input.track);
   const audience = normalizeEducationIpAudience(String(input.audience || 'parents'));
   const intent = normalizeEducationIpIntent(String(input.intent || 'professional'));
   const trendMode = String(input.source || '').trim().toLowerCase() === 'trend';
@@ -3745,6 +3761,7 @@ async function searchCompetitorVideos(input, user) {
   const materialCategory = materialReference.category;
   const channel = normalizeCompetitorChannel(input.channel || input.platform);
   const channelConfig = COMPETITOR_CHANNELS[channel];
+  const fullDouyinSearch = channel === 'douyin' && input.full_douyin !== false;
   // 抖音检索必须先尊重用户输入的原词，不能再叠加“教育干货”等后缀改变平台原始结果。
   const searchKeyword = channel === 'douyin' ? keyword : buildEducationIpSearchKeyword(keyword, audience, intent);
   const requestedCount = normalizeCompetitorResultLimit(input.limit || input.result_count);
@@ -3792,7 +3809,8 @@ async function searchCompetitorVideos(input, user) {
           const negativeHits = countTextSignals(itemText, NON_EDUCATION_SEARCH_SIGNALS);
           if (formMatches && item.score >= 25 && item.education_score >= 30 && (!teacherUsableOnly || item.teacher_usable_score >= 48) && positiveHits >= 1 && (negativeHits === 0 || positiveHits >= 2) && !broadFallback.has(item.id)) broadFallback.set(item.id, item);
         });
-      if (collected.size >= reservation.granted || relevantFallback.size >= reservation.granted) break;
+      // 全量抖音搜索需要保留更多原平台候选，不能在旧版教育筛选已凑够时提前停止。
+      if (!fullDouyinSearch && (collected.size >= reservation.granted || relevantFallback.size >= reservation.granted)) break;
       const nextPageState = extractTikHubSearchPageState(payload, channel, pageState);
       if (!nextPageState) break;
       const pageStateKey = JSON.stringify(nextPageState);
@@ -3810,16 +3828,28 @@ async function searchCompetitorVideos(input, user) {
     const strictItems = [...collected.values()].sort(rankItems);
     const relevantItems = [...relevantFallback.values()].filter((item) => !collected.has(item.id)).sort(rankItems);
     const broadItems = [...broadFallback.values()].filter((item) => !collected.has(item.id) && !relevantFallback.has(item.id)).sort(rankItems);
-    // 开启“只看可直接借鉴”时宁可少给，也不再用宽松兜底把泛教育或蹭词内容塞回来。
-    const items = (teacherUsableOnly ? [...strictItems, ...relevantItems] : [...strictItems, ...relevantItems, ...broadItems]).slice(0, reservation.granted);
-    const broadFallbackUsed = items.some((item) => broadItems.includes(item));
-    const relevantFallbackUsed = items.some((item) => !collected.has(item.id));
-    const selectionMode = broadFallbackUsed ? 'broad_fallback' : relevantFallbackUsed ? (trendMode ? 'trend_fallback' : 'relevance_fallback') : 'strict';
+    let items;
+    let selectionMode;
+    if (fullDouyinSearch) {
+      const platformItems = [...rawCandidates.values()].sort((left, right) => Number(left.platform_rank || 99) - Number(right.platform_rank || 99));
+      const trackMatchedItems = track ? platformItems.filter((item) => competitorTrackScore(item, track) > 0) : [];
+      const pool = trackMatchedItems.length ? trackMatchedItems : platformItems;
+      items = pool
+        .sort((left, right) => competitorTrackScore(right, track) - competitorTrackScore(left, track) || Number(left.platform_rank || 99) - Number(right.platform_rank || 99))
+        .slice(0, reservation.granted);
+      selectionMode = track ? (trackMatchedItems.length ? 'track_filtered' : 'track_no_exact_match') : 'platform_all';
+    } else {
+      // 兼容旧接口调用：保留原有教育 IP 内容筛选策略。
+      items = (teacherUsableOnly ? [...strictItems, ...relevantItems] : [...strictItems, ...relevantItems, ...broadItems]).slice(0, reservation.granted);
+      const broadFallbackUsed = items.some((item) => broadItems.includes(item));
+      const relevantFallbackUsed = items.some((item) => !collected.has(item.id));
+      selectionMode = broadFallbackUsed ? 'broad_fallback' : relevantFallbackUsed ? (trendMode ? 'trend_fallback' : 'relevance_fallback') : 'strict';
+    }
     items.filter((item) => item.play_url || item.export_id).forEach((item) => competitorVideoSources.set(item.id, { channel: item.channel, playUrl: item.play_url, exportId: item.export_id, objectNonceId: item.object_nonce_id, caption: item.title, expiresAt: Date.now() + 30 * 60 * 1000 }));
     const quota = finalizeCompetitorQuota(user, reservation, items.length);
     logCall({ feature_code: 'competitor_finder', user_id: user.id, user_name: user.name, provider_code: 'tikhub', model_code: channelConfig.endpoint, status: 'success', latency_ms: Date.now() - started, usage: { items: items.length, requests: requestCount, channel } });
     setProviderHealth('tikhub', 'healthy');
-    return { keyword, search_keyword: searchKeyword, audience, intent, content_form: contentForm, teacher_usable_only: teacherUsableOnly, channel, channel_label: channelConfig.label, items, requested_count: requestedCount, granted_count: reservation.granted, request_count: requestCount, quota, selection_mode: selectionMode, raw_candidate_count: rawCandidates.size, minimum_score: 60, minimum_education_score: 55 };
+    return { keyword, track, search_keyword: searchKeyword, audience, intent, content_form: contentForm, teacher_usable_only: teacherUsableOnly, channel, channel_label: channelConfig.label, items, requested_count: requestedCount, granted_count: reservation.granted, request_count: requestCount, quota, selection_mode: selectionMode, raw_candidate_count: rawCandidates.size, minimum_score: fullDouyinSearch ? 0 : 60, minimum_education_score: fullDouyinSearch ? 0 : 55 };
   } catch (error) {
     releaseCompetitorQuota(reservation);
     setProviderHealth('tikhub', 'unhealthy', error.message);

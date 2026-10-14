@@ -3847,12 +3847,12 @@ async function searchCompetitorVideos(input, user) {
     let selectionMode;
     if (fullDouyinSearch) {
       const platformItems = [...rawCandidates.values()].sort((left, right) => Number(left.platform_rank || 99) - Number(right.platform_rank || 99));
-      const trackMatchedItems = track ? platformItems.filter((item) => competitorTrackScore(item, track) > 0) : [];
-      const pool = trackMatchedItems.length ? trackMatchedItems : platformItems;
-      items = pool
+      // 赛道只负责把更相关的结果排在前面，绝不从全量搜索结果中剔除内容。
+      // 很多爆款标题不直接写学科或业务词，硬筛选会再次制造“搜不到”的问题。
+      items = platformItems
         .sort((left, right) => competitorTrackScore(right, track) - competitorTrackScore(left, track) || Number(left.platform_rank || 99) - Number(right.platform_rank || 99))
         .slice(0, reservation.granted);
-      selectionMode = track ? (trackMatchedItems.length ? 'track_filtered' : 'track_no_exact_match') : 'platform_all';
+      selectionMode = track ? 'track_ranked' : 'platform_all';
     } else {
       // 兼容旧接口调用：保留原有教育 IP 内容筛选策略。
       items = (teacherUsableOnly ? [...strictItems, ...relevantItems] : [...strictItems, ...relevantItems, ...broadItems]).slice(0, reservation.granted);

@@ -1017,10 +1017,10 @@ function renderPosterReference() {
   if (!reference) {
     preview.classList.add('hidden');
     preview.innerHTML = '';
-    status.textContent = '可上传 1 张 JPG、PNG 或 WebP，用来参考色系、构图和排版。';
+    status.textContent = '可上传 1 张 JPG、PNG 或 WebP。上传后会作为整张图的视觉母版。';
     return;
   }
-  status.textContent = `已选择：${reference.name}。生成时会参考它的视觉语言。`;
+  status.textContent = `已选择：${reference.name}。生成时会按它的色系、构图和版式系统重做。`;
   preview.innerHTML = `<img src="${reference.dataUrl}" alt="已上传的图像参考" /><button type="button" data-clear-poster-reference aria-label="移除参考图">×</button>`;
   preview.classList.remove('hidden');
 }

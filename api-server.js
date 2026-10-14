@@ -18,6 +18,7 @@ const STATE_PATH = path.join(DATA_DIR, 'state.json');
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const AUTH_SECRET = process.env.PIPI_AUTH_SECRET || (IS_PRODUCTION ? '' : 'pipi-local-development-secret');
 const AUTH_TOKEN_TTL_MS = Number(process.env.PIPI_AUTH_TOKEN_TTL_MS || 7 * 24 * 60 * 60 * 1000);
+const MAX_CONCURRENT_DEVICE_SESSIONS = 3;
 const REGISTRATION_WINDOW_MS = Number(process.env.PIPI_REGISTRATION_WINDOW_MS || 10 * 60 * 1000);
 // 同一校区或课堂常共用一个公网 IP；30 次 / 10 分钟仍能防止批量滥用，
 // 又不会让正常集中注册的学员互相误伤。
@@ -551,6 +552,42 @@ function secureManagedUserPasswords() {
   });
 }
 
+function ensureUserAuthSessions(user) {
+  if (Array.isArray(user.auth_sessions)) return false;
+  user.auth_sessions = [];
+  return true;
+}
+
+function pruneExpiredAuthSessions(user, now = Date.now()) {
+  ensureUserAuthSessions(user);
+  const before = user.auth_sessions.length;
+  user.auth_sessions = user.auth_sessions.filter((session) => session && session.id && Number(session.expires_at) > now);
+  return before !== user.auth_sessions.length;
+}
+
+function createAuthSession(user) {
+  pruneExpiredAuthSessions(user);
+  if (user.auth_sessions.length >= MAX_CONCURRENT_DEVICE_SESSIONS) return null;
+  const now = Date.now();
+  const session = { id: randomUUID(), created_at: now, expires_at: now + AUTH_TOKEN_TTL_MS };
+  user.auth_sessions.push(session);
+  return session;
+}
+
+function revokeAuthSession(user, sessionId) {
+  ensureUserAuthSessions(user);
+  const before = user.auth_sessions.length;
+  user.auth_sessions = user.auth_sessions.filter((session) => session.id !== sessionId);
+  return before - user.auth_sessions.length;
+}
+
+function revokeOtherAuthSessions(user, sessionId) {
+  ensureUserAuthSessions(user);
+  const before = user.auth_sessions.length;
+  user.auth_sessions = user.auth_sessions.filter((session) => session.id === sessionId);
+  return before - user.auth_sessions.length;
+}
+
 function ensurePersonalCenterData(user) {
   let changed = false;
   if (!Array.isArray(user.personal_knowledge)) {
@@ -600,7 +637,7 @@ const PIPI_GACHA_QUOTES = [
 ];
 
 function publicManagedUser(user) {
-  const { password, password_hash, personal_knowledge, point_ledger, points_balance, profile, persona, material_library, ...safeUser } = user;
+  const { password, password_hash, auth_sessions, personal_knowledge, point_ledger, points_balance, profile, persona, material_library, ...safeUser } = user;
   return {
     ...safeUser,
     status: effectiveStatus(user),
@@ -1002,7 +1039,8 @@ const salesSimulationV2Migrated = ensureSalesSimulationV2();
 const legacySampleUsersRemoved = removeLegacySampleUsers();
 secureManagedUserPasswords();
 const personalCenterMigrated = managedUsers.some(ensurePersonalCenterData);
-if (!fs.existsSync(STATE_PATH) || personalCenterMigrated || coachToolboxMigrated || salesSimulationV2Migrated || copyAgentsMigrated || guidedProductPromptsMigrated || accumulationPromptsMigrated || copywritingModelMigrated || pipiModelFallbackMigrated || competitorModelPriorityMigrated || verifiedArkPlanDefaultsMigrated || legacySampleUsersRemoved) savePersistentState();
+const authSessionsMigrated = managedUsers.some(ensureUserAuthSessions);
+if (!fs.existsSync(STATE_PATH) || personalCenterMigrated || authSessionsMigrated || coachToolboxMigrated || salesSimulationV2Migrated || copyAgentsMigrated || guidedProductPromptsMigrated || accumulationPromptsMigrated || copywritingModelMigrated || pipiModelFallbackMigrated || competitorModelPriorityMigrated || verifiedArkPlanDefaultsMigrated || legacySampleUsersRemoved) savePersistentState();
 
 const roleMeta = {
   admin: { name: '管理员', features: ['pipi', 'topics', 'copy', 'competitor', 'sales', 'coach', 'history', 'admin'] },
@@ -1153,13 +1191,14 @@ function readBody(req) {
   });
 }
 
-function tokenFor(user) {
-  const payload = Buffer.from(JSON.stringify({ id: user.id, exp: Date.now() + AUTH_TOKEN_TTL_MS })).toString('base64url');
+function tokenFor(user, sessionId) {
+  const session = (user.auth_sessions || []).find((item) => item.id === sessionId);
+  const payload = Buffer.from(JSON.stringify({ id: user.id, sid: sessionId, exp: Number(session?.expires_at) || Date.now() + AUTH_TOKEN_TTL_MS })).toString('base64url');
   const signature = createHmac('sha256', AUTH_SECRET).update(payload).digest('base64url');
   return `${payload}.${signature}`;
 }
 
-function publicUser(user) {
+function publicUser(user, sessionId) {
   const meta = roleMeta[user.role] || roleMeta.training;
   return {
     id: user.id,
@@ -1172,7 +1211,7 @@ function publicUser(user) {
     role_name: meta.name,
     status: effectiveStatus(user),
     enabled_features: user.enabled_features || meta.features,
-    token: tokenFor(user)
+    token: tokenFor(user, sessionId)
   };
 }
 
@@ -1413,7 +1452,7 @@ function parseToken(req) {
     const expectedBuffer = Buffer.from(expected);
     if (actualBuffer.length !== expectedBuffer.length || !timingSafeEqual(actualBuffer, expectedBuffer)) return null;
     const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
-    return decoded?.id && Number(decoded.exp) > Date.now() ? decoded : null;
+    return decoded?.id && Number(decoded.exp) > Date.now() ? { ...decoded, raw: token } : null;
   } catch {
     return null;
   }
@@ -1432,7 +1471,22 @@ function authenticatedUser(req) {
   const token = parseToken(req);
   if (!token?.id) return null;
   const user = managedUsers.find((item) => item.id === token.id);
-  return user && effectiveStatus(user) === 'active' ? user : null;
+  if (!user || effectiveStatus(user) !== 'active') return null;
+  let sessionId = String(token.sid || '');
+  if (!sessionId) {
+    // 发布前已经签发的旧 Token 不会被无声踢下线；首次访问时补为一个可追踪会话。
+    sessionId = `legacy-${createHash('sha256').update(token.raw).digest('hex').slice(0, 32)}`;
+    pruneExpiredAuthSessions(user);
+    if (!user.auth_sessions.some((session) => session.id === sessionId)) {
+      if (user.auth_sessions.length >= MAX_CONCURRENT_DEVICE_SESSIONS) return null;
+      user.auth_sessions.push({ id: sessionId, created_at: Date.now(), expires_at: Number(token.exp) });
+      savePersistentState();
+    }
+  }
+  pruneExpiredAuthSessions(user);
+  if (!user.auth_sessions.some((session) => session.id === sessionId)) return null;
+  req.authSessionId = sessionId;
+  return user;
 }
 
 function requireUser(req, res, feature) {
@@ -3918,7 +3972,9 @@ async function route(req, res) {
       const user = managedUsers.find((item) => item.account === body.account || item.phone === body.account);
       if (!user || !verifyPassword(user, body.password)) return fail(res, 401, '账号或密码错误', 40100);
       if (effectiveStatus(user) !== 'active') return fail(res, 403, effectiveStatus(user) === 'expired' ? '账号已到期，请联系管理员' : '账号已被禁用，请联系管理员', 40301);
-      return ok(res, publicUser(user));
+      const session = createAuthSession(user);
+      if (!session) return fail(res, 429, '该账号最多可同时登录 3 台设备，请先在任一已登录设备退出，或在个人中心退出其他设备后再试', 42902);
+      return ok(res, publicUser(user, session.id));
     }
     if (req.method === 'POST' && url.pathname === '/api/auth/register') {
       if (!ALLOW_SELF_REGISTRATION) return fail(res, 403, '当前未开放自助注册，请联系管理员开通账号', 40302);
@@ -3952,7 +4008,8 @@ async function route(req, res) {
       };
       ensurePersonalCenterData(user);
       managedUsers.push(user);
-      return ok(res, publicUser(user));
+      const session = createAuthSession(user);
+      return ok(res, publicUser(user, session.id));
     }
     if (req.method === 'POST' && url.pathname === '/api/auth/password-reset-request') {
       const account = String(body.account || '').trim();
@@ -3975,7 +4032,17 @@ async function route(req, res) {
     if (req.method === 'GET' && url.pathname === '/api/me') {
       const user = requireUser(req, res);
       if (!user) return;
-      return ok(res, publicUser(user));
+      return ok(res, publicUser(user, req.authSessionId));
+    }
+    if (req.method === 'POST' && url.pathname === '/api/auth/logout') {
+      const user = requireUser(req, res);
+      if (!user) return;
+      return ok(res, { logged_out: Boolean(revokeAuthSession(user, req.authSessionId)) });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/auth/logout-others') {
+      const user = requireUser(req, res);
+      if (!user) return;
+      return ok(res, { removed: revokeOtherAuthSessions(user, req.authSessionId) });
     }
     if (req.method === 'GET' && url.pathname === '/api/user/profile') {
       const user = requireUser(req, res);
@@ -4928,6 +4995,7 @@ async function route(req, res) {
       if (body.new_password !== undefined) {
         user.password_hash = hashPassword(String(body.new_password));
         user.password_changed_at = new Date().toISOString();
+        user.auth_sessions = [];
         passwordResetRequests.forEach((item) => {
           if (item.user_id === user.id && item.status === 'pending') {
             item.status = 'completed';
@@ -4935,6 +5003,7 @@ async function route(req, res) {
           }
         });
       }
+      if (body.status === 'disabled') user.auth_sessions = [];
       // 角色切换为管理员或管理员被编辑时，都清空到期日，确保管理员永久有效。
       if (user.role === 'admin') user.expires_at = '';
       return ok(res, publicManagedUser(user));

@@ -1,7 +1,7 @@
 // config.js 由静态托管单独加载；如果云托管缓存了旧入口或暂时漏发该文件，
 // 不能因此静默切到 Mock 模式。内置同源 API 兜底，保证线上仍会真实请求后端。
 const DEFAULT_API_ENDPOINTS = {
-  loginPassword: '/api/auth/login/password', register: '/api/auth/register', passwordResetRequest: '/api/auth/password-reset-request', loginSms: '/api/auth/login/sms', sendSms: '/api/auth/sms/send', me: '/api/me',
+  loginPassword: '/api/auth/login/password', logout: '/api/auth/logout', logoutOthers: '/api/auth/logout-others', register: '/api/auth/register', passwordResetRequest: '/api/auth/password-reset-request', loginSms: '/api/auth/login/sms', sendSms: '/api/auth/sms/send', me: '/api/me',
   personalProfile: '/api/user/profile', personalAvatar: '/api/user/avatar', personalPersona: '/api/user/persona', personalPersonaUpload: '/api/user/persona/upload', personalKnowledge: '/api/user/knowledge', personalKnowledgeUpload: '/api/user/knowledge/upload',
   toolAvailability: '/api/tools/availability', pipiChat: '/api/tools/pipi-assistant/chat', salesSimulation: '/api/tools/sales-simulation/chat', salesMethodConfig: '/api/tools/sales-simulation/config', pipiConfig: '/api/tools/pipi-assistant/config', topics: '/api/tools/topics/generate', inspirationCapsules: '/api/inspiration-capsules', inspirationDraws: '/api/inspiration-capsules/draw', copywriting: '/api/tools/copywriting/generate', copywritingConfig: '/api/tools/copywriting/config', wechatLayout: '/api/tools/wechat-layout/analyze', competitor: '/api/tools/competitors/generate', competitorTrends: '/api/tools/competitors/trends', competitorQuota: '/api/tools/competitors/quota', competitorSearch: '/api/tools/competitors/search', competitorAccountDiagnosis: '/api/tools/competitors/account-diagnosis', competitorTranscript: '/api/tools/competitors/transcript', coachSop: '/api/tools/coach/sop', coachMoments: '/api/tools/coach/moments', coachMomentsTemplate: '/api/tools/coach/moments/template', records: '/api/generation-records',
   adminUsers: '/api/admin/users', adminStats: '/api/admin/stats', adminPipiConfig: '/api/admin/pipi-assistant/config', adminPipiKnowledge: '/api/admin/pipi-assistant/knowledge', adminSalesConfig: '/api/admin/sales-simulation/config', adminSalesKnowledge: '/api/admin/sales-simulation/knowledge', adminSalesReports: '/api/admin/sales-simulation/reports', adminCoachToolbox: '/api/admin/coach-toolbox/config', adminCopywritingConfig: '/api/admin/copywriting/config', adminCopywritingAgents: '/api/admin/copywriting/agents', adminCopywritingCovers: '/api/admin/copywriting/covers', adminProviders: '/api/admin/ai/providers', adminImageProxyTest: '/api/admin/image-proxy/test', adminModels: '/api/admin/ai/models', adminRefreshModels: '/api/admin/ai/models/refresh', adminPrompts: '/api/admin/prompts', adminFeatures: '/api/admin/ai/features', adminUsage: '/api/admin/ai/usage', adminProviderUsage: '/api/admin/ai/provider-usage', adminCallLogs: '/api/admin/ai/call-logs', materialLibrary: '/api/material-library'
@@ -29,6 +29,8 @@ const API_REQUEST_TIMEOUTS = {
   me: 10000,
   toolAvailability: 10000,
   personalProfile: 15000,
+  logout: 15000,
+  logoutOthers: 15000,
   personalAvatar: 30000,
   personalPersona: 15000,
   personalPersonaUpload: 45000,
@@ -788,6 +790,7 @@ function normalizeApiUser(data) {
 }
 
 function logout() {
+  if (state.user?.token && state.apiMode !== 'mock') apiRequest('logout', {}, { retryCount: 0 }).catch(() => {});
   pageTrail.length = 0;
   state.user = null;
   clearAuthSession();
@@ -1047,7 +1050,7 @@ function renderPersonalCenter() {
   if (state.personalTab === 'points') state.personalTab = 'profile';
   document.querySelectorAll('[data-personal-tab]').forEach((button) => button.classList.toggle('active', button.dataset.personalTab === state.personalTab));
   if (state.personalTab === 'profile') {
-    container.innerHTML = `<section class="personal-panel"><div class="personal-panel-head"><div><h3>编辑资料</h3><p>这份资料用于识别你的账号与业务背景。</p></div></div><div class="personal-avatar-editor"><div class="personal-avatar-preview">${profile.avatar_url ? `<img src="${escapeHtml(profile.avatar_url)}" alt="个人头像" />` : `<span>${escapeHtml((profile.name || state.user.name).slice(0, 1))}</span>`}</div><div><strong>个人头像</strong><small>支持 JPG、PNG、WebP，图片不超过 2MB。</small><input id="personalAvatarFile" type="file" accept="image/jpeg,image/png,image/webp" hidden /><button class="secondary mini" id="selectPersonalAvatar" type="button">上传头像</button></div></div><div class="personal-form"><label>姓名<input id="personalName" value="${escapeHtml(profile.name || state.user.name)}" maxlength="32" /></label><label>账号<input value="${escapeHtml(profile.account || state.user.account || '')}" disabled /></label><label>手机号<input value="${escapeHtml(profile.phone || '')}" disabled /></label><label>一句话介绍<textarea id="personalBio" rows="3" placeholder="例如：专注 3-12 岁少儿书法教育">${escapeHtml(profile.bio || '')}</textarea></label><label>业务描述<textarea id="personalBusiness" rows="4" placeholder="写下你的赛道、产品、服务对象和当下目标">${escapeHtml(profile.business_description || '')}</textarea></label><button class="primary" id="savePersonalProfile">保存资料</button></div></section>`;
+    container.innerHTML = `<section class="personal-panel"><div class="personal-panel-head"><div><h3>编辑资料</h3><p>这份资料用于识别你的账号与业务背景。</p></div></div><div class="personal-avatar-editor"><div class="personal-avatar-preview">${profile.avatar_url ? `<img src="${escapeHtml(profile.avatar_url)}" alt="个人头像" />` : `<span>${escapeHtml((profile.name || state.user.name).slice(0, 1))}</span>`}</div><div><strong>个人头像</strong><small>支持 JPG、PNG、WebP，图片不超过 2MB。</small><input id="personalAvatarFile" type="file" accept="image/jpeg,image/png,image/webp" hidden /><button class="secondary mini" id="selectPersonalAvatar" type="button">上传头像</button></div></div><div class="personal-form"><label>姓名<input id="personalName" value="${escapeHtml(profile.name || state.user.name)}" maxlength="32" /></label><label>账号<input value="${escapeHtml(profile.account || state.user.account || '')}" disabled /></label><label>手机号<input value="${escapeHtml(profile.phone || '')}" disabled /></label><label>一句话介绍<textarea id="personalBio" rows="3" placeholder="例如：专注 3-12 岁少儿书法教育">${escapeHtml(profile.bio || '')}</textarea></label><label>业务描述<textarea id="personalBusiness" rows="4" placeholder="写下你的赛道、产品、服务对象和当下目标">${escapeHtml(profile.business_description || '')}</textarea></label><button class="primary" id="savePersonalProfile">保存资料</button></div><div class="device-session-control"><div><strong>设备登录管理</strong><small>同一账号最多同时登录 3 台设备。需要释放登录名额时，可退出其他设备。</small></div><button class="secondary mini" id="logoutOtherDevices" type="button">退出其他设备</button></div></section>`;
     return;
   }
   if (state.personalTab === 'persona') {
@@ -5547,6 +5550,7 @@ function bindEvents() {
     const tab = event.target.closest('[data-personal-tab]');
     const saveProfile = event.target.closest('#savePersonalProfile');
     const selectAvatar = event.target.closest('#selectPersonalAvatar');
+    const logoutOtherDevices = event.target.closest('#logoutOtherDevices');
     const savePersona = event.target.closest('#savePersona');
     const deletePersona = event.target.closest('#deletePersona');
     const selectPersonaDocument = event.target.closest('#selectPersonaDocument');
@@ -5572,6 +5576,11 @@ function bindEvents() {
         showToast('资料已保存');
       }
       if (selectAvatar) $('personalAvatarFile').click();
+      if (logoutOtherDevices) {
+        if (!confirm('确定退出其他所有已登录设备吗？当前设备会保留登录。')) return;
+        const result = await apiRequest('logoutOthers', {}, { retryCount: 0 });
+        showToast(result.removed ? `已退出 ${result.removed} 台其他设备` : '没有其他已登录设备');
+      }
       if (savePersona) {
         const result = await apiRequest('personalPersona', {
           name: value('personaName'), identity: value('personaIdentity'), audience: value('personaAudience'), service: value('personaService'), story: value('personaStory')

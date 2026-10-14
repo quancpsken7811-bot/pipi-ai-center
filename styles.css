@@ -1591,6 +1591,9 @@ select:required:invalid option { color: var(--ink); }
 .personal-avatar-preview img { width: 100%; height: 100%; object-fit: cover; }
 .personal-avatar-editor strong, .personal-avatar-editor small { display: block; }
 .personal-avatar-editor small { margin: 4px 0 9px; color: var(--muted); font-size: 11px; }
+.device-session-control { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 20px; border-top: 1px solid var(--line); padding-top: 18px; }
+.device-session-control strong, .device-session-control small { display: block; }
+.device-session-control small { margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .personal-form label { display: grid; gap: 7px; color: #516058; font-size: 12px; font-weight: 800; }
 .personal-form label:nth-of-type(4), .personal-form label:nth-of-type(5) { grid-column: 1 / -1; }
 .personal-form textarea { resize: vertical; }

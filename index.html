@@ -12,7 +12,7 @@
   <title>皮皮 AI 中台</title>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
   <link rel="preload" as="image" href="assets/pipi-teacher-profile-web.webp" type="image/webp" fetchpriority="high" />
-  <link rel="stylesheet" href="styles.css?v=20261014-reference-master-01" />
+  <link rel="stylesheet" href="styles.css?v=20261014-multi-reference-01" />
 </head>
 <body>
   <section id="loginPage" class="login-page">
@@ -593,10 +593,10 @@
           <form class="poster-form" id="posterForm">
             <label>图像类型<select id="posterType"><option value="lead">招生引流</option><option value="course">课程 / 活动介绍</option><option value="teacher">老师介绍 / 信任背书</option><option value="pain_point">家长痛点 / 干货表达</option><option value="benefits">权益介绍 / 成交收口</option><option value="case">交付案例 / 学员反馈</option></select></label>
             <label>图像尺寸<select id="posterSize"><option value="3:4">竖版海报（3:4）</option><option value="1:1">方图（1:1）</option><option value="4:3">横版海报（4:3）</option></select></label>
-            <label>参考图（可选）<input id="posterReferenceImage" type="file" accept="image/jpeg,image/png,image/webp" hidden /><button class="secondary" id="selectPosterReferenceImage" type="button">上传参考图</button><span class="poster-reference-status" id="posterReferenceStatus">可上传 1 张 JPG、PNG 或 WebP。上传后会作为整张图的视觉母版。</span></label>
+            <label>参考素材（可选）<input id="posterReferenceImage" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden /><button class="secondary" id="selectPosterReferenceImage" type="button">上传参考素材</button><span class="poster-reference-status" id="posterReferenceStatus">最多上传 4 张 JPG、PNG 或 WebP：第 1 张作版式参考，第 2 张可放老师本人照片，后续可补充相关素材。</span></label>
             <div id="posterReferencePreview" class="poster-reference-preview hidden"></div>
-            <label>图像文案<textarea id="posterBrief" rows="8" maxlength="2400" placeholder="把这张图上需要表达的标题、内容、对象、时间、权益等一次写清楚。例如：主标题“让孩子敢开口说英语”；副标题“7 天沉浸式表达体验营”；适合 7-10 岁孩子；写清开营时间、上课方式和报名方式。"></textarea></label>
-            <p class="poster-note">只需要选择类型、上传参考图和填写文案。上传参考图后会优先沿用它的色系、构图和排版系统，只替换成你的内容。</p>
+            <label>图像文案<textarea id="posterBrief" rows="8" maxlength="2400" placeholder="不知道怎么写？点击下方的“填入标准文案模板”，按提示补全即可。"></textarea><button class="secondary mini" id="fillPosterBriefTemplate" type="button">填入标准文案模板</button></label>
+            <p class="poster-note">按上传顺序即可：第 1 张决定版式和色系；第 2 张优先当作老师本人照片；其余作为补充素材。图像只会使用你提供的真实内容。</p>
             <button class="primary full" id="generatePoster" type="submit">生成图像</button>
           </form>
           <section class="poster-result-panel" aria-live="polite"><div class="panel-head"><div><h3>图像预览</h3><p id="posterResultHint">填写左侧内容后开始生成。每次成功生成会计入当天额度。</p></div><button class="secondary mini hidden" id="downloadPoster" type="button">下载图片</button></div><div id="posterResult" class="poster-result"><div class="empty-box">你的图像会显示在这里。</div></div></section>
@@ -772,6 +772,6 @@
   <script src="vendor/lucide.min.js?v=20260804-01"></script>
   <script>window.lucide?.createIcons({ attrs: { 'aria-hidden': 'true', 'stroke-width': 1.8 } });</script>
   <script src="config.js?v=20260907-accumulation-01"></script>
-  <script src="app.js?v=20261014-image-size-01"></script>
+  <script src="app.js?v=20261014-multi-reference-01"></script>
 </body>
 </html>

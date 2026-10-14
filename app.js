@@ -89,7 +89,7 @@ const state = {
   materialLibrary: { loaded: false, loading: false, items: [], filter: '全部', search: '' },
   competitorTrends: { loaded: false, loading: false, platforms: {}, items: [], meta: null, error: '' },
   competitorQuota: { loaded: false, loading: false, date: '', limit: 100, used: 0, reserved: 0, remaining: 100 },
-  poster: { quota: null, imageDataUrl: '', referenceImage: null },
+  poster: { quota: null, imageDataUrl: '', referenceImages: [] },
   salesSession: null,
   salesAttachments: [],
   salesEmojiPickerOpen: false,
@@ -1013,15 +1013,18 @@ function renderPosterResult(imageDataUrl) {
 function renderPosterReference() {
   const preview = $('posterReferencePreview');
   const status = $('posterReferenceStatus');
-  const reference = state.poster.referenceImage;
-  if (!reference) {
+  const references = state.poster.referenceImages || [];
+  if (!references.length) {
     preview.classList.add('hidden');
     preview.innerHTML = '';
-    status.textContent = '可上传 1 张 JPG、PNG 或 WebP。上传后会作为整张图的视觉母版。';
+    status.textContent = '最多上传 4 张 JPG、PNG 或 WebP：第 1 张作版式参考，第 2 张可放老师本人照片，后续可补充相关素材。';
     return;
   }
-  status.textContent = `已选择：${reference.name}。生成时会按它的色系、构图和版式系统重做。`;
-  preview.innerHTML = `<img src="${reference.dataUrl}" alt="已上传的图像参考" /><button type="button" data-clear-poster-reference aria-label="移除参考图">×</button>`;
+  status.textContent = `已选择 ${references.length} 张：第 1 张将决定版式和色系；${references[1] ? '第 2 张将优先作为老师本人照片。' : '还可继续添加老师本人照片或补充素材。'}`;
+  preview.innerHTML = references.map((reference, index) => {
+    const role = index === 0 ? '版式参考' : index === 1 ? '老师照片' : '补充素材';
+    return `<div class="poster-reference-item"><img src="${reference.dataUrl}" alt="${role}" /><small title="${escapeHtml(reference.name)}">${role}</small><button type="button" data-clear-poster-reference="${index}" aria-label="移除${role}">×</button></div>`;
+  }).join('');
   preview.classList.remove('hidden');
 }
 
@@ -5831,7 +5834,7 @@ function bindEvents() {
     button.disabled = true;
     hint.textContent = '正在排版生成，通常需要 1–3 分钟，请不要重复点击或关闭页面…';
     try {
-      const result = await apiRequest('posterGenerate', { brief, type: value('posterType'), size: value('posterSize'), reference_image: state.poster.referenceImage?.dataUrl || '', reference_image_name: state.poster.referenceImage?.name || '' }, { timeoutMs: 255000, retryCount: 0 });
+      const result = await apiRequest('posterGenerate', { brief, type: value('posterType'), size: value('posterSize'), reference_images: (state.poster.referenceImages || []).map((item) => ({ data_url: item.dataUrl, name: item.name })) }, { timeoutMs: 255000, retryCount: 0 });
       renderPosterResult(result.image_data_url);
       state.poster.quota = result.quota || state.poster.quota;
       renderPosterQuota();
@@ -5852,24 +5855,38 @@ function bindEvents() {
   });
   $('selectPosterReferenceImage').addEventListener('click', () => $('posterReferenceImage').click());
   $('posterReferenceImage').addEventListener('change', async (event) => {
-    const [file] = event.target.files || [];
+    const files = [...(event.target.files || [])];
     event.target.value = '';
-    if (!file) return;
-    if (!copyImageMimeTypes.has(file.type) || file.size > 4 * 1024 * 1024) {
-      alert('参考图仅支持 JPG、PNG、WebP，且不超过 4MB。');
-      return;
-    }
+    if (!files.length) return;
     try {
-      state.poster.referenceImage = { name: file.name.slice(0, 120), dataUrl: await readImageFile(file) };
+      const available = 4 - (state.poster.referenceImages || []).length;
+      if (available <= 0) return alert('最多上传 4 张参考素材。');
+      const accepted = [];
+      for (const file of files.slice(0, available)) {
+        if (!copyImageMimeTypes.has(file.type) || !file.size || file.size > 4 * 1024 * 1024) {
+          showToast(`《${file.name}》未添加：仅支持 JPG、PNG、WebP，且单张不超过 4MB。`);
+          continue;
+        }
+        accepted.push({ name: file.name.slice(0, 120), dataUrl: await readImageFile(file) });
+      }
+      state.poster.referenceImages.push(...accepted);
       renderPosterReference();
+      if (files.length > available) showToast(`本次仅添加前 ${available} 张，最多保留 4 张素材。`);
     } catch (error) {
       alert(error.message || '参考图读取失败，请重新上传。');
     }
   });
   $('posterReferencePreview').addEventListener('click', (event) => {
-    if (!event.target.closest('[data-clear-poster-reference]')) return;
-    state.poster.referenceImage = null;
+    const button = event.target.closest('[data-clear-poster-reference]');
+    if (!button) return;
+    state.poster.referenceImages.splice(Number(button.dataset.clearPosterReference), 1);
     renderPosterReference();
+  });
+  $('fillPosterBriefTemplate').addEventListener('click', () => {
+    const brief = $('posterBrief');
+    if (brief.value.trim() && !confirm('会替换当前已填写的文案，确定填入标准模板吗？')) return;
+    brief.value = '【主标题】\n例如：让孩子从“会背”走向“会学、会用”\n\n【副标题 / 课程或活动名称】\n例如：校内提前学体验营\n\n【适合谁】\n例如：7-10 岁、英语基础薄弱或想提升表达的孩子\n\n【核心价值 / 亮点】\n1. \n2. \n3. \n\n【时间、地点、报名方式】\n例如：3 月 16 日开营｜线下 / 线上｜扫码或私信报名\n\n【老师或机构的真实信息（可选）】\n例如：May 老师，14 年少儿英语教学经验\n\n【画面特别要求（可选）】\n例如：标题要醒目，整体温暖高级，人物使用我上传的老师照片。';
+    brief.focus();
   });
   $('addPrompt').addEventListener('click', async () => {
     const name = value('newPromptName');

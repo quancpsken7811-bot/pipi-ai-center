@@ -1940,6 +1940,12 @@ function normalizePosterReferenceImage(value, name = '') {
   return { name: String(name || '图像参考').trim().slice(0, 120) || '图像参考', dataUrl: `data:image/${matched[1].toLowerCase()};base64,${base64}` };
 }
 
+function normalizePosterReferenceImages(value, legacyImage, legacyName) {
+  const submitted = Array.isArray(value) ? value : legacyImage ? [{ data_url: legacyImage, name: legacyName }] : [];
+  if (submitted.length > 4) throw new Error('最多上传 4 张参考素材。');
+  return submitted.map((item) => normalizePosterReferenceImage(item?.data_url, item?.name)).filter(Boolean);
+}
+
 function normalizePosterSize(value) {
   return ['3:4', '1:1', '4:3'].includes(String(value || '')) ? String(value) : '3:4';
 }
@@ -1967,13 +1973,14 @@ async function formatPosterOutput(imageDataUrl, size) {
   return `data:image/png;base64,${output.toString('base64')}`;
 }
 
-function studentPosterPrompt({ brief, type, size, user, hasReferenceImage = false }) {
+function studentPosterPrompt({ brief, type, size, user, referenceImageCount = 0 }) {
   const context = personalKnowledgeContext(user).slice(0, 6000);
-  const referenceRules = hasReferenceImage
+  const referenceRules = referenceImageCount
     ? [
-      '这是“以图改图”任务：上传的参考图是唯一视觉母版，不是可选灵感。必须先看参考图，再在它的视觉系统里重做用户文案；禁止另起一套泛化的教育海报设计。',
-      '必须最大程度继承参考图的主色与明暗关系、背景材质、标题与正文的相对位置、人物/装饰所在区域、卡片形状、边距、留白比例、信息密度和阅读路径。参考图的视觉识别度应明显高于图像类型带来的通用风格。',
-      '只替换为本次用户确认的文案与真实业务信息。不要复制参考图中的具体文字、人物脸部、职业照、商标、二维码、联系方式或品牌名称；如果参考图有人像但用户未提供自己的照片，保留同一构图区域的抽象留白或通用人物剪影，不重绘原人物。',
+      `这是“多图参考改图”任务：共上传 ${referenceImageCount} 张素材。第 1 张是唯一的视觉母版，必须最大程度继承它的主色与明暗关系、背景材质、标题与正文相对位置、人物/装饰区域、卡片形状、边距、留白比例、信息密度和阅读路径；禁止另起一套泛化教育海报设计。`,
+      referenceImageCount >= 2 ? '第 2 张是老师本人照片：若本次海报需要人物，必须使用并保留这张照片中老师真实的脸部、五官、发型、肤色与人物辨识度；不得换脸、重绘成他人或凭空美化变形。' : '未提供老师本人照片时，不要凭空生成可识别的真人老师头像；如需要人物，请保留构图位置的抽象留白或通用剪影。',
+      referenceImageCount >= 3 ? '第 3 张及后续图片是补充素材：仅在与文案相关时使用其中真实可见的信息、产品、物件或氛围；不能把其中的具体文字、商标、二维码、联系方式或品牌名称直接复制到成图。' : '',
+      '只替换为本次用户确认的文案与真实业务信息。不要复制视觉母版中的具体文字、商标、二维码、联系方式或品牌名称。',
       '输出必须让人一眼看出与参考图属于同一套视觉系统；不得把它改成另一种主色、另一种卡片语言、另一种儿童插画或另一种排版节奏。'
     ].join('\n')
     : '未上传参考图时，请基于图像类型做干净、专业、克制的教育 IP 视觉。';
@@ -1988,22 +1995,24 @@ function studentPosterPrompt({ brief, type, size, user, hasReferenceImage = fals
   ].join('\n\n');
 }
 
-async function createStudentPoster({ brief, type, size, referenceImage, user }) {
+async function createStudentPoster({ brief, type, size, referenceImages, user }) {
   const apiKey = readInventory()['image-proxy-apikey'];
   if (!apiKey) throw new Error('图片服务暂未完成配置，请联系管理员。');
   const started = Date.now();
-  const prompt = studentPosterPrompt({ brief, type, size, user, hasReferenceImage: Boolean(referenceImage) });
+  const prompt = studentPosterPrompt({ brief, type, size, user, referenceImageCount: referenceImages.length });
   const providerSize = posterProviderSize(size);
-  const request = referenceImage
+  const request = referenceImages.length
     ? (() => {
-      const matched = referenceImage.dataUrl.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/i);
-      if (!matched) throw new Error('参考图格式不正确，请重新上传。');
       const form = new FormData();
       form.set('model', IMAGE_PROXY_MODEL);
       form.set('prompt', prompt);
       form.set('size', providerSize);
       form.set('n', '1');
-      form.set('image', new Blob([Buffer.from(matched[2], 'base64')], { type: matched[1] }), referenceImage.name);
+      referenceImages.forEach((referenceImage) => {
+        const matched = referenceImage.dataUrl.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/i);
+        if (!matched) throw new Error('参考素材格式不正确，请重新上传。');
+        form.append('image[]', new Blob([Buffer.from(matched[2], 'base64')], { type: matched[1] }), referenceImage.name);
+      });
       return { endpoint: `${IMAGE_PROXY_BASE_URL}/images/edits`, headers: { Authorization: `Bearer ${apiKey}` }, body: form };
     })()
     : { endpoint: `${IMAGE_PROXY_BASE_URL}/images/generations`, headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: IMAGE_PROXY_MODEL, prompt, size: providerSize, n: 1 }) };
@@ -4361,9 +4370,9 @@ async function route(req, res) {
       const reservation = reservePosterQuota(user);
       if (!reservation.granted) return fail(res, 429, `今日图像生成额度已用完（每天 ${POSTER_DAILY_LIMIT} 张），明天北京时间 00:00 后会自动恢复。`, 42903);
       try {
-        const referenceImage = normalizePosterReferenceImage(body.reference_image, body.reference_image_name);
+        const referenceImages = normalizePosterReferenceImages(body.reference_images, body.reference_image, body.reference_image_name);
         const size = normalizePosterSize(body.size);
-        const result = await createStudentPoster({ brief, type: String(body.type || 'lead').slice(0, 40), size, referenceImage, user });
+        const result = await createStudentPoster({ brief, type: String(body.type || 'lead').slice(0, 40), size, referenceImages, user });
         const quota = finalizePosterQuota(user, reservation, true);
         return ok(res, { image_data_url: result.imageDataUrl, model: result.model, provider: result.provider, latency_ms: result.latencyMs, quota });
       } catch (error) {

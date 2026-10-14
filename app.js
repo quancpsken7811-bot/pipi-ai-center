@@ -89,7 +89,7 @@ const state = {
   materialLibrary: { loaded: false, loading: false, items: [], filter: '全部', search: '' },
   competitorTrends: { loaded: false, loading: false, platforms: {}, items: [], meta: null, error: '' },
   competitorQuota: { loaded: false, loading: false, date: '', limit: 100, used: 0, reserved: 0, remaining: 100 },
-  poster: { quota: null, imageDataUrl: '' },
+  poster: { quota: null, imageDataUrl: '', referenceImage: null },
   salesSession: null,
   salesAttachments: [],
   salesEmojiPickerOpen: false,
@@ -1008,6 +1008,21 @@ function renderPosterResult(imageDataUrl) {
   state.poster.imageDataUrl = imageDataUrl;
   result.innerHTML = `<img src="${imageDataUrl}" alt="AI 生成的教育图像" />`;
   download.classList.remove('hidden');
+}
+
+function renderPosterReference() {
+  const preview = $('posterReferencePreview');
+  const status = $('posterReferenceStatus');
+  const reference = state.poster.referenceImage;
+  if (!reference) {
+    preview.classList.add('hidden');
+    preview.innerHTML = '';
+    status.textContent = '可上传 1 张 JPG、PNG 或 WebP，用来参考色系、构图和排版。';
+    return;
+  }
+  status.textContent = `已选择：${reference.name}。生成时会参考它的视觉语言。`;
+  preview.innerHTML = `<img src="${reference.dataUrl}" alt="已上传的图像参考" /><button type="button" data-clear-poster-reference aria-label="移除参考图">×</button>`;
+  preview.classList.remove('hidden');
 }
 
 async function loadCopywritingConfig() {
@@ -5816,7 +5831,7 @@ function bindEvents() {
     button.disabled = true;
     hint.textContent = '正在排版生成，通常需要 1–3 分钟，请不要重复点击或关闭页面…';
     try {
-      const result = await apiRequest('posterGenerate', { brief, style: value('posterStyle') }, { timeoutMs: 255000, retryCount: 0 });
+      const result = await apiRequest('posterGenerate', { brief, type: value('posterType'), reference_image: state.poster.referenceImage?.dataUrl || '', reference_image_name: state.poster.referenceImage?.name || '' }, { timeoutMs: 255000, retryCount: 0 });
       renderPosterResult(result.image_data_url);
       state.poster.quota = result.quota || state.poster.quota;
       renderPosterQuota();
@@ -5834,6 +5849,27 @@ function bindEvents() {
     link.href = state.poster.imageDataUrl;
     link.download = `皮皮图像生成-${new Date().toISOString().slice(0, 10)}.png`;
     link.click();
+  });
+  $('selectPosterReferenceImage').addEventListener('click', () => $('posterReferenceImage').click());
+  $('posterReferenceImage').addEventListener('change', async (event) => {
+    const [file] = event.target.files || [];
+    event.target.value = '';
+    if (!file) return;
+    if (!copyImageMimeTypes.has(file.type) || file.size > 4 * 1024 * 1024) {
+      alert('参考图仅支持 JPG、PNG、WebP，且不超过 4MB。');
+      return;
+    }
+    try {
+      state.poster.referenceImage = { name: file.name.slice(0, 120), dataUrl: await readImageFile(file) };
+      renderPosterReference();
+    } catch (error) {
+      alert(error.message || '参考图读取失败，请重新上传。');
+    }
+  });
+  $('posterReferencePreview').addEventListener('click', (event) => {
+    if (!event.target.closest('[data-clear-poster-reference]')) return;
+    state.poster.referenceImage = null;
+    renderPosterReference();
   });
   $('addPrompt').addEventListener('click', async () => {
     const name = value('newPromptName');

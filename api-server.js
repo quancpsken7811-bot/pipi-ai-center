@@ -1917,38 +1917,60 @@ async function createImageProxyTest({ prompt, user }) {
   return { imageDataUrl, model: IMAGE_PROXY_MODEL, provider: 'image_proxy', latencyMs: Date.now() - started };
 }
 
-function posterStyleInstruction(style) {
-  const styles = {
-    premium: '轻奢高级、奶油白与香槟金、克制的金属质感、留白清晰。',
-    fresh: '清新明亮、奶油白与浅绿色、亲和但不幼稚、适合教育老师。',
-    academic: '专业学院风、深蓝与米白、秩序感强、沉稳可信。',
-    warm: '温暖专业、米白与暖棕、真实可信、有教育感。'
+function posterTypeInstruction(type) {
+  const types = {
+    lead: '招生引流图：先抓住目标家长当下的需求，再清楚呈现活动、对象与行动入口。',
+    course: '课程或活动介绍图：突出一个课程主题、适合对象、关键内容与参与方式。',
+    teacher: '老师介绍或信任背书图：聚焦真实身份、教学经历、方法特点；没有提供的资质和成果不得编造。',
+    pain_point: '家长痛点或干货表达图：一个核心问题配 3-5 条简洁观点，便于快速扫读。',
+    benefits: '权益介绍或成交收口图：清晰呈现已提供的权益、服务或报名信息，不制造虚假稀缺。',
+    case: '交付案例或学员反馈图：只呈现用户明确提供的真实过程、反馈与变化，保护隐私，不伪造聊天记录或成果。'
   };
-  return styles[String(style || '')] || styles.warm;
+  return types[String(type || '')] || types.lead;
 }
 
-function studentPosterPrompt({ brief, style, user }) {
+function normalizePosterReferenceImage(value, name = '') {
+  if (!value) return null;
+  const matched = String(value).match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=\s]+)$/i);
+  if (!matched) throw new Error('参考图格式不正确，请上传 JPG、PNG 或 WebP 图片。');
+  const base64 = matched[2].replace(/\s/g, '');
+  const imageBuffer = Buffer.from(base64, 'base64');
+  if (!imageBuffer.length || imageBuffer.length > 4 * 1024 * 1024) throw new Error('参考图不能超过 4MB。');
+  return { name: String(name || '图像参考').trim().slice(0, 120) || '图像参考', dataUrl: `data:image/${matched[1].toLowerCase()};base64,${base64}` };
+}
+
+function studentPosterPrompt({ brief, type, user, hasReferenceImage = false }) {
   const context = personalKnowledgeContext(user).slice(0, 6000);
   return [
     '你是一名专业的中文教育 IP 海报设计师。请生成一张 2:3 竖版（1024×1536）高完成度教育宣传海报。',
-    `视觉方向：${posterStyleInstruction(style)}`,
+    `图像类型：${posterTypeInstruction(type)}`,
     `本次海报需求：${brief}`,
+    hasReferenceImage ? '用户上传了一张图像参考。只学习其可见的色系、构图、留白、信息层级与装饰尺度；绝不照搬其中的文字、人物、照片、商标、二维码或品牌识别。' : '未上传参考图时，请基于图像类型做干净、专业、克制的教育 IP 视觉。',
     context ? `以下是这位老师本人主动保存的资料，只能据此辅助理解其业务；不能编造未提供的头衔、成绩、资质、案例、联系方式或承诺：\n${context}` : '未提供老师资料时，不要虚构老师身份、服务成果或联系方式。',
     '版式要求：层级清楚、适合手机传播、画面干净、信息块有呼吸感。若需求中包含标题、日期、课程名或其他文案，请尽可能准确呈现简体中文；不要使用乱码、假字或英文占位文字。',
     '只生成最终海报图，不要输出解释、设计说明或额外文字。'
   ].join('\n\n');
 }
 
-async function createStudentPoster({ brief, style, user }) {
+async function createStudentPoster({ brief, type, referenceImage, user }) {
   const apiKey = readInventory()['image-proxy-apikey'];
   if (!apiKey) throw new Error('图片服务暂未完成配置，请联系管理员。');
   const started = Date.now();
-  const response = await fetch(`${IMAGE_PROXY_BASE_URL}/images/generations`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: IMAGE_PROXY_MODEL, prompt: studentPosterPrompt({ brief, style, user }), size: '1024x1536', n: 1 }),
-    signal: AbortSignal.timeout(240000)
-  });
+  const prompt = studentPosterPrompt({ brief, type, user, hasReferenceImage: Boolean(referenceImage) });
+  const request = referenceImage
+    ? (() => {
+      const matched = referenceImage.dataUrl.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/i);
+      if (!matched) throw new Error('参考图格式不正确，请重新上传。');
+      const form = new FormData();
+      form.set('model', IMAGE_PROXY_MODEL);
+      form.set('prompt', prompt);
+      form.set('size', '1024x1536');
+      form.set('n', '1');
+      form.set('image', new Blob([Buffer.from(matched[2], 'base64')], { type: matched[1] }), referenceImage.name);
+      return { endpoint: `${IMAGE_PROXY_BASE_URL}/images/edits`, headers: { Authorization: `Bearer ${apiKey}` }, body: form };
+    })()
+    : { endpoint: `${IMAGE_PROXY_BASE_URL}/images/generations`, headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: IMAGE_PROXY_MODEL, prompt, size: '1024x1536', n: 1 }) };
+  const response = await fetch(request.endpoint, { method: 'POST', headers: request.headers, body: request.body, signal: AbortSignal.timeout(240000) });
   const raw = await response.text();
   let payload;
   try { payload = JSON.parse(raw); } catch { throw new Error('图片服务返回异常，请稍后重试。'); }
@@ -4298,17 +4320,18 @@ async function route(req, res) {
       if (!['coaching', 'admin'].includes(user.role)) return fail(res, 403, '图像生成仅对陪跑学员开放', 40302);
       if (!IMAGE_GENERATION_ENABLED) return fail(res, 410, '图像生成功能暂未开放，请联系管理员完成图片服务配置。', 41001);
       const brief = String(body.brief || '').trim().slice(0, 2400);
-      if (!brief) return fail(res, 400, '请填写海报想表达的内容', 40001);
+      if (!brief) return fail(res, 400, '请填写图像文案', 40001);
       const reservation = reservePosterQuota(user);
       if (!reservation.granted) return fail(res, 429, `今日图像生成额度已用完（每天 ${POSTER_DAILY_LIMIT} 张），明天北京时间 00:00 后会自动恢复。`, 42903);
       try {
-        const result = await createStudentPoster({ brief, style: String(body.style || 'warm').slice(0, 40), user });
+        const referenceImage = normalizePosterReferenceImage(body.reference_image, body.reference_image_name);
+        const result = await createStudentPoster({ brief, type: String(body.type || 'lead').slice(0, 40), referenceImage, user });
         const quota = finalizePosterQuota(user, reservation, true);
         return ok(res, { image_data_url: result.imageDataUrl, model: result.model, provider: result.provider, latency_ms: result.latencyMs, quota });
       } catch (error) {
         finalizePosterQuota(user, reservation, false);
         logCall({ provider_code: 'image_proxy', provider_name: 'GPT 图片中转站', model_code: IMAGE_PROXY_MODEL, feature_code: 'student_poster', status: 'failed', latency_ms: 0, error_message: error.message, usage: {}, user_id: user.id, user_name: user.name });
-        return fail(res, 502, `海报生成失败：${error.message}`, 50201);
+        return fail(res, 502, `图像生成失败：${error.message}`, 50201);
       }
     }
     if (req.method === 'POST' && url.pathname === '/api/auth/sms/send') {

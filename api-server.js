@@ -45,7 +45,7 @@ const PIPI_VISION_MODEL = String(process.env.PIPI_VISION_MODEL || 'doubao-seed-2
 // 默认关闭；生产环境须同时显式开启并配置服务端密钥，才会向图片中转站发起请求。
 // 这不影响图片理解（PIPI_VISION_MODEL）以及文字类智能体。
 const IMAGE_GENERATION_ENABLED = process.env.IMAGE_GENERATION_ENABLED === 'true';
-const POSTER_DAILY_LIMIT = 5;
+const POSTER_WEEKLY_LIMIT = 15;
 const COACH_MOMENTS_IMAGE_MODEL = '';
 const COACH_MOMENTS_IMAGE_FALLBACK_MODEL = '';
 const VOLC_BILLING_ENDPOINT = process.env.VOLC_BILLING_ENDPOINT || 'https://open.volcengineapi.com';
@@ -135,6 +135,15 @@ function addDaysToDateKey(dateKey, days) {
   const date = new Date(Date.UTC(year, month - 1, day));
   date.setUTCDate(date.getUTCDate() + Number(days));
   return date.toISOString().slice(0, 10);
+}
+
+function posterQuotaWeek(date = new Date()) {
+  const dateKey = localDateKey(date);
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  const daysSinceMonday = (weekday + 6) % 7;
+  const start = addDaysToDateKey(dateKey, -daysSinceMonday);
+  return { start, end: addDaysToDateKey(start, 6) };
 }
 
 if (IS_PRODUCTION && !AUTH_SECRET) {
@@ -3564,9 +3573,12 @@ function finalizeCompetitorQuota(user, reservation, actualCount) {
 
 function posterQuotaFor(user) {
   const date = localDateKey();
+  const week = posterQuotaWeek();
   if (user?.role === 'admin') {
     return {
       date,
+      period_start: week.start,
+      period_end: week.end,
       limit: null,
       used: 0,
       reserved: 0,
@@ -3574,15 +3586,17 @@ function posterQuotaFor(user) {
       unlimited: true
     };
   }
-  const key = `${date}:${user.id}`;
+  const key = `${week.start}:${user.id}`;
   const used = Math.max(0, Number(posterDailyUsage[key]?.used || 0));
   const reserved = Math.max(0, Number(posterReservations.get(key) || 0));
   return {
     date,
-    limit: POSTER_DAILY_LIMIT,
+    period_start: week.start,
+    period_end: week.end,
+    limit: POSTER_WEEKLY_LIMIT,
     used,
     reserved,
-    remaining: Math.max(0, POSTER_DAILY_LIMIT - used - reserved),
+    remaining: Math.max(0, POSTER_WEEKLY_LIMIT - used - reserved),
     unlimited: false
   };
 }
@@ -3590,7 +3604,7 @@ function posterQuotaFor(user) {
 function reservePosterQuota(user) {
   const quota = posterQuotaFor(user);
   if (quota.unlimited) return { ...quota, granted: true, key: null };
-  const key = `${quota.date}:${user.id}`;
+  const key = `${quota.period_start}:${user.id}`;
   if (quota.remaining <= 0) return { ...quota, granted: false, key };
   posterReservations.set(key, quota.reserved + 1);
   return { ...quota, granted: true, key };
@@ -3605,11 +3619,11 @@ function finalizePosterQuota(user, reservation, successful) {
   if (successful) {
     const current = posterDailyUsage[reservation.key] || { used: 0, updated_at: '' };
     posterDailyUsage[reservation.key] = {
-      used: Math.min(POSTER_DAILY_LIMIT, Number(current.used || 0) + 1),
+      used: Math.min(POSTER_WEEKLY_LIMIT, Number(current.used || 0) + 1),
       updated_at: new Date().toISOString()
     };
   }
-  const keepAfter = addDaysToDateKey(localDateKey(), -8);
+  const keepAfter = addDaysToDateKey(localDateKey(), -56);
   Object.keys(posterDailyUsage).forEach((key) => {
     if (key.slice(0, 10) < keepAfter) delete posterDailyUsage[key];
   });
@@ -4537,7 +4551,7 @@ async function route(req, res) {
       const brief = String(body.brief || '').trim().slice(0, 2400);
       if (!brief) return fail(res, 400, '请填写图像文案', 40001);
       const reservation = reservePosterQuota(user);
-      if (!reservation.granted) return fail(res, 429, `今日图像生成额度已用完（每天 ${POSTER_DAILY_LIMIT} 张），明天北京时间 00:00 后会自动恢复。`, 42903);
+      if (!reservation.granted) return fail(res, 429, `本周图像生成额度已用完（每周 ${POSTER_WEEKLY_LIMIT} 张），下周一北京时间 00:00 后会自动恢复。`, 42903);
       try {
         const referenceImages = normalizePosterReferenceImages(body.reference_images, body.reference_image, body.reference_image_name);
         const size = normalizePosterSize(body.size);

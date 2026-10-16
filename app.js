@@ -983,7 +983,7 @@ function renderPosterQuota(quota = state.poster.quota) {
   if (!valueNode || !hintNode) return;
   if (!quota) {
     valueNode.textContent = '读取中…';
-    hintNode.textContent = '陪跑学员权益';
+    hintNode.textContent = '陪跑学员权益 · 每周 15 张';
     return;
   }
   if (quota.unlimited) {
@@ -992,7 +992,7 @@ function renderPosterQuota(quota = state.poster.quota) {
     return;
   }
   valueNode.textContent = `${quota.remaining} / ${quota.limit} 张`;
-  hintNode.textContent = `今日已生成 ${quota.used} 张 · 北京时间 ${quota.date}`;
+  hintNode.textContent = `本周已生成 ${quota.used} 张 · ${quota.period_start} 至 ${quota.period_end}`;
 }
 
 async function loadPosterQuota() {

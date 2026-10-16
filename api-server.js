@@ -2244,6 +2244,42 @@ function buildUsageSummary(sourceLogs = callLogs) {
   };
 }
 
+function buildUsageByAccount(sourceLogs = callLogs) {
+  const accounts = new Map();
+  const isCompetitor = (item) => String(item.feature_code || '').startsWith('competitor_');
+  const isImageGeneration = (item) => item.feature_code === 'student_poster';
+  const emptyMetrics = () => ({ calls: 0, success_calls: 0, failed_calls: 0, total_tokens: 0, result_items: 0, request_count: 0 });
+
+  sourceLogs.filter((item) => isCompetitor(item) || isImageGeneration(item)).forEach((item) => {
+    const matchedUser = managedUsers.find((user) => String(user.id) === String(item.user_id));
+    const accountKey = item.user_id ? `user:${item.user_id}` : `legacy:${item.user_name || 'unknown'}`;
+    const current = accounts.get(accountKey) || {
+      user_id: item.user_id || '',
+      user_name: item.user_name || matchedUser?.name || '历史调用（账号未知）',
+      account: matchedUser?.account || '',
+      role: matchedUser?.role || '',
+      total_tokens: 0,
+      last_called_at: '',
+      competitor: emptyMetrics(),
+      image_generation: emptyMetrics()
+    };
+    const target = isImageGeneration(item) ? current.image_generation : current.competitor;
+    target.calls += 1;
+    target.success_calls += item.status === 'success' ? 1 : 0;
+    target.failed_calls += item.status === 'success' ? 0 : 1;
+    target.total_tokens += Number(item.total_tokens || 0);
+    target.result_items += Number(item.usage?.items || 0);
+    target.request_count += Number(item.usage?.requests || item.usage?.request_count || 0);
+    current.total_tokens += Number(item.total_tokens || 0);
+    if (!current.last_called_at || current.last_called_at < item.created_at) current.last_called_at = item.created_at;
+    accounts.set(accountKey, current);
+  });
+
+  return [...accounts.values()].sort((left, right) => right.total_tokens - left.total_tokens
+    || (right.competitor.calls + right.image_generation.calls) - (left.competitor.calls + left.image_generation.calls)
+    || String(right.last_called_at).localeCompare(String(left.last_called_at)));
+}
+
 async function getTikHubAccountUsage() {
   if (tikhubAccountUsageCache.value && tikhubAccountUsageCache.expires_at > Date.now()) return tikhubAccountUsageCache.value;
   const key = providerKeyFor('tikhub');
@@ -4934,7 +4970,8 @@ async function route(req, res) {
     }
     if (req.method === 'GET' && url.pathname === '/api/admin/ai/usage') {
       if (!requireAdmin(req, res)) return;
-      return ok(res, buildUsageSummary(usageLogsInRange(url.searchParams)));
+      const items = usageLogsInRange(url.searchParams);
+      return ok(res, { ...buildUsageSummary(items), by_account: buildUsageByAccount(items) });
     }
     if (req.method === 'GET' && url.pathname === '/api/admin/ai/provider-usage') {
       if (!requireAdmin(req, res)) return;

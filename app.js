@@ -2058,6 +2058,20 @@ function renderUsageStatistics() {
   $('usageByModel').innerHTML = renderRows(usage.by_model || [],
     (item) => item.model_code,
     (item) => `${item.provider_code} · ${item.calls} 次调用 · 成功 ${item.success_calls} · 失败 ${item.failed_calls}`);
+  const accountItems = usage.by_account || [];
+  $('usageAccountCount').textContent = `${accountItems.length} 个账号`;
+  $('usageByAccount').innerHTML = accountItems.length ? accountItems.map((item) => {
+    const competitor = item.competitor || {};
+    const imageGeneration = item.image_generation || {};
+    const accountLabel = item.account ? `账号：${item.account}` : '历史调用未关联账号';
+    const competitorDetail = competitor.calls
+      ? `${competitor.calls} 次检索 · 返回 ${competitor.result_items || 0} 条 · 请求 ${competitor.request_count || 0} 次`
+      : '暂无检索调用';
+    const imageDetail = imageGeneration.calls
+      ? `${imageGeneration.calls} 次生成 · 成功 ${imageGeneration.success_calls || 0} 次`
+      : '暂无生成调用';
+    return `<article class="usage-account-row"><div><strong>${escapeHtml(item.user_name || '历史调用（账号未知）')}</strong><small>${escapeHtml(accountLabel)}</small></div><div class="usage-account-metric"><span>竞品调研</span><b>${escapeHtml(competitorDetail)}</b></div><div class="usage-account-metric"><span>图像生成</span><b>${escapeHtml(imageDetail)} · ${formatTokenCount(imageGeneration.total_tokens)} Token</b></div><b class="usage-account-total">合计 ${formatTokenCount(item.total_tokens)} Token</b></article>`;
+  }).join('') : '<div class="usage-row"><div><strong>暂无账号用量</strong><small>学员使用竞品调研或图像生成后，会在这里按账号归属汇总。</small></div></div>';
 }
 
 function renderAdminConfig() {

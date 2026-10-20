@@ -2185,15 +2185,15 @@ function renderAdminUsers() {
   $('userList').innerHTML = filteredUsers.length ? filteredUsers.map((item) => {
     const features = Array.isArray(item.enabled_features) ? item.enabled_features : [];
     const hasPendingReset = pendingResets.some((request) => String(request.user_id) === String(item.id));
-    const accessLevel = features.length === 0 ? 'pending' : item.role === 'coaching' ? 'coaching' : 'training';
+    const accessLevel = item.role === 'admin' ? 'admin' : features.length === 0 ? 'pending' : item.role === 'coaching' ? 'coaching' : 'training';
     return `
     <div class="user-row">
       <div class="user-main"><strong>${escapeHtml(item.name)}</strong><small>账号：${escapeHtml(item.account)}${item.phone ? ` · 手机：${escapeHtml(item.phone)}` : ''}</small><small>${escapeHtml(item.paid_product || '未填写服务')}</small></div>
-      ${item.role === 'admin' ? '<span class="user-lock">管理员</span>' : `<select data-user-cohort="${item.id}" aria-label="${escapeHtml(item.name)}的权益批次">${cohortOptionMarkup(item.entitlement_cohort || '', { includeCustom: true })}</select>`}
-      ${item.role === 'admin' ? `<span class="role-tag admin">管理员</span>` : `<select class="user-role-select" data-user-access="${item.id}"><option value="pending" ${accessLevel === 'pending' ? 'selected' : ''}>待开通</option><option value="training" ${accessLevel === 'training' ? 'selected' : ''}>训练营服务</option><option value="coaching" ${accessLevel === 'coaching' ? 'selected' : ''}>陪跑服务</option></select>`}
+      ${item.role === 'admin' ? '<span class="user-lock">管理员后台</span>' : `<select data-user-cohort="${item.id}" aria-label="${escapeHtml(item.name)}的权益批次">${cohortOptionMarkup(item.entitlement_cohort || '', { includeCustom: true })}</select>`}
+      <select class="user-role-select" data-user-access="${item.id}" aria-label="${escapeHtml(item.name)}的权限"><option value="pending" ${accessLevel === 'pending' ? 'selected' : ''}>待开通</option><option value="training" ${accessLevel === 'training' ? 'selected' : ''}>训练营服务</option><option value="coaching" ${accessLevel === 'coaching' ? 'selected' : ''}>陪跑服务</option><option value="admin" ${accessLevel === 'admin' ? 'selected' : ''}>管理员后台</option></select>
       <span class="status-tag ${item.status}">${statusLabel(item.status)}</span>
       <div class="user-meta"><small>开通 ${escapeHtml(item.opened_at || '-')}</small>${item.role === 'admin' ? '<strong>永久有效</strong>' : `<label>到期 <input type="date" value="${escapeHtml(item.expires_at || '')}" data-user-expires="${item.id}" /></label>`}</div>
-      ${item.role === 'admin' ? '<span class="user-lock">系统账号</span>' : `<div class="user-access-controls"><div class="user-reset-control"><input type="password" data-user-new-password="${item.id}" autocomplete="new-password" placeholder="设置临时密码（至少 8 位）" />${hasPendingReset ? '<small>该学员已提交密码重置申请</small>' : ''}<button class="secondary mini" data-user-reset="${item.id}">重置密码</button></div><div class="row-actions"><button class="secondary mini" data-user-save="${item.id}">保存服务状态</button><button class="secondary mini" data-user-extend-100="${item.id}">续期 100 天</button><button class="pill-button ${item.status === 'active' ? 'on' : ''}" data-user-toggle="${item.id}" data-next-status="${item.status === 'active' ? 'disabled' : 'active'}">${item.status === 'active' ? '禁用账号' : '启用账号'}</button><button class="secondary mini danger-button" data-user-delete="${item.id}" data-user-account="${escapeHtml(item.account)}">删除账号</button></div></div>`}
+      <div class="user-access-controls"><div class="user-reset-control"><input type="password" data-user-new-password="${item.id}" autocomplete="new-password" placeholder="设置临时密码（至少 8 位）" />${hasPendingReset ? '<small>该账号已提交密码重置申请</small>' : ''}<button class="secondary mini" data-user-reset="${item.id}">重置密码</button></div><div class="row-actions"><button class="secondary mini" data-user-save="${item.id}">保存权限</button>${item.role === 'admin' ? '' : `<button class="secondary mini" data-user-extend-100="${item.id}">续期 100 天</button>`}<button class="pill-button ${item.status === 'active' ? 'on' : ''}" data-user-toggle="${item.id}" data-next-status="${item.status === 'active' ? 'disabled' : 'active'}">${item.status === 'active' ? '禁用账号' : '启用账号'}</button>${item.role === 'admin' ? '' : `<button class="secondary mini danger-button" data-user-delete="${item.id}" data-user-account="${escapeHtml(item.account)}">删除账号</button>`}</div></div>
     </div>`;
   }).join('') : '<div class="empty-box">没有符合当前筛选条件的账号</div>';
 }
@@ -6092,10 +6092,10 @@ function bindEvents() {
       const access = accessInput?.value || 'pending';
       try {
         await patchAdmin(`/api/admin/users/${userId}`, {
-          ...(access === 'pending' ? { enabled_features: [], paid_product: '自助注册（待开通）', entitlement_cohort: '' } : { role: access, entitlement_cohort: cohortInput?.value || '' }),
+          ...(access === 'pending' ? { enabled_features: [], paid_product: '自助注册（待开通）', entitlement_cohort: '' } : { role: access, entitlement_cohort: access === 'admin' ? '' : cohortInput?.value || '' }),
           expires_at: expiresInput?.value || ''
         });
-        showToast('账号服务状态已保存');
+        showToast(access === 'admin' ? '管理员权限已开通，可进入后台查看学员信息' : '账号服务状态已保存');
       } catch (error) {
         alert(error.message);
       }

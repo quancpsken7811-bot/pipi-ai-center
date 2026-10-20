@@ -5349,6 +5349,10 @@ async function route(req, res) {
       if (!requireAdmin(req, res)) return;
       const user = managedUsers.find((item) => String(item.id) === url.pathname.split('/').pop());
       if (!user) return fail(res, 404, '用户不存在', 40400);
+      const removesLastActiveAdmin = user.role === 'admin' && effectiveStatus(user) === 'active'
+        && (body.status === 'disabled' || (body.role && body.role !== 'admin'))
+        && managedUsers.filter((item) => item.role === 'admin' && effectiveStatus(item) === 'active').length <= 1;
+      if (removesLastActiveAdmin) return fail(res, 400, '至少保留一个启用中的管理员账号，避免后台无人可管理', 40001);
       if (body.role && !roleMeta[body.role]) return fail(res, 400, '角色不合法', 40001);
       if (body.entitlement_cohort !== undefined && body.entitlement_cohort && !entitlementCohort(body.entitlement_cohort)) return fail(res, 400, '权益批次不合法', 40001);
       const nextPhone = body.phone !== undefined ? String(body.phone).trim() : user.phone;

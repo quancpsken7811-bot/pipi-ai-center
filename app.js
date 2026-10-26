@@ -2294,7 +2294,7 @@ function renderSalesSimulationConfig() {
       <label>主模型<select id="editSalesPrimaryModel">${optionHtml(models, feature.primary_model_id)}</select></label>
       <label>六步法 Prompt<select id="editSalesPrompt">${prompts.map((item) => `<option value="${item.id}" ${Number(feature.prompt_template_id) === item.id ? 'selected' : ''}>${escapeHtml(item.name)} · ${escapeHtml(item.version)}</option>`).join('')}</select></label>
     </div>
-    <label>备用模型<select id="editSalesFallbackModels" multiple size="3">${models.map((item) => `<option value="${item.id}" ${fallbackIds.includes(item.id) ? 'selected' : ''}>${escapeHtml(item.display_name || item.name)} · ${escapeHtml(item.model_code || '')}</option>`).join('')}</select></label>
+      <label>备用模型<select id="editSalesFallbackModels" multiple size="5">${models.map((item) => `<option value="${item.id}" ${fallbackIds.includes(item.id) ? 'selected' : ''}>${escapeHtml(item.display_name || item.name)} · ${escapeHtml(item.model_code || '')}</option>`).join('')}</select></label>
     <label>家长扮演规则<textarea id="editSalesRoleplayRule" rows="4">${escapeHtml(config.roleplay_rule || '')}</textarea></label>
     <label>六步法复盘规则<textarea id="editSalesReviewRule" rows="4">${escapeHtml(config.review_rule || '')}</textarea></label>
     <label>知识库使用边界<textarea id="editSalesKnowledgeScope" rows="3">${escapeHtml(config.knowledge_scope || '')}</textarea></label>
@@ -2676,7 +2676,7 @@ function renderPromptEditor() {
     </select></label>` : ''}
     <div class="admin-form two-col prompt-model-binding">
       <label>主模型<select id="editPromptPrimaryModel">${optionHtml(state.adminConfig.models, feature?.primary_model_id)}</select></label>
-      <label>备用模型<select id="editPromptFallbackModels" multiple size="3">${state.adminConfig.models.map((item) => `<option value="${item.id}" ${fallbackIds.includes(item.id) ? 'selected' : ''}>${escapeHtml(item.display_name || item.name)} · ${escapeHtml(item.model_code || '')}</option>`).join('')}</select></label>
+      <label>备用模型<select id="editPromptFallbackModels" multiple size="5">${state.adminConfig.models.map((item) => `<option value="${item.id}" ${fallbackIds.includes(item.id) ? 'selected' : ''}>${escapeHtml(item.display_name || item.name)} · ${escapeHtml(item.model_code || '')}</option>`).join('')}</select></label>
       <label>数据供应商<select id="editPromptDataProvider"><option value="" ${!dataProviderCodes.length ? 'selected' : ''}>不使用</option><option value="tikhub" ${dataProviderCodes.includes('tikhub') ? 'selected' : ''}>TikHub</option></select></label>
     </div>
     <label>版本<input id="editPromptVersion" value="${escapeHtml(prompt.version)}" /></label>

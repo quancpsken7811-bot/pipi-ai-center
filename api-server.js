@@ -414,6 +414,8 @@ function extractPromptSection(master, heading) {
 
 const records = [];
 const callLogs = [];
+const modelFailureCooldowns = new Map();
+let aiModelRoutingVersion = 0;
 const passwordResetRequests = [];
 const registrationAttempts = new Map();
 const competitorSearchDailyUsage = {};
@@ -431,7 +433,10 @@ const modelConfigs = [
   { id: 1, provider_code: 'siliconflow', display_name: 'Qwen3 8B', model_code: PRIMARY_MODEL, status: 'active', role: 'primary', input_price_cny_per_million: 0, output_price_cny_per_million: 0 },
   ...FALLBACK_MODELS.map((model, index) => ({ id: index + 2, provider_code: 'siliconflow', display_name: model, model_code: model, status: 'active', role: 'fallback', input_price_cny_per_million: 0, output_price_cny_per_million: 0 })),
   { id: 20, provider_code: 'volcengine_ark_plan', display_name: 'Ark Code Latest（Ark Plan）', model_code: 'ark-code-latest', status: 'active', role: 'primary' },
-  { id: 21, provider_code: 'volcengine_ark_plan', display_name: 'Doubao Seed 2.1 Pro（Ark Plan）', model_code: 'doubao-seed-2.1-pro', status: 'active', role: 'fallback' }
+  { id: 21, provider_code: 'volcengine_ark_plan', display_name: 'Doubao Seed 2.1 Pro（Ark Plan）', model_code: 'doubao-seed-2.1-pro', status: 'active', role: 'fallback' },
+  { id: 22, provider_code: 'volcengine_ark_plan', display_name: 'Doubao Seed 2.1 Lite（Ark Plan）', model_code: 'doubao-seed-2.1-lite', status: 'active', role: 'fallback' },
+  { id: 23, provider_code: 'volcengine_ark_plan', display_name: 'DeepSeek V4.1 Flash（Ark Plan）', model_code: 'deepseek-v4.1-flash', status: 'active', role: 'fallback' },
+  { id: 24, provider_code: 'volcengine_ark_plan', display_name: 'Kimi K3（Ark Plan）', model_code: 'kimi-k3', status: 'active', role: 'fallback' }
 ];
 const copyAgentConfigs = defaultCopyAgentConfigs.map((item) => ({ ...item, starters: [...item.starters], tags: [...item.tags], tag_labels: [...item.tag_labels] }));
 const configurableFeatureCodes = ['topic_generate', 'pipi_assistant_chat', 'copywriting_generate', 'competitor_finder', 'sales_simulation', 'coach_toolbox', 'coach_moments'];
@@ -697,6 +702,7 @@ function publicManagedUser(user) {
 function loadPersistentState() {
   try {
     const saved = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8'));
+    aiModelRoutingVersion = Number(saved.aiModelRoutingVersion) || 0;
     replaceArray(records, saved.records);
     replaceArray(callLogs, saved.callLogs);
     replaceArray(passwordResetRequests, saved.passwordResetRequests);
@@ -722,6 +728,7 @@ function loadPersistentState() {
 function savePersistentState() {
   const state = {
     version: 1,
+    aiModelRoutingVersion,
     records,
     callLogs,
     passwordResetRequests,
@@ -1004,6 +1011,59 @@ function migrateLegacyArkPlanModelConfig() {
   return changed;
 }
 
+// 全站默认路由使用 1 个主模型和 4 个已实测可用的 Ark Plan 备用模型。
+// 只对旧版路由做一次迁移，保留管理员之后自行调整的主备顺序。
+function ensureArkPlanModelBackups() {
+  if (aiModelRoutingVersion >= 2) return false;
+  const defaults = [
+    { id: 21, display_name: 'Doubao Seed 2.1 Pro（Ark Plan）', model_code: 'doubao-seed-2.1-pro' },
+    { id: 22, display_name: 'Doubao Seed 2.1 Lite（Ark Plan）', model_code: 'doubao-seed-2.1-lite' },
+    { id: 23, display_name: 'DeepSeek V4.1 Flash（Ark Plan）', model_code: 'deepseek-v4.1-flash' },
+    { id: 24, display_name: 'Kimi K3（Ark Plan）', model_code: 'kimi-k3' }
+  ];
+  const backupIds = defaults.map((definition) => {
+    let model = modelConfigs.find((item) => item.provider_code === 'volcengine_ark_plan' && item.model_code === definition.model_code);
+    if (!model) {
+      model = { ...definition, provider_code: 'volcengine_ark_plan', status: 'active', role: 'fallback' };
+      const idCollision = modelConfigs.some((item) => Number(item.id) === definition.id);
+      model.id = idCollision ? Math.max(0, ...modelConfigs.map((item) => Number(item.id) || 0)) + 1 : definition.id;
+      modelConfigs.push(model);
+    } else {
+      model.status = 'active';
+      model.role = 'fallback';
+    }
+    return model.id;
+  });
+  const featureCodes = [
+    'pipi_assistant_chat', 'topic_generate', 'copywriting_generate',
+    'competitor_finder', 'sales_simulation', 'coach_toolbox', 'coach_moments'
+  ];
+  featureCodes.forEach((featureCode) => {
+    const feature = featureConfigs.find((item) => item.feature_code === featureCode);
+    if (!feature) return;
+    const fallbacks = (feature.fallback_model_ids || []).map(Number);
+    const providers = feature.provider_codes || [];
+    const staleCopywritingRoute = featureCode === 'copywriting_generate'
+      && Number(feature.primary_model_id) === 21
+      && JSON.stringify(fallbacks) === JSON.stringify([2, 3, 20, 21])
+      && providers.includes('siliconflow');
+    const legacyArkRoute = providers.includes('volcengine_ark_plan') && (
+      (Number(feature.primary_model_id) === 20 && (JSON.stringify(fallbacks) === JSON.stringify([21]) || !fallbacks.length))
+      || (Number(feature.primary_model_id) === 21 && !fallbacks.length)
+      || staleCopywritingRoute
+    );
+    if (!legacyArkRoute) return;
+    feature.primary_model_id = 20;
+    feature.fallback_model_ids = backupIds.filter((id) => id !== 20);
+    feature.provider_codes = ['volcengine_ark_plan'];
+  });
+  if (modelConfigs.find((item) => item.id === 20)?.display_name === 'Doubao Seed 2.1（Ark Plan）') {
+    modelConfigs.find((item) => item.id === 20).display_name = 'Ark Code Latest（Ark Plan）';
+  }
+  aiModelRoutingVersion = 2;
+  return true;
+}
+
 // 首次交付前用于演示注册、权限与有效期的账号不应进入正式学员库。
 // 只按固定的演示账号/手机号清理，绝不影响后续真实学员的自助注册数据。
 function removeLegacySampleUsers() {
@@ -1088,13 +1148,14 @@ const copywritingModelMigrated = ensureCopywritingModelDefaults();
 const pipiModelFallbackMigrated = ensurePipiModelFallback();
 const competitorModelPriorityMigrated = ensureCompetitorModelPriority();
 const verifiedArkPlanDefaultsMigrated = migrateLegacyArkPlanModelConfig();
+const arkPlanModelBackupsMigrated = ensureArkPlanModelBackups();
 const coachToolboxMigrated = ensureCoachToolboxDefaults();
 const salesSimulationV2Migrated = ensureSalesSimulationV2();
 const legacySampleUsersRemoved = removeLegacySampleUsers();
 secureManagedUserPasswords();
 const personalCenterMigrated = managedUsers.some(ensurePersonalCenterData);
 const authSessionsMigrated = managedUsers.some(ensureUserAuthSessions);
-if (!fs.existsSync(STATE_PATH) || personalCenterMigrated || authSessionsMigrated || coachToolboxMigrated || salesSimulationV2Migrated || copyAgentsMigrated || guidedProductPromptsMigrated || accumulationPromptsMigrated || copywritingModelMigrated || pipiModelFallbackMigrated || competitorModelPriorityMigrated || verifiedArkPlanDefaultsMigrated || legacySampleUsersRemoved) savePersistentState();
+if (!fs.existsSync(STATE_PATH) || personalCenterMigrated || authSessionsMigrated || coachToolboxMigrated || salesSimulationV2Migrated || copyAgentsMigrated || guidedProductPromptsMigrated || accumulationPromptsMigrated || copywritingModelMigrated || pipiModelFallbackMigrated || competitorModelPriorityMigrated || verifiedArkPlanDefaultsMigrated || arkPlanModelBackupsMigrated || legacySampleUsersRemoved) savePersistentState();
 
 const roleMeta = {
   admin: { name: '管理员', features: ['pipi', 'topics', 'copy', 'competitor', 'sales', 'coach', 'history', 'admin'] },
@@ -1747,7 +1808,10 @@ function getEnabledModelConfigs(featureCode, input = {}) {
         const provider = providerConfigs.find((candidate) => candidate.code === model.provider_code);
         return ['unhealthy', 'error'].includes(provider?.health_status) ? 1 : 0;
       };
-      return healthRank(a.item) - healthRank(b.item) || a.index - b.index;
+      const cooldownRank = (model) => (modelFailureCooldowns.get(`${model.provider_code}:${model.model_code}`) || 0) > Date.now() ? 1 : 0;
+      return healthRank(a.item) - healthRank(b.item)
+        || cooldownRank(a.item) - cooldownRank(b.item)
+        || a.index - b.index;
     })
     .map(({ item }) => item);
 }
@@ -2549,6 +2613,7 @@ async function callConfiguredModel(feature, input, user) {
         latency_ms: Date.now() - started,
         usage: payload.usage || null
       });
+      modelFailureCooldowns.delete(`${modelConfig.provider_code}:${modelConfig.model_code}`);
       setProviderHealth(modelConfig.provider_code, 'healthy');
       return {
         content,
@@ -2560,6 +2625,7 @@ async function callConfiguredModel(feature, input, user) {
         fallback_chain: errors.map((item) => item.model)
       };
     } catch (error) {
+      modelFailureCooldowns.set(`${modelConfig.provider_code}:${modelConfig.model_code}`, Date.now() + 10 * 60 * 1000);
       setProviderHealth(modelConfig.provider_code, 'unhealthy', error.message);
       logCall({
         feature_code: featureCode,

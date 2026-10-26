@@ -430,8 +430,8 @@ const providerConfigs = [
 const modelConfigs = [
   { id: 1, provider_code: 'siliconflow', display_name: 'Qwen3 8B', model_code: PRIMARY_MODEL, status: 'active', role: 'primary', input_price_cny_per_million: 0, output_price_cny_per_million: 0 },
   ...FALLBACK_MODELS.map((model, index) => ({ id: index + 2, provider_code: 'siliconflow', display_name: model, model_code: model, status: 'active', role: 'fallback', input_price_cny_per_million: 0, output_price_cny_per_million: 0 })),
-  { id: 20, provider_code: 'volcengine_ark_plan', display_name: 'Doubao Seed 2.1（Ark Plan）', model_code: 'ark-code-latest', status: 'active', role: 'primary' },
-  { id: 21, provider_code: 'volcengine_ark_plan', display_name: 'Doubao Seed 2.0 Pro', model_code: 'doubao-seed-2.0-pro', status: 'active', role: 'primary' }
+  { id: 20, provider_code: 'volcengine_ark_plan', display_name: 'Ark Code Latest（Ark Plan）', model_code: 'ark-code-latest', status: 'active', role: 'primary' },
+  { id: 21, provider_code: 'volcengine_ark_plan', display_name: 'Doubao Seed 2.1 Pro（Ark Plan）', model_code: 'doubao-seed-2.1-pro', status: 'active', role: 'fallback' }
 ];
 const copyAgentConfigs = defaultCopyAgentConfigs.map((item) => ({ ...item, starters: [...item.starters], tags: [...item.tags], tag_labels: [...item.tag_labels] }));
 const configurableFeatureCodes = ['topic_generate', 'pipi_assistant_chat', 'copywriting_generate', 'competitor_finder', 'sales_simulation', 'coach_toolbox', 'coach_moments'];
@@ -455,16 +455,16 @@ const promptTemplates = [
   { id: 41, feature_code: 'coach_moments', name: '交付朋友圈 Prompt', version: 'v2', status: 'active', content: loadPromptFile(DELIVERY_MOMENTS_SKILL_PATH, '根据真实交付过程写克制、具体、保护隐私的可直接发布朋友圈。') }
 ];
 const featureConfigs = [
-  // 皮皮分身保留 Ark Plan 作为首选；但绝不能因单一模型临时鉴权或续费状态异常而完全不可用。
-  { feature_code: 'pipi_assistant_chat', feature_name: '皮皮分身', primary_model_id: 21, fallback_model_ids: [], prompt_template_id: 1, status: 'active', provider_codes: ['volcengine_ark_plan'], data_provider_codes: [] },
-  { feature_code: 'topic_generate', feature_name: '选题生成', primary_model_id: 21, fallback_model_ids: [], prompt_template_id: 2, status: 'active', provider_codes: ['volcengine_ark_plan'], data_provider_codes: [] },
-  { feature_code: 'copywriting_generate', feature_name: '文案智能体', primary_model_id: 21, fallback_model_ids: [], prompt_template_id: 3, status: 'active', provider_codes: ['volcengine_ark_plan'], data_provider_codes: [] },
+  // 两个模型均已用当前 Ark Plan 密钥实测可调用；保留备用，避免单个模型变更导致全站 AI 功能不可用。
+  { feature_code: 'pipi_assistant_chat', feature_name: '皮皮分身', primary_model_id: 20, fallback_model_ids: [21], prompt_template_id: 1, status: 'active', provider_codes: ['volcengine_ark_plan'], data_provider_codes: [] },
+  { feature_code: 'topic_generate', feature_name: '选题生成', primary_model_id: 20, fallback_model_ids: [21], prompt_template_id: 2, status: 'active', provider_codes: ['volcengine_ark_plan'], data_provider_codes: [] },
+  { feature_code: 'copywriting_generate', feature_name: '文案智能体', primary_model_id: 20, fallback_model_ids: [21], prompt_template_id: 3, status: 'active', provider_codes: ['volcengine_ark_plan'], data_provider_codes: [] },
   // 找竞品的原始数据由 TikHub 提供；文本分析优先走已验证响应更稳定的 DeepSeek，避免
   // Qwen / GLM 短暂超时后让用户一直等待。其余模型仍保留为故障兜底。
-  { feature_code: 'competitor_finder', feature_name: '找竞品', primary_model_id: 21, fallback_model_ids: [], prompt_template_id: 4, status: 'active', provider_codes: ['volcengine_ark_plan'], data_provider_codes: ['tikhub'] },
-  { feature_code: 'sales_simulation', feature_name: '销售模拟', primary_model_id: 21, fallback_model_ids: [], prompt_template_id: 30, status: 'active', provider_codes: ['volcengine_ark_plan'], data_provider_codes: [] },
-  { feature_code: 'coach_toolbox', feature_name: '教练工具箱', primary_model_id: 21, fallback_model_ids: [], prompt_template_id: 40, status: 'active', provider_codes: ['volcengine_ark_plan'], data_provider_codes: [] },
-  { feature_code: 'coach_moments', feature_name: '交付朋友圈', primary_model_id: 21, fallback_model_ids: [], prompt_template_id: 41, status: 'active', provider_codes: ['volcengine_ark_plan'], data_provider_codes: [] }
+  { feature_code: 'competitor_finder', feature_name: '找竞品', primary_model_id: 20, fallback_model_ids: [21], prompt_template_id: 4, status: 'active', provider_codes: ['volcengine_ark_plan'], data_provider_codes: ['tikhub'] },
+  { feature_code: 'sales_simulation', feature_name: '销售模拟', primary_model_id: 20, fallback_model_ids: [21], prompt_template_id: 30, status: 'active', provider_codes: ['volcengine_ark_plan'], data_provider_codes: [] },
+  { feature_code: 'coach_toolbox', feature_name: '教练工具箱', primary_model_id: 20, fallback_model_ids: [21], prompt_template_id: 40, status: 'active', provider_codes: ['volcengine_ark_plan'], data_provider_codes: [] },
+  { feature_code: 'coach_moments', feature_name: '交付朋友圈', primary_model_id: 20, fallback_model_ids: [21], prompt_template_id: 41, status: 'active', provider_codes: ['volcengine_ark_plan'], data_provider_codes: [] }
 ];
 const pipiAssistantConfig = {
   enabled: true,
@@ -955,17 +955,26 @@ function ensureCompetitorModelPriority() {
   return true;
 }
 
-// 2026-09-08 线上实测：硅基流动当前密钥返回 401，而 Ark Plan 的
-// doubao-seed-2.0-pro 能稳定完成文字生成。旧版持久化配置会保留过时的模型顺序，
-// 导致每次先经历三次认证失败、再等待两个超时请求。这里仅迁移系统内置功能的默认
-// 模型路线；提示词、权限、知识库和管理员配置的内容均不改动。
-function ensureVerifiedArkPlanDefaults() {
-  const arkModel = modelConfigs.find((model) => Number(model.id) === 21
+// Agent Plan 已不再支持旧的 doubao-seed-2.0-pro。旧版本曾在每次启动时把
+// 全站功能强制锁定到该模型，且清空备用模型，导致供应商变更后所有 AI 功能同时失效。
+// 这里只迁移那套确定的旧默认值；管理员随后在后台保存的模型路由不会被服务启动覆盖。
+function migrateLegacyArkPlanModelConfig() {
+  const primaryModel = modelConfigs.find((model) => Number(model.id) === 20
     && model.provider_code === 'volcengine_ark_plan'
     && model.status === 'active');
-  if (!arkModel || !providerKeyFor('volcengine_ark_plan')) return false;
+  const fallbackModel = modelConfigs.find((model) => Number(model.id) === 21
+    && model.provider_code === 'volcengine_ark_plan'
+    && model.status === 'active');
+  if (!primaryModel || !fallbackModel || !providerKeyFor('volcengine_ark_plan')) return false;
 
   let changed = false;
+  if (fallbackModel.model_code === 'doubao-seed-2.0-pro') {
+    fallbackModel.model_code = 'doubao-seed-2.1-pro';
+    fallbackModel.display_name = 'Doubao Seed 2.1 Pro（Ark Plan）';
+    fallbackModel.role = 'fallback';
+    changed = true;
+  }
+
   const arkOnlyFeatures = [
     'pipi_assistant_chat',
     'topic_generate',
@@ -977,26 +986,20 @@ function ensureVerifiedArkPlanDefaults() {
   ];
   arkOnlyFeatures.forEach((featureCode) => {
     const feature = featureConfigs.find((item) => item.feature_code === featureCode);
-    if (!feature) return;
-    if (Number(feature.primary_model_id) !== arkModel.id) {
-      feature.primary_model_id = arkModel.id;
-      changed = true;
-    }
-    if (JSON.stringify(feature.fallback_model_ids || []) !== '[]') {
-      feature.fallback_model_ids = [];
-      changed = true;
-    }
-    if (JSON.stringify(feature.provider_codes || []) !== JSON.stringify(['volcengine_ark_plan'])) {
-      feature.provider_codes = ['volcengine_ark_plan'];
-      changed = true;
-    }
+    const isLegacyRoute = feature
+      && Number(feature.primary_model_id) === 21
+      && JSON.stringify(feature.fallback_model_ids || []) === '[]'
+      && JSON.stringify(feature.provider_codes || []) === JSON.stringify(['volcengine_ark_plan']);
+    if (!isLegacyRoute) return;
+    feature.primary_model_id = primaryModel.id;
+    feature.fallback_model_ids = [fallbackModel.id];
+    changed = true;
   });
   copyAgentConfigs.forEach((agent) => {
-    if (Number(agent.model_id) !== arkModel.id) {
-      agent.model_id = arkModel.id;
-      agent.updated_at = new Date().toISOString();
-      changed = true;
-    }
+    if (Number(agent.model_id) !== 21) return;
+    agent.model_id = primaryModel.id;
+    agent.updated_at = new Date().toISOString();
+    changed = true;
   });
   return changed;
 }
@@ -1084,7 +1087,7 @@ const accumulationPromptsMigrated = ensureAccumulationAgentPrompts();
 const copywritingModelMigrated = ensureCopywritingModelDefaults();
 const pipiModelFallbackMigrated = ensurePipiModelFallback();
 const competitorModelPriorityMigrated = ensureCompetitorModelPriority();
-const verifiedArkPlanDefaultsMigrated = ensureVerifiedArkPlanDefaults();
+const verifiedArkPlanDefaultsMigrated = migrateLegacyArkPlanModelConfig();
 const coachToolboxMigrated = ensureCoachToolboxDefaults();
 const salesSimulationV2Migrated = ensureSalesSimulationV2();
 const legacySampleUsersRemoved = removeLegacySampleUsers();
